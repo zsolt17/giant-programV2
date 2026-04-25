@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Giant Program — Day Planner</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #2E4057;
+    --navy-dark: #1a2535;
+    --navy-mid: #3d5270;
+    --gold: #C9A84C;
+    --gold-light: #e0c070;
+    --white: #ffffff;
+    --off-white: #f0f3f7;
+    --mid: #8A9BB0;
+    --light-border: rgba(201,168,76,0.2);
+    --card-bg: rgba(255,255,255,0.04);
+    --blue: #7eb8f7;
+    --green: #8ddcb0;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--navy-dark);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(201,168,76,0.07) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 40% at 90% 90%, rgba(46,64,87,0.5) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* ── Header ── */
+  header { text-align: center; margin-bottom: 40px; }
+  .eyebrow {
+    font-size: 11px; font-weight: 500; letter-spacing: 0.25em;
+    color: var(--gold); text-transform: uppercase; margin-bottom: 10px;
+  }
+  h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(44px, 10vw, 72px);
+    line-height: 0.9; letter-spacing: 0.03em; color: var(--white); margin-bottom: 6px;
+  }
+  h1 span { color: var(--gold); }
+  .header-sub { font-size: 13px; color: var(--mid); font-weight: 300; letter-spacing: 0.04em; }
+  .gold-line { width: 60px; height: 2px; background: var(--gold); margin: 16px auto; }
+
+  /* ── Input Card ── */
+  .input-card {
+    background: var(--card-bg);
+    border: 1px solid var(--light-border);
+    border-radius: 2px;
+    padding: 28px;
+    margin-bottom: 32px;
+  }
+
+  .input-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .input-row2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .field-group { display: flex; flex-direction: column; gap: 7px; }
+
+  label {
+    font-size: 10px; font-weight: 500; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--gold);
+  }
+
+  select, input[type="number"] {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 2px; color: var(--white);
+    font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500;
+    padding: 11px 14px; width: 100%; outline: none;
+    transition: border-color 0.2s, background 0.2s;
+    -webkit-appearance: none; appearance: none;
+  }
+  select:focus, input[type="number"]:focus {
+    border-color: var(--gold); background: rgba(201,168,76,0.05);
+  }
+  select option { background: var(--navy-dark); color: var(--white); }
+  input[type="number"]::-webkit-inner-spin-button { opacity: 0.3; }
+
+  .unit-toggle { display: flex; border: 1px solid rgba(255,255,255,0.12); border-radius: 2px; overflow: hidden; }
+  .unit-btn {
+    flex: 1; background: transparent; border: none; color: var(--mid);
+    font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500;
+    padding: 11px; cursor: pointer; transition: all 0.2s; letter-spacing: 0.05em;
+  }
+  .unit-btn.active { background: var(--gold); color: var(--navy-dark); }
+
+  /* ── Session block ── */
+  .session-block { margin-bottom: 28px; }
+
+  .block-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .block-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px; letter-spacing: 0.1em; color: var(--gold);
+    white-space: nowrap;
+  }
+
+  .block-line { flex: 1; height: 1px; background: var(--light-border); }
+
+  .block-tag {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.14em;
+    text-transform: uppercase; padding: 3px 9px; border-radius: 2px;
+  }
+  .tag-wu  { background: rgba(138,155,176,0.15); color: var(--mid);  border: 1px solid rgba(138,155,176,0.25); }
+  .tag-gb  { background: rgba(220,80,80,0.12);   color: #e88;        border: 1px solid rgba(220,80,80,0.25); }
+  .tag-vol { background: rgba(126,184,247,0.12); color: var(--blue); border: 1px solid rgba(126,184,247,0.25); }
+  .tag-cd  { background: rgba(141,220,176,0.12); color: var(--green);border: 1px solid rgba(141,220,176,0.25); }
+
+  /* Exercise card */
+  .exercise-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 2px;
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+
+  .exercise-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px;
+    background: rgba(255,255,255,0.03);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+
+  .exercise-name {
+    font-size: 13px; font-weight: 600; letter-spacing: 0.04em;
+    color: var(--off-white);
+  }
+
+  .exercise-role {
+    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--mid); font-weight: 400;
+  }
+
+  /* Rows inside exercise card */
+  .ex-rows { padding: 4px 0; }
+
+  .ex-row {
+    display: grid;
+    grid-template-columns: 80px 1fr auto;
+    align-items: center;
+    padding: 7px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    gap: 8px;
+  }
+  .ex-row:last-child { border-bottom: none; }
+
+  .ex-row-label { font-size: 12px; color: var(--mid); }
+  .ex-row-detail { font-size: 13px; color: var(--off-white); }
+  .ex-row-weight {
+    font-size: 15px; font-weight: 600; color: var(--white);
+    text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+
+  .ex-row-weight.gold  { color: var(--gold); }
+  .ex-row-weight.blue  { color: var(--blue); }
+  .ex-row-weight.muted { color: var(--mid); font-size: 13px; font-weight: 500; }
+  .ex-row-weight.green { color: var(--green); }
+
+  /* No-weight rows (accessories, cardio, cooldown) */
+  .ex-row.no-weight .ex-row-weight { color: var(--mid); font-size: 12px; font-weight: 400; font-style: italic; }
+
+  /* Note */
+  .block-note {
+    font-size: 12px; color: var(--mid); font-style: italic;
+    margin-top: 8px; padding-left: 12px;
+    border-left: 2px solid var(--light-border);
+    line-height: 1.5;
+  }
+
+  /* Difficulty pills */
+  .diff-pill {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.1em;
+    text-transform: uppercase; padding: 2px 9px; border-radius: 2px;
+  }
+  .diff-hard   { background: rgba(220,80,80,0.15);   color: #e88;         border: 1px solid rgba(220,80,80,0.3); }
+  .diff-medium { background: rgba(201,168,76,0.15);  color: var(--gold);  border: 1px solid rgba(201,168,76,0.3); }
+  .diff-light  { background: rgba(100,180,120,0.15); color: var(--green); border: 1px solid rgba(100,180,120,0.3); }
+
+  /* Empty state */
+  #emptyState {
+    text-align: center; padding: 56px 24px; color: var(--mid);
+  }
+  .empty-icon { font-size: 44px; margin-bottom: 16px; opacity: 0.35; }
+  #emptyState p { font-size: 14px; font-weight: 300; letter-spacing: 0.05em; line-height: 1.6; }
+
+  #results { display: none; }
+
+  /* Circuit badge */
+  .circuit-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 10px; font-weight: 500; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--mid);
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 2px; padding: 3px 9px; margin-bottom: 10px;
+  }
+
+  .round-divider {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--mid);
+    padding: 6px 16px; background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+
+  footer {
+    text-align: center; margin-top: 56px;
+    padding-top: 24px; border-top: 1px solid var(--light-border);
+  }
+  footer p {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 14px; letter-spacing: 0.15em; color: var(--mid);
+  }
+
+  @media (max-width: 520px) {
+    .input-grid { grid-template-columns: 1fr 1fr; }
+    .container { padding: 24px 14px 60px; }
+    .input-card { padding: 18px 14px; }
+    .ex-row { grid-template-columns: 64px 1fr auto; padding: 7px 12px; }
+  }
+  @media (max-width: 360px) {
+    .input-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="eyebrow">Session Planner</div>
+    <h1>THE <span>GIANT</span><br>PROGRAM</h1>
+    <div class="gold-line"></div>
+    <p class="header-sub">Select your day, difficulty and top weight — full session generated instantly</p>
+  </header>
+
+  <!-- Inputs -->
+  <div class="input-card">
+    <div class="input-grid">
+      <div class="field-group">
+        <label>Training Day</label>
+        <select id="day">
+          <option value="deadlift">Deadlift Day</option>
+          <option value="ohp">OHP Day</option>
+          <option value="squat">Squat Day</option>
+          <option value="bench">Bench Day</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>Difficulty</label>
+        <select id="difficulty">
+          <option value="hard">Hard</option>
+          <option value="medium">Medium</option>
+          <option value="light">Light</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>Unit</label>
+        <div class="unit-toggle">
+          <button class="unit-btn active" onclick="setUnit('kg')">kg</button>
+          <button class="unit-btn" onclick="setUnit('lb')">lb</button>
+        </div>
+      </div>
+    </div>
+    <div class="input-row2">
+      <div class="field-group">
+        <label>Top Set Weight (Main Lift)</label>
+        <input type="number" id="topWeight" placeholder="e.g. 120" min="1" step="0.5">
+      </div>
+      <div class="field-group">
+        <label>Top Set Weight (Antagonist) <span style="color:var(--mid);font-size:9px;letter-spacing:0">optional</span></label>
+        <input type="number" id="topWeightB" placeholder="e.g. 70" min="1" step="0.5">
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty state -->
+  <div id="emptyState">
+    <div class="empty-icon">🏋️</div>
+    <p>Select your training day and enter<br>your top set weight to generate<br>the full session plan</p>
+  </div>
+
+  <!-- Results -->
+  <div id="results"></div>
+
+  <footer>
+    <p>Train Hard &nbsp;·&nbsp; Train Smart &nbsp;·&nbsp; Stay Capable</p>
+  </footer>
+
+</div>
+
+<script>
+// ── Data ─────────────────────────────────────────────────────────────────────
+const DAYS = {
+  deadlift: {
+    label: 'Deadlift Day',
+    type: 'lower',
+    main: 'Deadlift',
+    antagonist: 'Sørensen Hold',
+    antagonistType: 'hold',  // no weight
+    core: 'Ab Rollout',
+    warmup: [
+      '2 min row / bike / jump rope',
+      'Jefferson curl × 5 slow reps',
+      'Empty bar Romanian DL × 8 — focus on hamstring stretch',
+      'Build-up sets to working weight',
+    ],
+    cooldown: { name: 'Forward Fold', duration: '2 min', note: 'Hold fully, breathe into the stretch.' },
+  },
+  ohp: {
+    label: 'OHP Day',
+    type: 'upper',
+    main: 'Overhead Press',
+    antagonist: 'Pull-ups',
+    antagonistType: 'bw',   // bodyweight
+    core: 'GHD Abs',
+    coreFallback: 'Hollow Body Hold if GHD unavailable',
+    warmup: [
+      '2 min light row or arm circles',
+      'Prone banded shoulder extension × 10',
+      'Empty bar press × 10 — pause at top',
+      'Dead hang × 20–30 sec + 3–5 scapular pulls',
+      'Build-up sets to working weight',
+    ],
+    cooldown: { name: 'Anterior Line Stretch', duration: '2 min per side', note: 'Hold fully, breathe into the stretch.' },
+  },
+  squat: {
+    label: 'Squat Day',
+    type: 'lower',
+    main: 'Back Squat',
+    antagonist: 'Copenhagen Plank',
+    antagonistType: 'hold',
+    core: 'Leg Raises',
+    warmup: [
+      '2 min row / bike',
+      'Reverse nordic × 5 slow reps',
+      'Goblet squat × 8 deep and slow',
+      'Build-up sets to working weight',
+    ],
+    cooldown: { name: 'Couch Stretch', duration: '2 min per side', note: 'Hold fully, breathe into the stretch.' },
+  },
+  bench: {
+    label: 'Bench Day',
+    type: 'upper',
+    main: 'Bench Press',
+    antagonist: 'Barbell Row',
+    antagonistType: 'weighted',
+    core: 'GHD Back Extension',
+    warmup: [
+      '2 min light movement',
+      'Skin the cat × 3–5 controlled reps',
+      'Empty bar bench × 10 — pause at bottom',
+      'Band pull-apart × 15 reps × 2 sets, controlled tempo',
+      'Build-up sets to working weight',
+    ],
+    cooldown: { name: 'Bottom of Dip Hold', duration: '2 min', note: 'Hold fully, breathe into the stretch.' },
+  },
+};
+
+const SCHEMES = {
+  hard:   { sets: [8,6,4,2], pcts: [0.75,0.82,0.90,1.00], volReps: 6 },
+  medium: { sets: [9,7,5,3], pcts: [0.72,0.80,0.88,1.00], volReps: 8 },
+  light:  { sets: [10,8,6,4], pcts: [0.70,0.78,0.86,1.00], volReps: 10 },
+};
+
+const PULLUP_REPS = { hard: 10, medium: 8, light: 6 };
+const WU_PCTS = [0.40, 0.55, 0.70, 0.85];
+const WU_REPS = [8, 5, 3, 2];
+
+let unit = 'kg';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function setUnit(u) {
+  unit = u;
+  document.querySelectorAll('.unit-btn').forEach(b => b.classList.toggle('active', b.textContent === u));
+  calculate();
+}
+
+function roundW(w) {
+  const step = unit === 'kg' ? 2.5 : 5;
+  return Math.round(w / step) * step;
+}
+
+function fmt(w) { return (w % 1 === 0 ? w.toFixed(0) : w.toFixed(1)) + ' ' + unit; }
+
+function diffClass(d) {
+  return { hard: 'diff-hard', medium: 'diff-medium', light: 'diff-light' }[d];
+}
+
+function pill(d) {
+  const label = d.charAt(0).toUpperCase() + d.slice(1);
+  return `<span class="diff-pill ${diffClass(d)}">${label}</span>`;
+}
+
+function sectionHeader(title, tagClass, tagLabel, extra = '') {
+  return `<div class="block-header">
+    <div class="block-title">${title}</div>
+    <span class="block-tag ${tagClass}">${tagLabel}</span>
+    ${extra}
+    <div class="block-line"></div>
+  </div>`;
+}
+
+function exCard(name, role, rows) {
+  const rowsHTML = rows.map(r => {
+    const weightClass = r.weightClass || '';
+    const noWeight = r.noWeight ? 'no-weight' : '';
+    return `<div class="ex-row ${noWeight}">
+      <div class="ex-row-label">${r.label}</div>
+      <div class="ex-row-detail">${r.detail}</div>
+      <div class="ex-row-weight ${weightClass}">${r.weight}</div>
+    </div>`;
+  }).join('');
+  return `<div class="exercise-card">
+    <div class="exercise-header">
+      <div class="exercise-name">${name}</div>
+      <div class="exercise-role">${role}</div>
+    </div>
+    <div class="ex-rows">${rowsHTML}</div>
+  </div>`;
+}
+
+// ── Main calculate ────────────────────────────────────────────────────────────
+function calculate() {
+  const dayKey  = document.getElementById('day').value;
+  const diff    = document.getElementById('difficulty').value;
+  const topRaw  = parseFloat(document.getElementById('topWeight').value);
+  const topBRaw = parseFloat(document.getElementById('topWeightB').value);
+  const day     = DAYS[dayKey];
+  const scheme  = SCHEMES[diff];
+
+  const hasWeight = topRaw > 0;
+  document.getElementById('emptyState').style.display = hasWeight ? 'none' : 'block';
+  document.getElementById('results').style.display    = hasWeight ? 'block' : 'none';
+  if (!hasWeight) return;
+
+  const top  = topRaw;
+  const topB = topBRaw > 0 ? topBRaw : null;
+  const set1 = roundW(top * scheme.pcts[0]);
+  let html   = '';
+
+  // ── A. WARM-UP ────────────────────────────────────────────────────────────
+  html += sectionHeader('A. Warm-Up', 'tag-wu', 'Activation');
+
+  // Activation drills
+  const drillRows = day.warmup.slice(0, -1).map((d, i) => ({
+    label: `Step ${i+1}`,
+    detail: d,
+    weight: '—',
+    noWeight: true,
+  }));
+  html += exCard('Activation Sequence', 'pre-lift prep', drillRows);
+
+  // Build-up sets (based on Set 1 of Giant Block)
+  const wuRows = WU_PCTS.map((pct, i) => ({
+    label: `WU${i+1}`,
+    detail: `${WU_REPS[i]} reps @ ~${Math.round(pct*100)}%`,
+    weight: fmt(roundW(set1 * pct)),
+    weightClass: 'muted',
+  }));
+  html += exCard(day.main, 'build-up sets — % of Giant Block Set 1', wuRows);
+
+  if (day.antagonistType === 'weighted' && topB) {
+    const wuRowsB = WU_PCTS.map((pct, i) => ({
+      label: `WU${i+1}`,
+      detail: `${WU_REPS[i]} reps @ ~${Math.round(pct*100)}%`,
+      weight: fmt(roundW(roundW(topB * scheme.pcts[0]) * pct)),
+      weightClass: 'muted',
+    }));
+    html += exCard(day.antagonist, 'build-up sets — % of antagonist Set 1', wuRowsB);
+  }
+
+  html += `<p class="block-note">Always start with 2 loose reps with the empty bar before WU1.</p>`;
+  html += '<div style="margin-bottom:28px"></div>';
+
+  // ── B. GIANT BLOCK ────────────────────────────────────────────────────────
+  html += sectionHeader('B. Giant Block', 'tag-gb', '4 Rounds · 2 min rest', pill(diff));
+  html += `<div class="circuit-badge">⚡ Circuit: Main Lift → Antagonist → Core → 30 sec Cardio</div>`;
+
+  // Main lift sets
+  const gbRows = scheme.pcts.map((pct, i) => {
+    const isTop = i === scheme.pcts.length - 1;
+    const w = isTop ? top : roundW(top * pct);
+    return {
+      label: isTop ? 'Set 4 — Top' : `Set ${i+1}`,
+      detail: `${scheme.sets[i]} reps @ ${Math.round(pct*100)}%`,
+      weight: fmt(w),
+      weightClass: isTop ? 'gold' : '',
+    };
+  });
+  html += exCard(day.main, 'main lift', gbRows);
+
+  // Antagonist
+  if (day.antagonistType === 'hold') {
+    html += exCard(day.antagonist, 'structural accessory', [{
+      label: 'Each round', detail: 'Max hold — sub-maximal effort', weight: 'Bodyweight', noWeight: true,
+    }]);
+  } else if (day.antagonistType === 'bw') {
+    const pullReps = PULLUP_REPS[diff];
+    html += exCard(day.antagonist, 'antagonist — bodyweight', [{
+      label: 'Each round',
+      detail: `${pullReps} reps (cluster sets allowed)`,
+      weight: 'Bodyweight',
+      noWeight: true,
+    }]);
+  } else if (day.antagonistType === 'weighted') {
+    if (topB) {
+      const antRows = scheme.pcts.map((pct, i) => {
+        const isTop = i === scheme.pcts.length - 1;
+        const w = isTop ? topB : roundW(topB * pct);
+        return {
+          label: isTop ? 'Set 4 — Top' : `Set ${i+1}`,
+          detail: `${scheme.sets[i]} reps @ ${Math.round(pct*100)}%`,
+          weight: fmt(w),
+          weightClass: isTop ? 'gold' : '',
+        };
+      });
+      html += exCard(day.antagonist, 'antagonist lift', antRows);
+    } else {
+      html += exCard(day.antagonist, 'antagonist lift', [{
+        label: 'Each round', detail: `${scheme.sets.join('-')} reps (same scheme as main)`,
+        weight: 'Add top weight →', noWeight: true,
+      }]);
+    }
+  }
+
+  // Core
+  const coreName = day.coreFallback
+    ? `${day.core} <span style="font-size:11px;color:var(--mid);font-weight:400">(${day.coreFallback})</span>`
+    : day.core;
+  html += exCard(coreName, 'core', [{
+    label: 'Each round', detail: '10 reps', weight: 'Bodyweight', noWeight: true,
+  }]);
+
+  // Cardio
+  html += exCard('Cardio', 'conditioning', [{
+    label: 'Each round', detail: '30 sec — high effort', weight: 'Row / Bike / Skip', noWeight: true,
+  }]);
+
+  html += `<p class="block-note">Keep 1–2 reps in the tank every set. If Set 1 feels harder than RPE 6–7, back off the top set.</p>`;
+  html += '<div style="margin-bottom:28px"></div>';
+
+  // ── C. VOLUME BLOCK ───────────────────────────────────────────────────────
+  const volW = roundW(top * 0.80);
+  html += sectionHeader('C. Volume Block', 'tag-vol', 'Density Work', pill(diff));
+
+  const volRows = ['Set 1', 'Set 2'].map(s => ({
+    label: s,
+    detail: `${scheme.volReps} reps`,
+    weight: fmt(volW),
+    weightClass: 'blue',
+  }));
+  html += exCard(day.main, '80% of top set · 60–90 sec rest between sets', volRows);
+
+  // Core between sets
+  html += exCard(day.core, 'core — between volume sets', [{
+    label: 'Between sets', detail: '10 reps', weight: 'Bodyweight', noWeight: true,
+  }]);
+
+  html += `<p class="block-note">Once both sets hit RIR 2+ cleanly, add ${day.type === 'upper' ? '2.5' : '5'}kg next session.</p>`;
+  html += '<div style="margin-bottom:28px"></div>';
+
+  // ── D. COOLDOWN ───────────────────────────────────────────────────────────
+  html += sectionHeader('D. Cooldown', 'tag-cd', 'Passive Recovery');
+
+  html += exCard(day.cooldown.name, 'passive stretch', [{
+    label: 'Duration', detail: day.cooldown.duration, weight: 'No load', noWeight: true,
+  }]);
+
+  html += `<p class="block-note">${day.cooldown.note} No bouncing — breathe into the stretch.</p>`;
+
+  document.getElementById('results').innerHTML = html;
+}
+
+// ── Event listeners ───────────────────────────────────────────────────────────
+['day','difficulty','topWeight','topWeightB'].forEach(id => {
+  document.getElementById(id).addEventListener(id === 'day' || id === 'difficulty' ? 'change' : 'input', calculate);
+});
+</script>
+</body>
+</html>
