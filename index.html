@@ -122,7 +122,7 @@
             <option value="deadlift">Deadlift Day</option>
             <option value="ohp">OHP Day</option>
             <option value="squat">Squat Day</option>
-            <option value="bench">Bench Day</option>
+            <option value="dips">Dips Day</option>
           </select>
         </div>
         <div class="field-group">
@@ -220,10 +220,10 @@ const DAYS = {
       { label:'Rule',     detail:'Pick ONE skill per macrocycle and stay with it. Rotate next cycle.', weight:'—' },
     ]}],
   },
-  bench: {
-    label:'Bench Day', type:'upper',
-    main:'Bench Press', antagonist:'Barbell Row', antagonistType:'weighted', core:'GHD Back Extension',
-    warmupDrills:['2 min light movement','Skin the cat × 3–5 controlled reps','Empty bar bench × 10 — pause at bottom','Band pull-apart × 15 reps × 2 sets, controlled tempo'],
+  dips: {
+    label:'Dips Day', type:'upper',
+    main:'Weighted Ring Dips', antagonist:'Barbell Row', antagonistType:'weighted', core:'GHD Back Extension',
+    warmupDrills:['2 min light movement','Skin the cat × 3–5 controlled reps','BW ring dips × 8–10 slow reps — pause at bottom (groove pattern before load)','Band pull-apart × 15 reps × 2 sets, controlled tempo (primes rows)'],
     cooldown:{ name:'Bottom of Dip Hold', duration:'2 min' },
     carry:{ name:'Overhead Carry', load:'20–24 kg / hand', distance:'20 m / side', sets:'3–4 sets', progress:'M1: lock position · M2: +4–5kg · M3: +4–5kg · Drop weight if shoulder fatigued' },
     skill:[{ title:'Focused Skill — Current Cycle', tag:'15–20 min', rows:[
