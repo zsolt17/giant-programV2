@@ -21,17 +21,40 @@
 
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-<script type="text/babel" data-type="module">
-const { useState, useEffect, useCallback, useRef, Fragment } = React;
+<script>
+// Surface any error visibly instead of a blank navy screen.
+window.addEventListener("error", function (e) {
+  var root = document.getElementById("root");
+  if (root && !root.hasChildNodes()) {
+    root.innerHTML = '<div style="padding:24px;color:#e88888;font-family:monospace;font-size:13px;line-height:1.5">' +
+      '<strong>App error:</strong><br>' + (e.message || e.error) + '<br><br>' +
+      '<span style="color:#8A9BB0">If this mentions Babel or a script, try a hard refresh. If it persists, send this message text.</span></div>';
+  }
+});
+</script>
+
+<script>
+(function boot(){
+  if (typeof React === "undefined" || typeof ReactDOM === "undefined") {
+    return setTimeout(boot, 30);
+  }
+  try {
+
+const {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  Fragment
+} = React;
 
 // ============================================================================
 // CONFIG — paste your Apps Script Web App URL here.
 // ============================================================================
 const CONFIG = {
   endpoint: "https://script.google.com/macros/s/AKfycbzDeSIwVtZujEpip4EGYaNUxNsb-84Ass2rDKiyGxmsqcqL5havxkR-z4-J95cW9k48/exec",
-  token: "", // set if you set SHARED_TOKEN in the Apps Script
+  token: "" // set if you set SHARED_TOKEN in the Apps Script
 };
 
 // ============================================================================
@@ -43,22 +66,36 @@ function jsonp(url) {
     const cb = "gp_cb_" + Math.random().toString(36).slice(2);
     const sep = url.includes("?") ? "&" : "?";
     const script = document.createElement("script");
-    const timer = setTimeout(() => { cleanup(); reject(new Error("timeout")); }, 15000);
-    function cleanup() { clearTimeout(timer); delete window[cb]; script.remove(); }
-    window[cb] = (data) => { cleanup(); resolve(data); };
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("timeout"));
+    }, 15000);
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cb];
+      script.remove();
+    }
+    window[cb] = data => {
+      cleanup();
+      resolve(data);
+    };
     script.src = `${url}${sep}callback=${cb}`;
-    script.onerror = () => { cleanup(); reject(new Error("network")); };
+    script.onerror = () => {
+      cleanup();
+      reject(new Error("network"));
+    };
     document.body.appendChild(script);
   });
 }
-
 const api = {
   async load() {
     const t = CONFIG.token ? `?token=${encodeURIComponent(CONFIG.token)}` : "";
     // NOTE: Apps Script must support JSONP — see the .gs callback handling.
     // We GET via fetch with text and parse; if CORS blocks, fall back to jsonp.
     try {
-      const r = await fetch(CONFIG.endpoint + t, { method: "GET" });
+      const r = await fetch(CONFIG.endpoint + t, {
+        method: "GET"
+      });
       return await r.json();
     } catch (e) {
       return await jsonp(CONFIG.endpoint + t);
@@ -68,91 +105,226 @@ const api = {
     const t = CONFIG.token ? `?token=${encodeURIComponent(CONFIG.token)}` : "";
     const r = await fetch(CONFIG.endpoint + t, {
       method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ type, payload }),
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: JSON.stringify({
+        type,
+        payload
+      })
     });
     return await r.json();
-  },
+  }
 };
 
 // ---- Program constants -----------------------------------------------------
-const ROTATION = [
-  { hard: "deadlift", medium: "ohp",      light: "squat"    },
-  { hard: "dips",     medium: "deadlift", light: "ohp"      },
-  { hard: "squat",    medium: "dips",     light: "deadlift" },
-  { hard: "ohp",      medium: "squat",    light: "dips"     },
-];
+const ROTATION = [{
+  hard: "deadlift",
+  medium: "ohp",
+  light: "squat"
+}, {
+  hard: "dips",
+  medium: "deadlift",
+  light: "ohp"
+}, {
+  hard: "squat",
+  medium: "dips",
+  light: "deadlift"
+}, {
+  hard: "ohp",
+  medium: "squat",
+  light: "dips"
+}];
 const SCHEMES = {
-  hard:   { sets: [8,6,4,2],  pct: [0.75,0.82,0.90,1.0], vol: 6  },
-  medium: { sets: [9,7,5,3],  pct: [0.72,0.80,0.88,1.0], vol: 8  },
-  light:  { sets: [10,8,6,4], pct: [0.70,0.78,0.86,1.0], vol: 10 },
+  hard: {
+    sets: [8, 6, 4, 2],
+    pct: [0.75, 0.82, 0.90, 1.0],
+    vol: 6
+  },
+  medium: {
+    sets: [9, 7, 5, 3],
+    pct: [0.72, 0.80, 0.88, 1.0],
+    vol: 8
+  },
+  light: {
+    sets: [10, 8, 6, 4],
+    pct: [0.70, 0.78, 0.86, 1.0],
+    vol: 10
+  }
 };
-const WU_PCT = [0.40,0.55,0.70,0.85];
-const WU_REPS = [8,5,3,2];
-const PULLUP = { hard: 10, medium: 8, light: 6 };
-const LIFT_LABEL = { deadlift: "Deadlift", ohp: "Overhead Press", squat: "Back Squat", dips: "Weighted Ring Dips" };
+const WU_PCT = [0.40, 0.55, 0.70, 0.85];
+const WU_REPS = [8, 5, 3, 2];
+const PULLUP = {
+  hard: 10,
+  medium: 8,
+  light: 6
+};
+const LIFT_LABEL = {
+  deadlift: "Deadlift",
+  ohp: "Overhead Press",
+  squat: "Back Squat",
+  dips: "Weighted Ring Dips"
+};
 const DAY_META = {
-  deadlift: { antag: "Sørensen Hold", antagType: "hold", core: "Ab Rollout",
-    carry: { name: "Farmer's Carry", load: "60 kg / hand", dist: "20–30 m", sets: "3–4" } },
-  ohp: { antag: "Pull-ups", antagType: "pullup", core: "GHD Abs",
-    carry: { name: "Suitcase Carry", load: "50 kg / hand", dist: "20 m / side", sets: "3–4" } },
-  squat: { antag: "Copenhagen Plank", antagType: "hold20", core: "Leg Raises",
-    carry: { name: "Sandbag Bear Hug", load: "68–80 kg", dist: "20–30 m", sets: "3–4" } },
-  dips: { antag: "Ring Rows", antagType: "ringrow", core: "GHD Back Extension",
-    carry: { name: "Overhead Carry", load: "2 × 25 kg", dist: "20 m / side", sets: "3–4" } },
+  deadlift: {
+    antag: "Sørensen Hold",
+    antagType: "hold",
+    core: "Ab Rollout",
+    carry: {
+      name: "Farmer's Carry",
+      load: "60 kg / hand",
+      dist: "20–30 m",
+      sets: "3–4"
+    }
+  },
+  ohp: {
+    antag: "Pull-ups",
+    antagType: "pullup",
+    core: "GHD Abs",
+    carry: {
+      name: "Suitcase Carry",
+      load: "50 kg / hand",
+      dist: "20 m / side",
+      sets: "3–4"
+    }
+  },
+  squat: {
+    antag: "Copenhagen Plank",
+    antagType: "hold20",
+    core: "Leg Raises",
+    carry: {
+      name: "Sandbag Bear Hug",
+      load: "68–80 kg",
+      dist: "20–30 m",
+      sets: "3–4"
+    }
+  },
+  dips: {
+    antag: "Ring Rows",
+    antagType: "ringrow",
+    core: "GHD Back Extension",
+    carry: {
+      name: "Overhead Carry",
+      load: "2 × 25 kg",
+      dist: "20 m / side",
+      sets: "3–4"
+    }
+  }
 };
 const DEFAULT_WEIGHTS = {
-  deadlift: { hard: 170, medium: 160, light: 155 },
-  ohp:      { hard: 65,  medium: 65,  light: 60  },
-  squat:    { hard: 140, medium: 135, light: 130 },
-  dips:     { hard: 10,  medium: 7.5, light: 5   },
+  deadlift: {
+    hard: 170,
+    medium: 160,
+    light: 155
+  },
+  ohp: {
+    hard: 65,
+    medium: 65,
+    light: 60
+  },
+  squat: {
+    hard: 140,
+    medium: 135,
+    light: 130
+  },
+  dips: {
+    hard: 10,
+    medium: 7.5,
+    light: 5
+  }
 };
-const SIGNALS = [
-  { id: "S1", label: "Light day top set ≥ R9" },
-  { id: "S2", label: "Volume block incomplete" },
-  { id: "S3", label: "Carry skipped (fatigue)" },
-  { id: "S4", label: "Set 1 heavier than R7" },
-  { id: "S5", label: "Bar speed ↓ two sessions running" },
-];
-const round = (w) => Math.round(w / 2.5) * 2.5;
-const fmt = (w) => (w % 1 === 0 ? w.toFixed(0) : w.toFixed(1)) + " kg";
+const SIGNALS = [{
+  id: "S1",
+  label: "Light day top set ≥ R9"
+}, {
+  id: "S2",
+  label: "Volume block incomplete"
+}, {
+  id: "S3",
+  label: "Carry skipped (fatigue)"
+}, {
+  id: "S4",
+  label: "Set 1 heavier than R7"
+}, {
+  id: "S5",
+  label: "Bar speed ↓ two sessions running"
+}];
+const round = w => Math.round(w / 2.5) * 2.5;
+const fmt = w => (w % 1 === 0 ? w.toFixed(0) : w.toFixed(1)) + " kg";
 const C = {
-  navy: "#2E4057", dark: "#1a2535", gold: "#C9A84C", white: "#fff",
-  off: "#f0f3f7", muted: "#8A9BB0", blue: "#7eb8f7", green: "#8ddcb0", red: "#e88888",
-  card: "rgba(255,255,255,0.04)", border: "rgba(201,168,76,0.18)",
+  navy: "#2E4057",
+  dark: "#1a2535",
+  gold: "#C9A84C",
+  white: "#fff",
+  off: "#f0f3f7",
+  muted: "#8A9BB0",
+  blue: "#7eb8f7",
+  green: "#8ddcb0",
+  red: "#e88888",
+  card: "rgba(255,255,255,0.04)",
+  border: "rgba(201,168,76,0.18)"
 };
 
 // ---- data shape helpers (Sheet rows <-> app objects) -----------------------
 // working_weights stored as rows: {lift, hard, medium, light}
 function weightsToRows(w) {
-  return Object.keys(w).map((lift) => ({ lift, hard: w[lift].hard, medium: w[lift].medium, light: w[lift].light }));
+  return Object.keys(w).map(lift => ({
+    lift,
+    hard: w[lift].hard,
+    medium: w[lift].medium,
+    light: w[lift].light
+  }));
 }
 function rowsToWeights(rows) {
   if (!rows || !rows.length) return null;
   const w = {};
-  rows.forEach((r) => { w[r.lift] = { hard: +r.hard, medium: +r.medium, light: +r.light }; });
+  rows.forEach(r => {
+    w[r.lift] = {
+      hard: +r.hard,
+      medium: +r.medium,
+      light: +r.light
+    };
+  });
   // ensure all four lifts exist
-  Object.keys(DEFAULT_WEIGHTS).forEach((k) => { if (!w[k]) w[k] = DEFAULT_WEIGHTS[k]; });
+  Object.keys(DEFAULT_WEIGHTS).forEach(k => {
+    if (!w[k]) w[k] = DEFAULT_WEIGHTS[k];
+  });
   return w;
 }
 // deload stored as rows: {week_key}
-function deloadToRows(obj) { return Object.keys(obj).filter((k)=>obj[k]).map((k)=>({ week_key: k })); }
-function rowsToDeload(rows) { const o = {}; (rows||[]).forEach((r)=>{ if (r.week_key) o[r.week_key] = true; }); return o; }
+function deloadToRows(obj) {
+  return Object.keys(obj).filter(k => obj[k]).map(k => ({
+    week_key: k
+  }));
+}
+function rowsToDeload(rows) {
+  const o = {};
+  (rows || []).forEach(r => {
+    if (r.week_key) o[r.week_key] = true;
+  });
+  return o;
+}
 // sessions: stored flat; booleans/numbers come back as strings sometimes — coerce
 function coerceSession(s) {
   return {
     ...s,
-    macro: +s.macro, meso: +s.meso, week: +s.week,
-    topReps: +s.topReps, topWeight: +s.topWeight, cleanLoad: +s.cleanLoad || 0,
+    macro: +s.macro,
+    meso: +s.meso,
+    week: +s.week,
+    topReps: +s.topReps,
+    topWeight: +s.topWeight,
+    cleanLoad: +s.cleanLoad || 0,
     volDone: s.volDone === true || s.volDone === "true" || s.volDone === "TRUE",
-    carrySkipped: s.carrySkipped === true || s.carrySkipped === "true" || s.carrySkipped === "TRUE",
+    carrySkipped: s.carrySkipped === true || s.carrySkipped === "true" || s.carrySkipped === "TRUE"
   };
 }
 function sessionToRow(s) {
   // flatten to a row with a session_id key for the sheet
-  return { session_id: s.id, ...s };
+  return {
+    session_id: s.id,
+    ...s
+  };
 }
-
 const round2 = round;
 
 // ============================================================================
@@ -160,24 +332,30 @@ const round2 = round;
 // ============================================================================
 function App() {
   const [tab, setTab] = useState("today");
-  const [pos, setPos] = useState({ macro: 2, meso: 3, week: 1, weekday: "hard" });
+  const [pos, setPos] = useState({
+    macro: 2,
+    meso: 3,
+    week: 1,
+    weekday: "hard"
+  });
   const [weights, setWeights] = useState(DEFAULT_WEIGHTS);
   const [sessions, setSessions] = useState([]);
   const [deloadWeeks, setDeloadWeeks] = useState({});
   const [status, setStatus] = useState("loading"); // loading | ready | error
   const [errMsg, setErrMsg] = useState("");
-
   const reload = useCallback(async () => {
     setStatus("loading");
     try {
       const data = await api.load();
       if (!data || !data.ok) throw new Error(data && data.error ? data.error : "load failed");
       const w = rowsToWeights(data.working_weights) || DEFAULT_WEIGHTS;
-      const ss = (data.sessions || []).map(coerceSession).sort((a,b)=>a.date<b.date?1:-1);
+      const ss = (data.sessions || []).map(coerceSession).sort((a, b) => a.date < b.date ? 1 : -1);
       const dw = rowsToDeload(data.deload);
       // position is derived/stored locally for convenience (not critical to sync)
       const localPos = JSON.parse(localStorage.getItem("giant_pos") || "null");
-      setWeights(w); setSessions(ss); setDeloadWeeks(dw);
+      setWeights(w);
+      setSessions(ss);
+      setDeloadWeeks(dw);
       if (localPos) setPos(localPos);
       setStatus("ready");
     } catch (e) {
@@ -185,120 +363,314 @@ function App() {
       setStatus("error");
     }
   }, []);
-
-  useEffect(() => { reload(); }, [reload]);
-
-  const savePosition = useCallback((p) => { setPos(p); localStorage.setItem("giant_pos", JSON.stringify(p)); }, []);
-
-  const saveWeights = useCallback(async (w) => {
+  useEffect(() => {
+    reload();
+  }, [reload]);
+  const savePosition = useCallback(p => {
+    setPos(p);
+    localStorage.setItem("giant_pos", JSON.stringify(p));
+  }, []);
+  const saveWeights = useCallback(async w => {
     setWeights(w);
     await api.post("saveWeights", weightsToRows(w));
   }, []);
-
-  const saveSession = useCallback(async (s) => {
-    setSessions((prev) => {
-      const next = prev.filter((x) => x.id !== s.id).concat(s);
-      next.sort((a, b) => (a.date < b.date ? 1 : -1));
+  const saveSession = useCallback(async s => {
+    setSessions(prev => {
+      const next = prev.filter(x => x.id !== s.id).concat(s);
+      next.sort((a, b) => a.date < b.date ? 1 : -1);
       return next;
     });
     await api.post("saveSession", sessionToRow(s));
   }, []);
-
-  const deleteSession = useCallback(async (id) => {
-    setSessions((prev) => prev.filter((x) => x.id !== id));
-    await api.post("deleteSession", { session_id: id });
+  const deleteSession = useCallback(async id => {
+    setSessions(prev => prev.filter(x => x.id !== id));
+    await api.post("deleteSession", {
+      session_id: id
+    });
   }, []);
-
   const applyDeload = useCallback(async (weekKey, on) => {
-    setDeloadWeeks((prev) => {
-      const next = { ...prev };
-      if (on) next[weekKey] = true; else delete next[weekKey];
+    setDeloadWeeks(prev => {
+      const next = {
+        ...prev
+      };
+      if (on) next[weekKey] = true;else delete next[weekKey];
       api.post("saveDeload", deloadToRows(next));
       return next;
     });
   }, []);
-
-  if (status === "loading") return <Shell><Center>Loading from your sheet… <span className="spin" /></Center></Shell>;
-  if (status === "error") return (
-    <Shell>
-      <div style={{ ...cardStyle, border: `1px solid ${C.red}` }}>
-        <div style={{ color: C.red, fontWeight: 600, marginBottom: 8 }}>Couldn't reach your sheet</div>
-        <div style={{ fontSize: 13, color: C.off, marginBottom: 10 }}>{errMsg}</div>
-        <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>Check the endpoint URL in CONFIG and that the Apps Script is deployed with access "Anyone".</div>
-        <button onClick={reload} style={btnPrimary}>Retry</button>
-      </div>
-    </Shell>
-  );
-
-  return (
-    <Shell onSync={reload}>
-      <Tabs tab={tab} setTab={setTab} />
-      {tab === "today"   && <Today pos={pos} weights={weights} sessions={sessions} onSave={saveSession} onPos={savePosition} deloadWeeks={deloadWeeks} onApplyDeload={applyDeload} />}
-      {tab === "history" && <History sessions={sessions} onDelete={deleteSession} />}
-      {tab === "deload"  && <Deload sessions={sessions} deloadWeeks={deloadWeeks} />}
-      {tab === "weights" && <Weights weights={weights} onSave={saveWeights} pos={pos} onPos={savePosition} />}
-    </Shell>
-  );
+  if (status === "loading") return /*#__PURE__*/React.createElement(Shell, null, /*#__PURE__*/React.createElement(Center, null, "Loading from your sheet… ", /*#__PURE__*/React.createElement("span", {
+    className: "spin"
+  })));
+  if (status === "error") return /*#__PURE__*/React.createElement(Shell, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...cardStyle,
+      border: `1px solid ${C.red}`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.red,
+      fontWeight: 600,
+      marginBottom: 8
+    }
+  }, "Couldn't reach your sheet"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: C.off,
+      marginBottom: 10
+    }
+  }, errMsg), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted,
+      marginBottom: 12
+    }
+  }, "Check the endpoint URL in CONFIG and that the Apps Script is deployed with access \"Anyone\"."), /*#__PURE__*/React.createElement("button", {
+    onClick: reload,
+    style: btnPrimary
+  }, "Retry")));
+  return /*#__PURE__*/React.createElement(Shell, {
+    onSync: reload
+  }, /*#__PURE__*/React.createElement(Tabs, {
+    tab: tab,
+    setTab: setTab
+  }), tab === "today" && /*#__PURE__*/React.createElement(Today, {
+    pos: pos,
+    weights: weights,
+    sessions: sessions,
+    onSave: saveSession,
+    onPos: savePosition,
+    deloadWeeks: deloadWeeks,
+    onApplyDeload: applyDeload
+  }), tab === "history" && /*#__PURE__*/React.createElement(History, {
+    sessions: sessions,
+    onDelete: deleteSession
+  }), tab === "deload" && /*#__PURE__*/React.createElement(Deload, {
+    sessions: sessions,
+    deloadWeeks: deloadWeeks
+  }), tab === "weights" && /*#__PURE__*/React.createElement(Weights, {
+    weights: weights,
+    onSave: saveWeights,
+    pos: pos,
+    onPos: savePosition
+  }));
 }
-
-const cardStyle = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 2, padding: 16, marginBottom: 14 };
-const btnPrimary = { background: C.gold, color: C.dark, border: "none", borderRadius: 2, padding: "12px 16px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", fontSize: 13, cursor: "pointer" };
-const inp = { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 2, color: C.white, fontSize: 14, padding: "8px 10px", width: "100%", outline: "none", boxSizing: "border-box" };
-const lbl = { fontSize: 10, fontWeight: 500, letterSpacing: "0.16em", textTransform: "uppercase", color: C.gold, display: "block", marginBottom: 6 };
-
-function Center({ children }) { return <div style={{ padding: 40, textAlign: "center", color: C.muted }}>{children}</div>; }
-
-function Shell({ children, onSync }) {
-  return (
-    <div style={{ minHeight: "100vh", background: C.dark, color: C.white }}>
-      <div style={{ maxWidth: 760, margin: "0 auto", padding: "28px 18px 80px" }}>
-        <header style={{ textAlign: "center", marginBottom: 22, position: "relative" }}>
-          <div style={{ fontSize: 10, letterSpacing: "0.28em", color: C.gold, textTransform: "uppercase", marginBottom: 6 }}>Training Log</div>
-          <h1 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 46, lineHeight: 0.9, letterSpacing: "0.03em", margin: 0 }}>
-            THE <span style={{ color: C.gold }}>GIANT</span> PROGRAM
-          </h1>
-          <div style={{ width: 50, height: 2, background: C.gold, margin: "12px auto" }} />
-          {onSync && <button onClick={onSync} title="Sync" style={{ position: "absolute", top: 0, right: 0, background: "transparent", border: `1px solid ${C.muted}`, color: C.muted, borderRadius: 2, fontSize: 11, padding: "4px 8px", cursor: "pointer" }}>↻ Sync</button>}
-        </header>
-        {children}
-      </div>
-    </div>
-  );
+const cardStyle = {
+  background: C.card,
+  border: `1px solid ${C.border}`,
+  borderRadius: 2,
+  padding: 16,
+  marginBottom: 14
+};
+const btnPrimary = {
+  background: C.gold,
+  color: C.dark,
+  border: "none",
+  borderRadius: 2,
+  padding: "12px 16px",
+  fontWeight: 600,
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+  fontSize: 13,
+  cursor: "pointer"
+};
+const inp = {
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.14)",
+  borderRadius: 2,
+  color: C.white,
+  fontSize: 14,
+  padding: "8px 10px",
+  width: "100%",
+  outline: "none",
+  boxSizing: "border-box"
+};
+const lbl = {
+  fontSize: 10,
+  fontWeight: 500,
+  letterSpacing: "0.16em",
+  textTransform: "uppercase",
+  color: C.gold,
+  display: "block",
+  marginBottom: 6
+};
+function Center({
+  children
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: 40,
+      textAlign: "center",
+      color: C.muted
+    }
+  }, children);
 }
-
-function Tabs({ tab, setTab }) {
-  const items = [["today","Today"],["history","History"],["deload","Deload"],["weights","Setup"]];
-  return (
-    <div style={{ display: "flex", border: `1px solid ${C.border}`, borderRadius: 2, overflow: "hidden", marginBottom: 24 }}>
-      {items.map(([k, label]) => (
-        <button key={k} onClick={() => setTab(k)} style={{
-          flex: 1, background: tab === k ? C.gold : "transparent", border: "none",
-          color: tab === k ? C.dark : C.muted, fontSize: 12, fontWeight: 600,
-          padding: "12px 4px", cursor: "pointer", letterSpacing: "0.08em", textTransform: "uppercase",
-        }}>{label}</button>
-      ))}
-    </div>
-  );
+function Shell({
+  children,
+  onSync
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      minHeight: "100vh",
+      background: C.dark,
+      color: C.white
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      maxWidth: 760,
+      margin: "0 auto",
+      padding: "28px 18px 80px"
+    }
+  }, /*#__PURE__*/React.createElement("header", {
+    style: {
+      textAlign: "center",
+      marginBottom: 22,
+      position: "relative"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      letterSpacing: "0.28em",
+      color: C.gold,
+      textTransform: "uppercase",
+      marginBottom: 6
+    }
+  }, "Training Log"), /*#__PURE__*/React.createElement("h1", {
+    style: {
+      fontFamily: "'Bebas Neue',sans-serif",
+      fontSize: 46,
+      lineHeight: 0.9,
+      letterSpacing: "0.03em",
+      margin: 0
+    }
+  }, "THE ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.gold
+    }
+  }, "GIANT"), " PROGRAM"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 50,
+      height: 2,
+      background: C.gold,
+      margin: "12px auto"
+    }
+  }), onSync && /*#__PURE__*/React.createElement("button", {
+    onClick: onSync,
+    title: "Sync",
+    style: {
+      position: "absolute",
+      top: 0,
+      right: 0,
+      background: "transparent",
+      border: `1px solid ${C.muted}`,
+      color: C.muted,
+      borderRadius: 2,
+      fontSize: 11,
+      padding: "4px 8px",
+      cursor: "pointer"
+    }
+  }, "↻ Sync")), children));
 }
-
-const blockTitle = (t, tag) => (
-  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${C.border}` }}>
-    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: "0.08em", color: C.gold }}>{t}</div>
-    {tag && <span style={{ marginLeft: "auto", fontSize: 10, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>{tag}</span>}
-  </div>
-);
-const Row = ({ a, b, c, cls }) => (
-  <div style={{ display: "grid", gridTemplateColumns: "80px 1fr auto", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-    <span style={{ fontSize: 12, color: C.muted }}>{a}</span>
-    <span style={{ fontSize: 13, color: C.off }}>{b}</span>
-    <span style={{ fontSize: 14, fontWeight: 600, textAlign: "right", color: cls || C.off, fontVariantNumeric: "tabular-nums" }}>{c}</span>
-  </div>
-);
-
-function todayISO() { return new Date().toISOString().slice(0, 10); }
-function rpeNum(r) { if (!r) return 0; return parseFloat(String(r).replace("R","")) || 0; }
-function speedArrow(s) { return s === "up" ? "↑" : s === "down" ? "↓" : "→"; }
-function pillColor(d) { return d === "hard" ? C.red : d === "medium" ? C.gold : C.green; }
+function Tabs({
+  tab,
+  setTab
+}) {
+  const items = [["today", "Today"], ["history", "History"], ["deload", "Deload"], ["weights", "Setup"]];
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      border: `1px solid ${C.border}`,
+      borderRadius: 2,
+      overflow: "hidden",
+      marginBottom: 24
+    }
+  }, items.map(([k, label]) => /*#__PURE__*/React.createElement("button", {
+    key: k,
+    onClick: () => setTab(k),
+    style: {
+      flex: 1,
+      background: tab === k ? C.gold : "transparent",
+      border: "none",
+      color: tab === k ? C.dark : C.muted,
+      fontSize: 12,
+      fontWeight: 600,
+      padding: "12px 4px",
+      cursor: "pointer",
+      letterSpacing: "0.08em",
+      textTransform: "uppercase"
+    }
+  }, label)));
+}
+const blockTitle = (t, tag) => /*#__PURE__*/React.createElement("div", {
+  style: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 10,
+    paddingBottom: 8,
+    borderBottom: `1px solid ${C.border}`
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontFamily: "'Bebas Neue',sans-serif",
+    fontSize: 20,
+    letterSpacing: "0.08em",
+    color: C.gold
+  }
+}, t), tag && /*#__PURE__*/React.createElement("span", {
+  style: {
+    marginLeft: "auto",
+    fontSize: 10,
+    color: C.muted,
+    letterSpacing: "0.1em",
+    textTransform: "uppercase"
+  }
+}, tag));
+const Row = ({
+  a,
+  b,
+  c,
+  cls
+}) => /*#__PURE__*/React.createElement("div", {
+  style: {
+    display: "grid",
+    gridTemplateColumns: "80px 1fr auto",
+    gap: 8,
+    alignItems: "center",
+    padding: "6px 0",
+    borderBottom: "1px solid rgba(255,255,255,0.04)"
+  }
+}, /*#__PURE__*/React.createElement("span", {
+  style: {
+    fontSize: 12,
+    color: C.muted
+  }
+}, a), /*#__PURE__*/React.createElement("span", {
+  style: {
+    fontSize: 13,
+    color: C.off
+  }
+}, b), /*#__PURE__*/React.createElement("span", {
+  style: {
+    fontSize: 14,
+    fontWeight: 600,
+    textAlign: "right",
+    color: cls || C.off,
+    fontVariantNumeric: "tabular-nums"
+  }
+}, c));
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+function rpeNum(r) {
+  if (!r) return 0;
+  return parseFloat(String(r).replace("R", "")) || 0;
+}
+function speedArrow(s) {
+  return s === "up" ? "↑" : s === "down" ? "↓" : "→";
+}
+function pillColor(d) {
+  return d === "hard" ? C.red : d === "medium" ? C.gold : C.green;
+}
 function antagDesc(type, diff) {
   if (type === "hold") return "max hold, sub-maximal";
   if (type === "hold20") return "20 sec";
@@ -306,7 +678,6 @@ function antagDesc(type, diff) {
   if (type === "ringrow") return "sub-maximal, scale by angle";
   return "";
 }
-
 function computeWeekSignals(weekSessions) {
   const found = new Set();
   for (const s of weekSessions) {
@@ -315,368 +686,934 @@ function computeWeekSignals(weekSessions) {
     if (s.carrySkipped && s.carrySkipReason === "fatigue") found.add("S3");
   }
   const byLift = {};
-  weekSessions.slice().sort((a,b)=>a.date<b.date?-1:1).forEach((s)=>{
+  weekSessions.slice().sort((a, b) => a.date < b.date ? -1 : 1).forEach(s => {
     byLift[s.dayType] = byLift[s.dayType] || [];
     byLift[s.dayType].push(s.barSpeed);
   });
-  Object.values(byLift).forEach((arr)=>{
-    for (let i=1;i<arr.length;i++) if (arr[i]==="down" && arr[i-1]==="down") found.add("S5");
+  Object.values(byLift).forEach(arr => {
+    for (let i = 1; i < arr.length; i++) if (arr[i] === "down" && arr[i - 1] === "down") found.add("S5");
   });
   return found;
 }
 
 // ---- TODAY -----------------------------------------------------------------
-function Today({ pos, weights, sessions, onSave, onPos, deloadWeeks, onApplyDeload }) {
+function Today({
+  pos,
+  weights,
+  sessions,
+  onSave,
+  onPos,
+  deloadWeeks,
+  onApplyDeload
+}) {
   const dayType = ROTATION[pos.week - 1][pos.weekday];
   const difficulty = pos.weekday;
   const meta = DAY_META[dayType];
   const scheme = SCHEMES[difficulty];
   const baseTop = weights[dayType][difficulty];
   const sessionId = `${todayISO()}-${dayType}-${difficulty[0].toUpperCase()}`;
-  const existing = sessions.find((s) => s.id === sessionId);
-
+  const existing = sessions.find(s => s.id === sessionId);
   const weekKey = `M${pos.macro}C${pos.meso}W${pos.week}`;
   const isDeload = !!deloadWeeks[weekKey];
-  const prevWeekSessions = pos.week > 1 ? sessions.filter((s) => s.macro === pos.macro && s.meso === pos.meso && s.week === pos.week - 1) : [];
+  const prevWeekSessions = pos.week > 1 ? sessions.filter(s => s.macro === pos.macro && s.meso === pos.meso && s.week === pos.week - 1) : [];
   const prevFired = pos.week > 1 && computeWeekSignals(prevWeekSessions).size >= 3;
-  const deloadUsedThisMeso = Object.keys(deloadWeeks).some((k) => k.startsWith(`M${pos.macro}C${pos.meso}W`));
+  const deloadUsedThisMeso = Object.keys(deloadWeeks).some(k => k.startsWith(`M${pos.macro}C${pos.meso}W`));
   const recommendDeload = prevFired && !isDeload && !deloadUsedThisMeso;
   const top = isDeload ? round(baseTop * 0.70) : baseTop;
-
   function blankLog() {
-    return { id: sessionId, date: todayISO(), macro: pos.macro, meso: pos.meso, week: pos.week,
-      dayType, difficulty, topReps: scheme.sets[3], topWeight: top, rpe: "", barSpeed: "",
-      volDone: true, volRpe: "", volSpeed: "", cleanSpeed: "", cleanLoad: 70,
-      carrySkipped: false, carrySkipReason: "", carryRpe: "", notes: "" };
+    return {
+      id: sessionId,
+      date: todayISO(),
+      macro: pos.macro,
+      meso: pos.meso,
+      week: pos.week,
+      dayType,
+      difficulty,
+      topReps: scheme.sets[3],
+      topWeight: top,
+      rpe: "",
+      barSpeed: "",
+      volDone: true,
+      volRpe: "",
+      volSpeed: "",
+      cleanSpeed: "",
+      cleanLoad: 70,
+      carrySkipped: false,
+      carrySkipReason: "",
+      carryRpe: "",
+      notes: ""
+    };
   }
   const [log, setLog] = useState(() => existing || blankLog());
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => { setLog(existing || blankLog()); setSaved(false); /* eslint-disable-next-line */ }, [sessionId, isDeload]);
-
-  const set = (k, v) => setLog((p) => ({ ...p, [k]: v }));
+  useEffect(() => {
+    setLog(existing || blankLog());
+    setSaved(false); /* eslint-disable-next-line */
+  }, [sessionId, isDeload]);
+  const set = (k, v) => setLog(p => ({
+    ...p,
+    [k]: v
+  }));
   async function handleSave() {
-    const record = { ...log, id: sessionId, date: log.date || todayISO(),
-      macro: pos.macro, meso: pos.meso, week: pos.week,
-      dayType, difficulty, topReps: scheme.sets[3], topWeight: top };
+    const record = {
+      ...log,
+      id: sessionId,
+      date: log.date || todayISO(),
+      macro: pos.macro,
+      meso: pos.meso,
+      week: pos.week,
+      dayType,
+      difficulty,
+      topReps: scheme.sets[3],
+      topWeight: top
+    };
     setSaving(true);
     await onSave(record);
-    setLog(record); setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 1800);
+    setLog(record);
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1800);
   }
   const set1 = round(top * scheme.pct[0]);
-
-  return (
-    <div>
-      {recommendDeload && (
-        <div style={{ ...cardStyle, border: `1px solid ${C.red}`, background: "rgba(232,136,136,0.10)" }}>
-          <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", color: C.red, textTransform: "uppercase", marginBottom: 6 }}>Reactive deload recommended</div>
-          <div style={{ fontSize: 13, color: C.off, lineHeight: 1.5, marginBottom: 10 }}>Last week (W{pos.week - 1}) logged 3+ fatigue signals. The rule recommends a deload: Giant Block only at ~70%, no volume, light/skipped carries. Skill days stay normal.</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => onApplyDeload(weekKey, true)} style={{ background: C.red, color: C.dark, border: "none", borderRadius: 2, fontSize: 12, fontWeight: 600, padding: "8px 14px", cursor: "pointer", letterSpacing: "0.05em", textTransform: "uppercase" }}>Apply deload</button>
-            <button onClick={() => onApplyDeload(weekKey, false)} style={{ background: "transparent", color: C.muted, border: `1px solid ${C.muted}`, borderRadius: 2, fontSize: 12, padding: "8px 14px", cursor: "pointer" }}>Dismiss</button>
-          </div>
-          <div style={{ fontSize: 11, color: C.muted, marginTop: 8, fontStyle: "italic" }}>Dismiss if it was a one-off or a break is already coming.</div>
-        </div>
-      )}
-      {isDeload && (
-        <div style={{ ...cardStyle, border: `1px solid ${C.gold}`, background: "rgba(201,168,76,0.10)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", color: C.gold, textTransform: "uppercase" }}>Deload week active</div>
-            <div style={{ fontSize: 12, color: C.off, marginTop: 4 }}>Giant Block only · loads ~70% · volume &amp; carry off</div>
-          </div>
-          <button onClick={() => onApplyDeload(weekKey, false)} style={{ background: "transparent", color: C.muted, border: `1px solid ${C.muted}`, borderRadius: 2, fontSize: 11, padding: "5px 10px", cursor: "pointer" }}>Undo</button>
-        </div>
-      )}
-
-      <div style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ fontSize: 11, color: C.muted, letterSpacing: "0.1em" }}>M{pos.macro} · C{pos.meso} · W{pos.week}</div>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: "0.05em" }}>
-            {LIFT_LABEL[dayType]} <span style={{ color: pillColor(difficulty) }}>· {difficulty.toUpperCase()}</span>
-          </div>
-        </div>
-        <DayPicker pos={pos} onPos={onPos} />
-      </div>
-
-      <div style={cardStyle}>
-        {blockTitle("A. Warm-Up", "GOWOD + build-up")}
-        <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic", marginBottom: 8 }}>GOWOD Activate flow (3/6/10 min) — then barbell build-up:</div>
-        {WU_PCT.map((p, i) => <Row key={i} a={`WU${i+1}`} b={`${WU_REPS[i]} reps @ ~${Math.round(p*100)}%`} c={fmt(round(set1*p))} cls={C.muted} />)}
-        {dayType === "dips" && <div style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>+ a few build-up power cleans</div>}
-      </div>
-
-      {dayType === "dips" && !isDeload && (
-        <div style={cardStyle}>
-          {blockTitle("B. Clean Block", "5×3 · bar speed")}
-          <Row a="Power clean" b="5 × 3, touch-and-go, RPE 7 ceiling" c={fmt(log.cleanLoad)} cls={C.gold} />
-          <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-            <div style={{ flex: 1 }}><label style={lbl}>Load</label><input style={inp} type="number" step="2.5" value={log.cleanLoad} onChange={(e) => set("cleanLoad", parseFloat(e.target.value) || 0)} /></div>
-            <div style={{ flex: 1 }}><label style={lbl}>Bar speed</label><SpeedPick value={log.cleanSpeed} onChange={(v) => set("cleanSpeed", v)} /></div>
-          </div>
-        </div>
-      )}
-
-      <div style={cardStyle}>
-        {blockTitle(dayType === "dips" ? "C. Giant Block" : "B. Giant Block", "4 rounds · 2 min")}
-        {scheme.pct.map((p, i) => {
-          const isTop = i === 3;
-          return <Row key={i} a={isTop ? "Set 4 — top" : `Set ${i+1}`} b={`${scheme.sets[i]} reps @ ${Math.round(p*100)}%`} c={fmt(isTop ? top : round(top*p))} cls={isTop ? C.gold : C.off} />;
-        })}
-        <Row a={meta.antag} b={antagDesc(meta.antagType, difficulty)} c="" cls={C.muted} />
-        <Row a={meta.core} b="10 reps" c="BW" cls={C.muted} />
-        <Row a="Cardio" b="30 sec high effort" c="" cls={C.muted} />
-        <LogRpe label="Top set" rpe={log.rpe} speed={log.barSpeed} onRpe={(v)=>set("rpe",v)} onSpeed={(v)=>set("barSpeed",v)} />
-      </div>
-
-      {!isDeload && (
-        <div style={cardStyle}>
-          {blockTitle(dayType === "dips" ? "D. Volume Block" : "C. Volume Block", "2 sets · 80%")}
-          {dayType === "dips"
-            ? <Row a="Push-ups" b={`2 × ${scheme.vol} (BW — elbow protocol)`} c="BW" cls={C.blue} />
-            : <Row a={LIFT_LABEL[dayType]} b={`2 × ${scheme.vol} @ 80%`} c={fmt(round(top*0.8))} cls={C.blue} />}
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.off, marginTop: 10 }}>
-            <input type="checkbox" checked={log.volDone} onChange={(e)=>set("volDone", e.target.checked)} /> Both sets completed
-          </label>
-          <LogRpe label="Volume" rpe={log.volRpe} speed={log.volSpeed} onRpe={(v)=>set("volRpe",v)} onSpeed={(v)=>set("volSpeed",v)} />
-        </div>
-      )}
-
-      {!isDeload && (
-        <div style={cardStyle}>
-          {blockTitle(dayType === "dips" ? "E. Carry" : "D. Carry", "10 min")}
-          <Row a={meta.carry.name} b={`${meta.carry.sets} sets · ${meta.carry.dist}`} c={meta.carry.load} cls={C.off} />
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.off, marginTop: 8 }}>
-            <input type="checkbox" checked={log.carrySkipped} onChange={(e)=>set("carrySkipped", e.target.checked)} /> Skipped today
-          </label>
-          {log.carrySkipped && (
-            <div style={{ marginTop: 8 }}>
-              <label style={lbl}>Reason</label>
-              <select style={inp} value={log.carrySkipReason} onChange={(e)=>set("carrySkipReason", e.target.value)}>
-                <option value="">—</option><option value="fatigue">Fatigue</option><option value="schedule">Schedule / time</option>
-              </select>
-            </div>
-          )}
-          {!log.carrySkipped && <LogRpe label="Carry" rpe={log.carryRpe} speed={null} onRpe={(v)=>set("carryRpe",v)} />}
-        </div>
-      )}
-
-      <div style={cardStyle}>
-        <label style={lbl}>Notes</label>
-        <textarea style={{ ...inp, minHeight: 60, resize: "vertical" }} value={log.notes} onChange={(e)=>set("notes", e.target.value)} placeholder="Grip reset, technique cue, how it felt…" />
-      </div>
-
-      <button onClick={handleSave} disabled={saving} style={{ width: "100%", background: saved ? C.green : C.gold, color: C.dark, border: "none", borderRadius: 2, padding: "14px", fontSize: 14, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", cursor: saving ? "wait" : "pointer", opacity: saving ? 0.7 : 1 }}>
-        {saving ? <span>Saving… <span className="spin" /></span> : saved ? "Saved ✓" : existing ? "Update session" : "Save session"}
-      </button>
-
-      <SignalBanner sessions={sessions} pos={pos} draft={log} />
-    </div>
-  );
+  return /*#__PURE__*/React.createElement("div", null, recommendDeload && /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...cardStyle,
+      border: `1px solid ${C.red}`,
+      background: "rgba(232,136,136,0.10)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600,
+      letterSpacing: "0.08em",
+      color: C.red,
+      textTransform: "uppercase",
+      marginBottom: 6
+    }
+  }, "Reactive deload recommended"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: C.off,
+      lineHeight: 1.5,
+      marginBottom: 10
+    }
+  }, "Last week (W", pos.week - 1, ") logged 3+ fatigue signals. The rule recommends a deload: Giant Block only at ~70%, no volume, light/skipped carries. Skill days stay normal."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => onApplyDeload(weekKey, true),
+    style: {
+      background: C.red,
+      color: C.dark,
+      border: "none",
+      borderRadius: 2,
+      fontSize: 12,
+      fontWeight: 600,
+      padding: "8px 14px",
+      cursor: "pointer",
+      letterSpacing: "0.05em",
+      textTransform: "uppercase"
+    }
+  }, "Apply deload"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => onApplyDeload(weekKey, false),
+    style: {
+      background: "transparent",
+      color: C.muted,
+      border: `1px solid ${C.muted}`,
+      borderRadius: 2,
+      fontSize: 12,
+      padding: "8px 14px",
+      cursor: "pointer"
+    }
+  }, "Dismiss")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: C.muted,
+      marginTop: 8,
+      fontStyle: "italic"
+    }
+  }, "Dismiss if it was a one-off or a break is already coming.")), isDeload && /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...cardStyle,
+      border: `1px solid ${C.gold}`,
+      background: "rgba(201,168,76,0.10)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600,
+      letterSpacing: "0.08em",
+      color: C.gold,
+      textTransform: "uppercase"
+    }
+  }, "Deload week active"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.off,
+      marginTop: 4
+    }
+  }, "Giant Block only · loads ~70% · volume & carry off")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => onApplyDeload(weekKey, false),
+    style: {
+      background: "transparent",
+      color: C.muted,
+      border: `1px solid ${C.muted}`,
+      borderRadius: 2,
+      fontSize: 11,
+      padding: "5px 10px",
+      cursor: "pointer"
+    }
+  }, "Undo")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...cardStyle,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: C.muted,
+      letterSpacing: "0.1em"
+    }
+  }, "M", pos.macro, " · C", pos.meso, " · W", pos.week), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bebas Neue',sans-serif",
+      fontSize: 26,
+      letterSpacing: "0.05em"
+    }
+  }, LIFT_LABEL[dayType], " ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: pillColor(difficulty)
+    }
+  }, "· ", difficulty.toUpperCase()))), /*#__PURE__*/React.createElement(DayPicker, {
+    pos: pos,
+    onPos: onPos
+  })), /*#__PURE__*/React.createElement("div", {
+    style: cardStyle
+  }, blockTitle("A. Warm-Up", "GOWOD + build-up"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted,
+      fontStyle: "italic",
+      marginBottom: 8
+    }
+  }, "GOWOD Activate flow (3/6/10 min) — then barbell build-up:"), WU_PCT.map((p, i) => /*#__PURE__*/React.createElement(Row, {
+    key: i,
+    a: `WU${i + 1}`,
+    b: `${WU_REPS[i]} reps @ ~${Math.round(p * 100)}%`,
+    c: fmt(round(set1 * p)),
+    cls: C.muted
+  })), dayType === "dips" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted,
+      marginTop: 8
+    }
+  }, "+ a few build-up power cleans")), dayType === "dips" && !isDeload && /*#__PURE__*/React.createElement("div", {
+    style: cardStyle
+  }, blockTitle("B. Clean Block", "5×3 · bar speed"), /*#__PURE__*/React.createElement(Row, {
+    a: "Power clean",
+    b: "5 × 3, touch-and-go, RPE 7 ceiling",
+    c: fmt(log.cleanLoad),
+    cls: C.gold
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10,
+      marginTop: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "Load"), /*#__PURE__*/React.createElement("input", {
+    style: inp,
+    type: "number",
+    step: "2.5",
+    value: log.cleanLoad,
+    onChange: e => set("cleanLoad", parseFloat(e.target.value) || 0)
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "Bar speed"), /*#__PURE__*/React.createElement(SpeedPick, {
+    value: log.cleanSpeed,
+    onChange: v => set("cleanSpeed", v)
+  })))), /*#__PURE__*/React.createElement("div", {
+    style: cardStyle
+  }, blockTitle(dayType === "dips" ? "C. Giant Block" : "B. Giant Block", "4 rounds · 2 min"), scheme.pct.map((p, i) => {
+    const isTop = i === 3;
+    return /*#__PURE__*/React.createElement(Row, {
+      key: i,
+      a: isTop ? "Set 4 — top" : `Set ${i + 1}`,
+      b: `${scheme.sets[i]} reps @ ${Math.round(p * 100)}%`,
+      c: fmt(isTop ? top : round(top * p)),
+      cls: isTop ? C.gold : C.off
+    });
+  }), /*#__PURE__*/React.createElement(Row, {
+    a: meta.antag,
+    b: antagDesc(meta.antagType, difficulty),
+    c: "",
+    cls: C.muted
+  }), /*#__PURE__*/React.createElement(Row, {
+    a: meta.core,
+    b: "10 reps",
+    c: "BW",
+    cls: C.muted
+  }), /*#__PURE__*/React.createElement(Row, {
+    a: "Cardio",
+    b: "30 sec high effort",
+    c: "",
+    cls: C.muted
+  }), /*#__PURE__*/React.createElement(LogRpe, {
+    label: "Top set",
+    rpe: log.rpe,
+    speed: log.barSpeed,
+    onRpe: v => set("rpe", v),
+    onSpeed: v => set("barSpeed", v)
+  })), !isDeload && /*#__PURE__*/React.createElement("div", {
+    style: cardStyle
+  }, blockTitle(dayType === "dips" ? "D. Volume Block" : "C. Volume Block", "2 sets · 80%"), dayType === "dips" ? /*#__PURE__*/React.createElement(Row, {
+    a: "Push-ups",
+    b: `2 × ${scheme.vol} (BW — elbow protocol)`,
+    c: "BW",
+    cls: C.blue
+  }) : /*#__PURE__*/React.createElement(Row, {
+    a: LIFT_LABEL[dayType],
+    b: `2 × ${scheme.vol} @ 80%`,
+    c: fmt(round(top * 0.8)),
+    cls: C.blue
+  }), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      fontSize: 12,
+      color: C.off,
+      marginTop: 10
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: log.volDone,
+    onChange: e => set("volDone", e.target.checked)
+  }), " Both sets completed"), /*#__PURE__*/React.createElement(LogRpe, {
+    label: "Volume",
+    rpe: log.volRpe,
+    speed: log.volSpeed,
+    onRpe: v => set("volRpe", v),
+    onSpeed: v => set("volSpeed", v)
+  })), !isDeload && /*#__PURE__*/React.createElement("div", {
+    style: cardStyle
+  }, blockTitle(dayType === "dips" ? "E. Carry" : "D. Carry", "10 min"), /*#__PURE__*/React.createElement(Row, {
+    a: meta.carry.name,
+    b: `${meta.carry.sets} sets · ${meta.carry.dist}`,
+    c: meta.carry.load,
+    cls: C.off
+  }), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      fontSize: 12,
+      color: C.off,
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: log.carrySkipped,
+    onChange: e => set("carrySkipped", e.target.checked)
+  }), " Skipped today"), log.carrySkipped && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "Reason"), /*#__PURE__*/React.createElement("select", {
+    style: inp,
+    value: log.carrySkipReason,
+    onChange: e => set("carrySkipReason", e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "—"), /*#__PURE__*/React.createElement("option", {
+    value: "fatigue"
+  }, "Fatigue"), /*#__PURE__*/React.createElement("option", {
+    value: "schedule"
+  }, "Schedule / time"))), !log.carrySkipped && /*#__PURE__*/React.createElement(LogRpe, {
+    label: "Carry",
+    rpe: log.carryRpe,
+    speed: null,
+    onRpe: v => set("carryRpe", v)
+  })), /*#__PURE__*/React.createElement("div", {
+    style: cardStyle
+  }, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "Notes"), /*#__PURE__*/React.createElement("textarea", {
+    style: {
+      ...inp,
+      minHeight: 60,
+      resize: "vertical"
+    },
+    value: log.notes,
+    onChange: e => set("notes", e.target.value),
+    placeholder: "Grip reset, technique cue, how it felt…"
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: handleSave,
+    disabled: saving,
+    style: {
+      width: "100%",
+      background: saved ? C.green : C.gold,
+      color: C.dark,
+      border: "none",
+      borderRadius: 2,
+      padding: "14px",
+      fontSize: 14,
+      fontWeight: 600,
+      letterSpacing: "0.08em",
+      textTransform: "uppercase",
+      cursor: saving ? "wait" : "pointer",
+      opacity: saving ? 0.7 : 1
+    }
+  }, saving ? /*#__PURE__*/React.createElement("span", null, "Saving… ", /*#__PURE__*/React.createElement("span", {
+    className: "spin"
+  })) : saved ? "Saved ✓" : existing ? "Update session" : "Save session"), /*#__PURE__*/React.createElement(SignalBanner, {
+    sessions: sessions,
+    pos: pos,
+    draft: log
+  }));
 }
-
-function DayPicker({ pos, onPos }) {
-  return (
-    <div style={{ display: "flex", gap: 6 }}>
-      {["hard","medium","light"].map((d) => (
-        <button key={d} onClick={() => onPos({ ...pos, weekday: d })}
-          style={{ background: pos.weekday === d ? pillColor(d) : "transparent", color: pos.weekday === d ? C.dark : C.muted, border: `1px solid ${pillColor(d)}`, borderRadius: 2, fontSize: 10, fontWeight: 600, padding: "4px 7px", cursor: "pointer", textTransform: "uppercase" }}>
-          {d[0]}
-        </button>
-      ))}
-    </div>
-  );
+function DayPicker({
+  pos,
+  onPos
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6
+    }
+  }, ["hard", "medium", "light"].map(d => /*#__PURE__*/React.createElement("button", {
+    key: d,
+    onClick: () => onPos({
+      ...pos,
+      weekday: d
+    }),
+    style: {
+      background: pos.weekday === d ? pillColor(d) : "transparent",
+      color: pos.weekday === d ? C.dark : C.muted,
+      border: `1px solid ${pillColor(d)}`,
+      borderRadius: 2,
+      fontSize: 10,
+      fontWeight: 600,
+      padding: "4px 7px",
+      cursor: "pointer",
+      textTransform: "uppercase"
+    }
+  }, d[0])));
 }
-function SpeedPick({ value, onChange }) {
-  const opts = [["up","↑"],["normal","→"],["down","↓"]];
-  return (
-    <div style={{ display: "flex", gap: 4 }}>
-      {opts.map(([k, s]) => (
-        <button key={k} onClick={() => onChange(k)} style={{ flex: 1, background: value === k ? C.gold : "rgba(255,255,255,0.06)", color: value === k ? C.dark : C.off, border: "1px solid rgba(255,255,255,0.14)", borderRadius: 2, fontSize: 16, padding: "6px", cursor: "pointer" }}>{s}</button>
-      ))}
-    </div>
-  );
+function SpeedPick({
+  value,
+  onChange
+}) {
+  const opts = [["up", "↑"], ["normal", "→"], ["down", "↓"]];
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 4
+    }
+  }, opts.map(([k, s]) => /*#__PURE__*/React.createElement("button", {
+    key: k,
+    onClick: () => onChange(k),
+    style: {
+      flex: 1,
+      background: value === k ? C.gold : "rgba(255,255,255,0.06)",
+      color: value === k ? C.dark : C.off,
+      border: "1px solid rgba(255,255,255,0.14)",
+      borderRadius: 2,
+      fontSize: 16,
+      padding: "6px",
+      cursor: "pointer"
+    }
+  }, s)));
 }
-function LogRpe({ label, rpe, speed, onRpe, onSpeed }) {
-  return (
-    <div style={{ display: "flex", gap: 10, marginTop: 10, alignItems: "flex-end" }}>
-      <div style={{ flex: 1 }}>
-        <label style={lbl}>{label} RPE</label>
-        <select style={inp} value={rpe} onChange={(e)=>onRpe(e.target.value)}>
-          <option value="">—</option>
-          {["R6","R7","R8","R8.5","R9","R9.5","R10"].map((r)=><option key={r} value={r}>{r}</option>)}
-        </select>
-      </div>
-      {onSpeed && <div style={{ flex: 1 }}><label style={lbl}>Bar speed</label><SpeedPick value={speed} onChange={onSpeed} /></div>}
-    </div>
-  );
+function LogRpe({
+  label,
+  rpe,
+  speed,
+  onRpe,
+  onSpeed
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10,
+      marginTop: 10,
+      alignItems: "flex-end"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, label, " RPE"), /*#__PURE__*/React.createElement("select", {
+    style: inp,
+    value: rpe,
+    onChange: e => onRpe(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "—"), ["R6", "R7", "R8", "R8.5", "R9", "R9.5", "R10"].map(r => /*#__PURE__*/React.createElement("option", {
+    key: r,
+    value: r
+  }, r)))), onSpeed && /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "Bar speed"), /*#__PURE__*/React.createElement(SpeedPick, {
+    value: speed,
+    onChange: onSpeed
+  })));
 }
-
-function SignalBanner({ sessions, pos, draft }) {
-  const week = sessions.filter((s)=>s.macro===pos.macro && s.meso===pos.meso && s.week===pos.week);
-  const merged = week.filter((s)=>s.id!==draft.id).concat(draft);
+function SignalBanner({
+  sessions,
+  pos,
+  draft
+}) {
+  const week = sessions.filter(s => s.macro === pos.macro && s.meso === pos.meso && s.week === pos.week);
+  const merged = week.filter(s => s.id !== draft.id).concat(draft);
   const sig = computeWeekSignals(merged);
   const n = sig.size;
   if (n === 0) return null;
   const fired = n >= 3;
-  return (
-    <div style={{ marginTop: 16, padding: 14, borderRadius: 2, background: fired ? "rgba(232,136,136,0.12)" : "rgba(201,168,76,0.10)", border: `1px solid ${fired ? C.red : C.gold}` }}>
-      <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", color: fired ? C.red : C.gold, textTransform: "uppercase", marginBottom: 6 }}>
-        {fired ? "Reactive deload triggered" : `Fatigue signals: ${n} of 3`}
-      </div>
-      <div style={{ fontSize: 12, color: C.off, lineHeight: 1.5 }}>{[...sig].map((id)=>SIGNALS.find((x)=>x.id===id)?.label).join(" · ")}</div>
-      {fired && <div style={{ fontSize: 12, color: C.off, marginTop: 8, fontStyle: "italic" }}>Next week the app will recommend a deload (unless a break is scheduled).</div>}
-    </div>
-  );
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 16,
+      padding: 14,
+      borderRadius: 2,
+      background: fired ? "rgba(232,136,136,0.12)" : "rgba(201,168,76,0.10)",
+      border: `1px solid ${fired ? C.red : C.gold}`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600,
+      letterSpacing: "0.08em",
+      color: fired ? C.red : C.gold,
+      textTransform: "uppercase",
+      marginBottom: 6
+    }
+  }, fired ? "Reactive deload triggered" : `Fatigue signals: ${n} of 3`), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.off,
+      lineHeight: 1.5
+    }
+  }, [...sig].map(id => SIGNALS.find(x => x.id === id)?.label).join(" · ")), fired && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.off,
+      marginTop: 8,
+      fontStyle: "italic"
+    }
+  }, "Next week the app will recommend a deload (unless a break is scheduled)."));
 }
 
 // ---- HISTORY ---------------------------------------------------------------
-function History({ sessions, onDelete }) {
+function History({
+  sessions,
+  onDelete
+}) {
   const [confirmId, setConfirmId] = useState(null);
-  if (sessions.length === 0) return <div style={{ ...cardStyle, textAlign: "center", color: C.muted, padding: 40 }}>No sessions logged yet.</div>;
+  if (sessions.length === 0) return /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...cardStyle,
+      textAlign: "center",
+      color: C.muted,
+      padding: 40
+    }
+  }, "No sessions logged yet.");
   const latest = {};
-  sessions.slice().sort((a,b)=>a.date<b.date?-1:1).forEach((s)=>{
+  sessions.slice().sort((a, b) => a.date < b.date ? -1 : 1).forEach(s => {
     latest[s.dayType] = latest[s.dayType] || {};
-    if (s.rpe || s.topWeight) latest[s.dayType][s.difficulty] = { w: s.topWeight };
+    if (s.rpe || s.topWeight) latest[s.dayType][s.difficulty] = {
+      w: s.topWeight
+    };
   });
-  return (
-    <div>
-      <div style={cardStyle}>
-        {blockTitle("Working Top Sets", "latest logged")}
-        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 4, fontSize: 12 }}>
-          <span></span>
-          <span style={{ color: C.red, textAlign: "center", fontWeight: 600 }}>H</span>
-          <span style={{ color: C.gold, textAlign: "center", fontWeight: 600 }}>M</span>
-          <span style={{ color: C.green, textAlign: "center", fontWeight: 600 }}>L</span>
-          {["deadlift","ohp","squat","dips"].map((lift)=>(
-            <Fragment key={lift}>
-              <span style={{ color: C.off }}>{LIFT_LABEL[lift]}</span>
-              {["hard","medium","light"].map((d)=>(
-                <span key={d} style={{ textAlign: "center", color: C.off, fontVariantNumeric: "tabular-nums" }}>{latest[lift]?.[d] ? latest[lift][d].w : "—"}</span>
-              ))}
-            </Fragment>
-          ))}
-        </div>
-      </div>
-      <div style={cardStyle}>
-        {blockTitle("Recent Sessions", `${sessions.length} logged`)}
-        {sessions.slice(0, 50).map((s)=>(
-          <div key={s.id} style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <span style={{ fontSize: 13, color: C.off, fontWeight: 600 }}>{LIFT_LABEL[s.dayType]} <span style={{ color: pillColor(s.difficulty), fontSize: 11 }}>{s.difficulty?.toUpperCase()}</span></span>
-              <span style={{ fontSize: 11, color: C.muted }}>{s.date} · M{s.macro}C{s.meso}W{s.week}</span>
-            </div>
-            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
-              Top {fmt(s.topWeight)} × {s.topReps} {s.rpe && `| ${s.rpe}`} {s.barSpeed && `| ${speedArrow(s.barSpeed)}`}
-              {s.carrySkipped && " · carry skipped"}{s.volDone === false && " · volume incomplete"}
-            </div>
-            {s.notes && <div style={{ fontSize: 12, color: C.off, marginTop: 3, fontStyle: "italic" }}>{s.notes}</div>}
-            <div style={{ marginTop: 6 }}>
-              {confirmId === s.id ? (
-                <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                  <span style={{ fontSize: 11, color: C.red }}>Delete?</span>
-                  <button onClick={() => { onDelete(s.id); setConfirmId(null); }} style={{ background: C.red, color: C.dark, border: "none", borderRadius: 2, fontSize: 11, fontWeight: 600, padding: "3px 10px", cursor: "pointer" }}>Yes</button>
-                  <button onClick={() => setConfirmId(null)} style={{ background: "transparent", color: C.muted, border: `1px solid ${C.muted}`, borderRadius: 2, fontSize: 11, padding: "3px 10px", cursor: "pointer" }}>Cancel</button>
-                </span>
-              ) : (
-                <button onClick={() => setConfirmId(s.id)} style={{ background: "transparent", color: C.muted, border: "none", fontSize: 11, padding: 0, cursor: "pointer", textDecoration: "underline" }}>Delete</button>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: cardStyle
+  }, blockTitle("Working Top Sets", "latest logged"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1.4fr 1fr 1fr 1fr",
+      gap: 4,
+      fontSize: 12
+    }
+  }, /*#__PURE__*/React.createElement("span", null), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.red,
+      textAlign: "center",
+      fontWeight: 600
+    }
+  }, "H"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.gold,
+      textAlign: "center",
+      fontWeight: 600
+    }
+  }, "M"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.green,
+      textAlign: "center",
+      fontWeight: 600
+    }
+  }, "L"), ["deadlift", "ohp", "squat", "dips"].map(lift => /*#__PURE__*/React.createElement(Fragment, {
+    key: lift
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.off
+    }
+  }, LIFT_LABEL[lift]), ["hard", "medium", "light"].map(d => /*#__PURE__*/React.createElement("span", {
+    key: d,
+    style: {
+      textAlign: "center",
+      color: C.off,
+      fontVariantNumeric: "tabular-nums"
+    }
+  }, latest[lift]?.[d] ? latest[lift][d].w : "—")))))), /*#__PURE__*/React.createElement("div", {
+    style: cardStyle
+  }, blockTitle("Recent Sessions", `${sessions.length} logged`), sessions.slice(0, 50).map(s => /*#__PURE__*/React.createElement("div", {
+    key: s.id,
+    style: {
+      padding: "8px 0",
+      borderBottom: "1px solid rgba(255,255,255,0.04)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "baseline"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 13,
+      color: C.off,
+      fontWeight: 600
+    }
+  }, LIFT_LABEL[s.dayType], " ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: pillColor(s.difficulty),
+      fontSize: 11
+    }
+  }, s.difficulty?.toUpperCase())), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: C.muted
+    }
+  }, s.date, " · M", s.macro, "C", s.meso, "W", s.week)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted,
+      marginTop: 2
+    }
+  }, "Top ", fmt(s.topWeight), " × ", s.topReps, " ", s.rpe && `| ${s.rpe}`, " ", s.barSpeed && `| ${speedArrow(s.barSpeed)}`, s.carrySkipped && " · carry skipped", s.volDone === false && " · volume incomplete"), s.notes && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.off,
+      marginTop: 3,
+      fontStyle: "italic"
+    }
+  }, s.notes), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 6
+    }
+  }, confirmId === s.id ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      gap: 8,
+      alignItems: "center"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: C.red
+    }
+  }, "Delete?"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      onDelete(s.id);
+      setConfirmId(null);
+    },
+    style: {
+      background: C.red,
+      color: C.dark,
+      border: "none",
+      borderRadius: 2,
+      fontSize: 11,
+      fontWeight: 600,
+      padding: "3px 10px",
+      cursor: "pointer"
+    }
+  }, "Yes"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setConfirmId(null),
+    style: {
+      background: "transparent",
+      color: C.muted,
+      border: `1px solid ${C.muted}`,
+      borderRadius: 2,
+      fontSize: 11,
+      padding: "3px 10px",
+      cursor: "pointer"
+    }
+  }, "Cancel")) : /*#__PURE__*/React.createElement("button", {
+    onClick: () => setConfirmId(s.id),
+    style: {
+      background: "transparent",
+      color: C.muted,
+      border: "none",
+      fontSize: 11,
+      padding: 0,
+      cursor: "pointer",
+      textDecoration: "underline"
+    }
+  }, "Delete"))))));
 }
 
 // ---- DELOAD ----------------------------------------------------------------
-function Deload({ sessions, deloadWeeks }) {
+function Deload({
+  sessions,
+  deloadWeeks
+}) {
   const weeks = {};
-  sessions.forEach((s)=>{ const k = `M${s.macro}C${s.meso}W${s.week}`; weeks[k] = weeks[k] || []; weeks[k].push(s); });
+  sessions.forEach(s => {
+    const k = `M${s.macro}C${s.meso}W${s.week}`;
+    weeks[k] = weeks[k] || [];
+    weeks[k].push(s);
+  });
   const keys = Object.keys(weeks).sort().reverse();
-  return (
-    <div>
-      <div style={cardStyle}>
-        {blockTitle("Reactive Deload Signals", "per week")}
-        <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>Three signals in one week triggers a deload recommendation the following week.</div>
-        {keys.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>No data yet.</div>}
-        {keys.map((k)=>{
-          const sig = computeWeekSignals(weeks[k]);
-          const fired = sig.size >= 3;
-          const confirmed = deloadWeeks && deloadWeeks[k];
-          return (
-            <div key={k} style={{ padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 13, color: C.off, fontWeight: 600 }}>{k}{confirmed && <span style={{ fontSize: 10, color: C.gold, marginLeft: 8, letterSpacing: "0.08em" }}>DELOAD APPLIED</span>}</span>
-                <span style={{ fontSize: 12, fontWeight: 600, color: fired ? C.red : sig.size > 0 ? C.gold : C.green }}>{fired ? "3+ SIGNALS" : `${sig.size} / 3`}</span>
-              </div>
-              {sig.size > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{[...sig].map((id)=>SIGNALS.find((x)=>x.id===id)?.label).join(" · ")}</div>}
-            </div>
-          );
-        })}
-      </div>
-      <div style={cardStyle}>
-        {blockTitle("The Five Signals", "reference")}
-        {SIGNALS.map((s)=><Row key={s.id} a={s.id} b={s.label} c="" />)}
-        <div style={{ fontSize: 11, color: C.muted, marginTop: 10, fontStyle: "italic" }}>S4 (Set 1 &gt; R7) is left to manual judgment in v1.</div>
-      </div>
-    </div>
-  );
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: cardStyle
+  }, blockTitle("Reactive Deload Signals", "per week"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted,
+      lineHeight: 1.5,
+      marginBottom: 12
+    }
+  }, "Three signals in one week triggers a deload recommendation the following week."), keys.length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.muted,
+      fontSize: 13
+    }
+  }, "No data yet."), keys.map(k => {
+    const sig = computeWeekSignals(weeks[k]);
+    const fired = sig.size >= 3;
+    const confirmed = deloadWeeks && deloadWeeks[k];
+    return /*#__PURE__*/React.createElement("div", {
+      key: k,
+      style: {
+        padding: "10px 0",
+        borderBottom: "1px solid rgba(255,255,255,0.04)"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 13,
+        color: C.off,
+        fontWeight: 600
+      }
+    }, k, confirmed && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10,
+        color: C.gold,
+        marginLeft: 8,
+        letterSpacing: "0.08em"
+      }
+    }, "DELOAD APPLIED")), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 12,
+        fontWeight: 600,
+        color: fired ? C.red : sig.size > 0 ? C.gold : C.green
+      }
+    }, fired ? "3+ SIGNALS" : `${sig.size} / 3`)), sig.size > 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: C.muted,
+        marginTop: 4
+      }
+    }, [...sig].map(id => SIGNALS.find(x => x.id === id)?.label).join(" · ")));
+  })), /*#__PURE__*/React.createElement("div", {
+    style: cardStyle
+  }, blockTitle("The Five Signals", "reference"), SIGNALS.map(s => /*#__PURE__*/React.createElement(Row, {
+    key: s.id,
+    a: s.id,
+    b: s.label,
+    c: ""
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: C.muted,
+      marginTop: 10,
+      fontStyle: "italic"
+    }
+  }, "S4 (Set 1 > R7) is left to manual judgment in v1.")));
 }
 
 // ---- WEIGHTS / SETUP -------------------------------------------------------
-function Weights({ weights, onSave, pos, onPos }) {
+function Weights({
+  weights,
+  onSave,
+  pos,
+  onPos
+}) {
   const [w, setW] = useState(weights);
   const [p, setP] = useState(pos);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
-  useEffect(()=>{ setW(weights); }, [weights]);
-  const setWeight = (lift, diff, val) => setW((prev)=>({ ...prev, [lift]: { ...prev[lift], [diff]: parseFloat(val) || 0 } }));
+  useEffect(() => {
+    setW(weights);
+  }, [weights]);
+  const setWeight = (lift, diff, val) => setW(prev => ({
+    ...prev,
+    [lift]: {
+      ...prev[lift],
+      [diff]: parseFloat(val) || 0
+    }
+  }));
   async function save() {
     setSaving(true);
     onPos(p);
     await onSave(w);
-    setSaving(false); setSaved(true); setTimeout(()=>setSaved(false), 1600);
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1600);
   }
-  return (
-    <div>
-      <div style={cardStyle}>
-        {blockTitle("Current Position", "")}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-          {[["macro","Macro"],["meso","Cycle"],["week","Week"]].map(([k,label])=>(
-            <div key={k}><label style={lbl}>{label}</label><input style={inp} type="number" min="1" value={p[k]} onChange={(e)=>setP({ ...p, [k]: parseInt(e.target.value)||1 })} /></div>
-          ))}
-        </div>
-        <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>Week 1–4 sets the rotation. H/M/L is chosen on the Today tab.</div>
-      </div>
-      <div style={cardStyle}>
-        {blockTitle("Working Top Sets", "per difficulty")}
-        <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr 1fr", gap: 6, alignItems: "center" }}>
-          <span></span>
-          <span style={{ color: C.red, textAlign: "center", fontSize: 11, fontWeight: 600 }}>HARD</span>
-          <span style={{ color: C.gold, textAlign: "center", fontSize: 11, fontWeight: 600 }}>MED</span>
-          <span style={{ color: C.green, textAlign: "center", fontSize: 11, fontWeight: 600 }}>LIGHT</span>
-          {["deadlift","ohp","squat","dips"].map((lift)=>(
-            <Fragment key={lift}>
-              <span style={{ fontSize: 12, color: C.off }}>{LIFT_LABEL[lift]}</span>
-              {["hard","medium","light"].map((d)=>(
-                <input key={d} style={{ ...inp, padding: "6px", textAlign: "center" }} type="number" step="2.5" value={w[lift][d]} onChange={(e)=>setWeight(lift,d,e.target.value)} />
-              ))}
-            </Fragment>
-          ))}
-        </div>
-      </div>
-      <button onClick={save} disabled={saving} style={{ width: "100%", background: saved ? C.green : C.gold, color: C.dark, border: "none", borderRadius: 2, padding: "13px", fontSize: 13, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", cursor: saving ? "wait" : "pointer", opacity: saving ? 0.7 : 1 }}>
-        {saving ? <span>Saving… <span className="spin" /></span> : saved ? "Saved ✓" : "Save setup"}
-      </button>
-      <div style={{ ...cardStyle, marginTop: 16, fontSize: 11, color: C.muted, lineHeight: 1.6 }}>
-        Synced to your Google Sheet. Open this same URL on any device — phone or laptop — and the data follows.
-      </div>
-    </div>
-  );
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: cardStyle
+  }, blockTitle("Current Position", ""), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr 1fr",
+      gap: 10
+    }
+  }, [["macro", "Macro"], ["meso", "Cycle"], ["week", "Week"]].map(([k, label]) => /*#__PURE__*/React.createElement("div", {
+    key: k
+  }, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, label), /*#__PURE__*/React.createElement("input", {
+    style: inp,
+    type: "number",
+    min: "1",
+    value: p[k],
+    onChange: e => setP({
+      ...p,
+      [k]: parseInt(e.target.value) || 1
+    })
+  })))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: C.muted,
+      marginTop: 8
+    }
+  }, "Week 1–4 sets the rotation. H/M/L is chosen on the Today tab.")), /*#__PURE__*/React.createElement("div", {
+    style: cardStyle
+  }, blockTitle("Working Top Sets", "per difficulty"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1.3fr 1fr 1fr 1fr",
+      gap: 6,
+      alignItems: "center"
+    }
+  }, /*#__PURE__*/React.createElement("span", null), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.red,
+      textAlign: "center",
+      fontSize: 11,
+      fontWeight: 600
+    }
+  }, "HARD"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.gold,
+      textAlign: "center",
+      fontSize: 11,
+      fontWeight: 600
+    }
+  }, "MED"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.green,
+      textAlign: "center",
+      fontSize: 11,
+      fontWeight: 600
+    }
+  }, "LIGHT"), ["deadlift", "ohp", "squat", "dips"].map(lift => /*#__PURE__*/React.createElement(Fragment, {
+    key: lift
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: C.off
+    }
+  }, LIFT_LABEL[lift]), ["hard", "medium", "light"].map(d => /*#__PURE__*/React.createElement("input", {
+    key: d,
+    style: {
+      ...inp,
+      padding: "6px",
+      textAlign: "center"
+    },
+    type: "number",
+    step: "2.5",
+    value: w[lift][d],
+    onChange: e => setWeight(lift, d, e.target.value)
+  })))))), /*#__PURE__*/React.createElement("button", {
+    onClick: save,
+    disabled: saving,
+    style: {
+      width: "100%",
+      background: saved ? C.green : C.gold,
+      color: C.dark,
+      border: "none",
+      borderRadius: 2,
+      padding: "13px",
+      fontSize: 13,
+      fontWeight: 600,
+      letterSpacing: "0.08em",
+      textTransform: "uppercase",
+      cursor: saving ? "wait" : "pointer",
+      opacity: saving ? 0.7 : 1
+    }
+  }, saving ? /*#__PURE__*/React.createElement("span", null, "Saving… ", /*#__PURE__*/React.createElement("span", {
+    className: "spin"
+  })) : saved ? "Saved ✓" : "Save setup"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...cardStyle,
+      marginTop: 16,
+      fontSize: 11,
+      color: C.muted,
+      lineHeight: 1.6
+    }
+  }, "Synced to your Google Sheet. Open this same URL on any device — phone or laptop — and the data follows."));
 }
+ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.createElement(App, null));
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  } catch (e) {
+    var root = document.getElementById("root");
+    if (root) root.innerHTML = '<div style="padding:24px;color:#e88888;font-family:monospace;font-size:13px;line-height:1.5"><strong>App error:</strong><br>' + (e && e.message ? e.message : e) + '</div>';
+    throw e;
+  }
+})();
 </script>
 </body>
 </html>
