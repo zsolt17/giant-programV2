@@ -1,423 +1,682 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Giant Program — Session Planner</title>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap" rel="stylesheet">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>The Giant Program</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
 <style>
-  :root {
-    --navy:#2E4057; --dark:#1a2535; --gold:#C9A84C; --white:#ffffff;
-    --off:#f0f3f7; --muted:#8A9BB0; --border:rgba(201,168,76,0.18);
-    --card:rgba(255,255,255,0.04); --blue:#7eb8f7; --green:#8ddcb0; --red:#e88888;
-  }
-  * { box-sizing:border-box; margin:0; padding:0; }
-  body { background:var(--dark); color:var(--white); font-family:'DM Sans',sans-serif; min-height:100vh; overflow-x:hidden; }
-  body::before { content:''; position:fixed; inset:0; background:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(201,168,76,0.07) 0%,transparent 60%),radial-gradient(ellipse 40% 40% at 90% 90%,rgba(46,64,87,0.5) 0%,transparent 60%); pointer-events:none; z-index:0; }
-  .container { position:relative; z-index:1; max-width:820px; margin:0 auto; padding:40px 24px 80px; }
-  header { text-align:center; margin-bottom:32px; }
-  .eyebrow { font-size:11px; font-weight:500; letter-spacing:0.25em; color:var(--gold); text-transform:uppercase; margin-bottom:10px; }
-  h1 { font-family:'Bebas Neue',sans-serif; font-size:clamp(44px,10vw,72px); line-height:0.9; letter-spacing:0.03em; color:var(--white); margin-bottom:6px; }
-  h1 span { color:var(--gold); }
-  .header-sub { font-size:13px; color:var(--muted); font-weight:300; letter-spacing:0.04em; }
-  .gold-line { width:60px; height:2px; background:var(--gold); margin:16px auto; }
-
-  /* Mode toggle */
-  .mode-toggle { display:flex; border:1px solid var(--border); border-radius:2px; overflow:hidden; margin-bottom:28px; }
-  .mode-btn { flex:1; background:transparent; border:none; color:var(--muted); font-family:'DM Sans',sans-serif; font-size:12px; font-weight:600; padding:13px; cursor:pointer; letter-spacing:0.1em; text-transform:uppercase; transition:all 0.2s; }
-  .mode-btn.active { background:var(--gold); color:var(--dark); }
-
-  /* Input card */
-  .input-card { background:var(--card); border:1px solid var(--border); border-radius:2px; padding:28px; margin-bottom:32px; }
-  .input-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-bottom:16px; }
-  .input-row2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-  .field-group { display:flex; flex-direction:column; gap:7px; }
-  label { font-size:10px; font-weight:500; letter-spacing:0.18em; text-transform:uppercase; color:var(--gold); }
-  label span { color:var(--muted); font-size:9px; text-transform:none; letter-spacing:0; }
-  select, input[type="number"] { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:2px; color:var(--white); font-family:'DM Sans',sans-serif; font-size:15px; font-weight:500; padding:11px 14px; width:100%; outline:none; transition:border-color 0.2s,background 0.2s; -webkit-appearance:none; appearance:none; }
-  select:focus, input[type="number"]:focus { border-color:var(--gold); background:rgba(201,168,76,0.05); }
-  select option { background:var(--dark); color:var(--white); }
-  input[type="number"]::-webkit-inner-spin-button { opacity:0.3; }
-  .unit-toggle { display:flex; border:1px solid rgba(255,255,255,0.12); border-radius:2px; overflow:hidden; }
-  .unit-btn { flex:1; background:transparent; border:none; color:var(--muted); font-family:'DM Sans',sans-serif; font-size:14px; font-weight:500; padding:11px; cursor:pointer; transition:all 0.2s; }
-  .unit-btn.active { background:var(--gold); color:var(--dark); }
-
-  /* Empty state */
-  #emptyState { text-align:center; padding:56px 24px; color:var(--muted); }
-  .empty-icon { font-size:44px; margin-bottom:16px; opacity:0.35; }
-  #emptyState p { font-size:14px; font-weight:300; letter-spacing:0.04em; line-height:1.6; }
-
-  /* Session blocks */
-  .session-block { margin-bottom:32px; }
-  .block-header { display:flex; align-items:center; gap:12px; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--border); }
-  .block-title { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:0.1em; color:var(--gold); }
-  .block-tag { font-size:10px; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; padding:3px 9px; border-radius:2px; }
-  .tag-wu  { background:rgba(138,155,176,0.15); color:var(--muted); border:1px solid rgba(138,155,176,0.25); }
-  .tag-gb  { background:rgba(220,80,80,0.12);   color:var(--red);   border:1px solid rgba(220,80,80,0.25); }
-  .tag-vol { background:rgba(126,184,247,0.12); color:var(--blue);  border:1px solid rgba(126,184,247,0.25); }
-  .tag-sk  { background:rgba(201,168,76,0.12);  color:var(--gold);  border:1px solid rgba(201,168,76,0.25); }
-  .tag-cd  { background:rgba(141,220,176,0.12); color:var(--green); border:1px solid rgba(141,220,176,0.25); }
-  .tag-carry { background:rgba(184,160,247,0.12); color:#b8a0f7; border:1px solid rgba(184,160,247,0.25); }
-  .tag-cardio { background:rgba(126,184,247,0.12); color:var(--blue); border:1px solid rgba(126,184,247,0.25); }
-  .tag-gym  { background:rgba(220,80,80,0.12); color:var(--red); border:1px solid rgba(220,80,80,0.25); }
-  .tag-motor { background:rgba(141,220,176,0.12); color:var(--green); border:1px solid rgba(141,220,176,0.25); }
-
-  .diff-pill { margin-left:auto; font-size:11px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; padding:3px 10px; border-radius:2px; }
-  .diff-hard   { background:rgba(220,80,80,0.15);   color:var(--red);   border:1px solid rgba(220,80,80,0.3); }
-  .diff-medium { background:rgba(201,168,76,0.15);  color:var(--gold);  border:1px solid rgba(201,168,76,0.3); }
-  .diff-light  { background:rgba(100,180,120,0.15); color:var(--green); border:1px solid rgba(100,180,120,0.3); }
-
-  /* Exercise cards */
-  .ex-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:2px; margin-bottom:8px; overflow:hidden; }
-  .ex-head { display:flex; align-items:center; justify-content:space-between; padding:9px 14px; background:rgba(255,255,255,0.03); border-bottom:1px solid rgba(255,255,255,0.05); }
-  .ex-name { font-size:13px; font-weight:600; letter-spacing:0.03em; color:var(--off); }
-  .ex-role { font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); }
-  .ex-row { display:grid; grid-template-columns:90px 1fr auto; align-items:center; padding:7px 14px; border-bottom:1px solid rgba(255,255,255,0.03); gap:8px; }
-  .ex-row:last-child { border-bottom:none; }
-  .ex-label  { font-size:12px; color:var(--muted); }
-  .ex-detail { font-size:13px; color:var(--off); }
-  .ex-weight { font-size:15px; font-weight:600; text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
-  .ex-weight.gold  { color:var(--gold); }
-  .ex-weight.blue  { color:var(--blue); }
-  .ex-weight.muted { color:var(--muted); font-size:13px; font-weight:400; }
-  .ex-weight.green { color:var(--green); }
-  .ex-weight.purple { color:#b8a0f7; }
-  .ex-weight.plain { color:var(--off); }
-  .circuit-note { font-size:11px; color:var(--muted); letter-spacing:0.08em; padding:6px 14px; background:rgba(255,255,255,0.02); border-bottom:1px solid rgba(255,255,255,0.04); font-style:italic; }
-  .block-note { font-size:12px; color:var(--muted); font-style:italic; margin-top:6px; padding-left:12px; border-left:2px solid var(--border); line-height:1.5; }
-
-  footer { text-align:center; margin-top:56px; padding-top:24px; border-top:1px solid var(--border); }
-  footer p { font-family:'Bebas Neue',sans-serif; font-size:14px; letter-spacing:0.15em; color:var(--muted); }
-
-  @media (max-width:520px) {
-    .input-grid { grid-template-columns:1fr 1fr; }
-    .container { padding:24px 14px 60px; }
-    .input-card { padding:18px 14px; }
-    .ex-row { grid-template-columns:64px 1fr auto; padding:7px 10px; }
-  }
-  @media (max-width:360px) { .input-grid { grid-template-columns:1fr; } }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { background: #1a2535; }
+  body { font-family: 'DM Sans', system-ui, sans-serif; }
+  input, select, textarea, button { font-family: inherit; }
+  #root { min-height: 100vh; }
+  .spin { display:inline-block;width:14px;height:14px;border:2px solid rgba(26,37,53,0.3);border-top-color:#1a2535;border-radius:50%;animation:s 0.7s linear infinite;vertical-align:middle; }
+  @keyframes s { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
-<div class="container">
-  <header>
-    <div class="eyebrow">Session Planner</div>
-    <h1>THE <span>GIANT</span><br>PROGRAM</h1>
-    <div class="gold-line"></div>
-    <p class="header-sub">Select your session type to generate the full plan</p>
-  </header>
+<div id="root"></div>
 
-  <div class="mode-toggle">
-    <button class="mode-btn active" id="modeStrength" onclick="setMode('strength')">⚡ Strength Day</button>
-    <button class="mode-btn" id="modeSkill" onclick="setMode('skill')">🎯 Skill Day</button>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel" data-type="module">
+const { useState, useEffect, useCallback, useRef, Fragment } = React;
+
+// ============================================================================
+// CONFIG — paste your Apps Script Web App URL here.
+// ============================================================================
+const CONFIG = {
+  endpoint: "https://script.google.com/macros/s/AKfycbzDeSIwVtZujEpip4EGYaNUxNsb-84Ass2rDKiyGxmsqcqL5havxkR-z4-J95cW9k48/exec",
+  token: "", // set if you set SHARED_TOKEN in the Apps Script
+};
+
+// ============================================================================
+// BACKEND LAYER — GitHub Pages → Apps Script.
+// Writes: POST as text/plain (avoids CORS preflight). Reads: JSONP (avoids CORS).
+// ============================================================================
+function jsonp(url) {
+  return new Promise((resolve, reject) => {
+    const cb = "gp_cb_" + Math.random().toString(36).slice(2);
+    const sep = url.includes("?") ? "&" : "?";
+    const script = document.createElement("script");
+    const timer = setTimeout(() => { cleanup(); reject(new Error("timeout")); }, 15000);
+    function cleanup() { clearTimeout(timer); delete window[cb]; script.remove(); }
+    window[cb] = (data) => { cleanup(); resolve(data); };
+    script.src = `${url}${sep}callback=${cb}`;
+    script.onerror = () => { cleanup(); reject(new Error("network")); };
+    document.body.appendChild(script);
+  });
+}
+
+const api = {
+  async load() {
+    const t = CONFIG.token ? `?token=${encodeURIComponent(CONFIG.token)}` : "";
+    // NOTE: Apps Script must support JSONP — see the .gs callback handling.
+    // We GET via fetch with text and parse; if CORS blocks, fall back to jsonp.
+    try {
+      const r = await fetch(CONFIG.endpoint + t, { method: "GET" });
+      return await r.json();
+    } catch (e) {
+      return await jsonp(CONFIG.endpoint + t);
+    }
+  },
+  async post(type, payload) {
+    const t = CONFIG.token ? `?token=${encodeURIComponent(CONFIG.token)}` : "";
+    const r = await fetch(CONFIG.endpoint + t, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ type, payload }),
+    });
+    return await r.json();
+  },
+};
+
+// ---- Program constants -----------------------------------------------------
+const ROTATION = [
+  { hard: "deadlift", medium: "ohp",      light: "squat"    },
+  { hard: "dips",     medium: "deadlift", light: "ohp"      },
+  { hard: "squat",    medium: "dips",     light: "deadlift" },
+  { hard: "ohp",      medium: "squat",    light: "dips"     },
+];
+const SCHEMES = {
+  hard:   { sets: [8,6,4,2],  pct: [0.75,0.82,0.90,1.0], vol: 6  },
+  medium: { sets: [9,7,5,3],  pct: [0.72,0.80,0.88,1.0], vol: 8  },
+  light:  { sets: [10,8,6,4], pct: [0.70,0.78,0.86,1.0], vol: 10 },
+};
+const WU_PCT = [0.40,0.55,0.70,0.85];
+const WU_REPS = [8,5,3,2];
+const PULLUP = { hard: 10, medium: 8, light: 6 };
+const LIFT_LABEL = { deadlift: "Deadlift", ohp: "Overhead Press", squat: "Back Squat", dips: "Weighted Ring Dips" };
+const DAY_META = {
+  deadlift: { antag: "Sørensen Hold", antagType: "hold", core: "Ab Rollout",
+    carry: { name: "Farmer's Carry", load: "60 kg / hand", dist: "20–30 m", sets: "3–4" } },
+  ohp: { antag: "Pull-ups", antagType: "pullup", core: "GHD Abs",
+    carry: { name: "Suitcase Carry", load: "50 kg / hand", dist: "20 m / side", sets: "3–4" } },
+  squat: { antag: "Copenhagen Plank", antagType: "hold20", core: "Leg Raises",
+    carry: { name: "Sandbag Bear Hug", load: "68–80 kg", dist: "20–30 m", sets: "3–4" } },
+  dips: { antag: "Ring Rows", antagType: "ringrow", core: "GHD Back Extension",
+    carry: { name: "Overhead Carry", load: "2 × 25 kg", dist: "20 m / side", sets: "3–4" } },
+};
+const DEFAULT_WEIGHTS = {
+  deadlift: { hard: 170, medium: 160, light: 155 },
+  ohp:      { hard: 65,  medium: 65,  light: 60  },
+  squat:    { hard: 140, medium: 135, light: 130 },
+  dips:     { hard: 10,  medium: 7.5, light: 5   },
+};
+const SIGNALS = [
+  { id: "S1", label: "Light day top set ≥ R9" },
+  { id: "S2", label: "Volume block incomplete" },
+  { id: "S3", label: "Carry skipped (fatigue)" },
+  { id: "S4", label: "Set 1 heavier than R7" },
+  { id: "S5", label: "Bar speed ↓ two sessions running" },
+];
+const round = (w) => Math.round(w / 2.5) * 2.5;
+const fmt = (w) => (w % 1 === 0 ? w.toFixed(0) : w.toFixed(1)) + " kg";
+const C = {
+  navy: "#2E4057", dark: "#1a2535", gold: "#C9A84C", white: "#fff",
+  off: "#f0f3f7", muted: "#8A9BB0", blue: "#7eb8f7", green: "#8ddcb0", red: "#e88888",
+  card: "rgba(255,255,255,0.04)", border: "rgba(201,168,76,0.18)",
+};
+
+// ---- data shape helpers (Sheet rows <-> app objects) -----------------------
+// working_weights stored as rows: {lift, hard, medium, light}
+function weightsToRows(w) {
+  return Object.keys(w).map((lift) => ({ lift, hard: w[lift].hard, medium: w[lift].medium, light: w[lift].light }));
+}
+function rowsToWeights(rows) {
+  if (!rows || !rows.length) return null;
+  const w = {};
+  rows.forEach((r) => { w[r.lift] = { hard: +r.hard, medium: +r.medium, light: +r.light }; });
+  // ensure all four lifts exist
+  Object.keys(DEFAULT_WEIGHTS).forEach((k) => { if (!w[k]) w[k] = DEFAULT_WEIGHTS[k]; });
+  return w;
+}
+// deload stored as rows: {week_key}
+function deloadToRows(obj) { return Object.keys(obj).filter((k)=>obj[k]).map((k)=>({ week_key: k })); }
+function rowsToDeload(rows) { const o = {}; (rows||[]).forEach((r)=>{ if (r.week_key) o[r.week_key] = true; }); return o; }
+// sessions: stored flat; booleans/numbers come back as strings sometimes — coerce
+function coerceSession(s) {
+  return {
+    ...s,
+    macro: +s.macro, meso: +s.meso, week: +s.week,
+    topReps: +s.topReps, topWeight: +s.topWeight, cleanLoad: +s.cleanLoad || 0,
+    volDone: s.volDone === true || s.volDone === "true" || s.volDone === "TRUE",
+    carrySkipped: s.carrySkipped === true || s.carrySkipped === "true" || s.carrySkipped === "TRUE",
+  };
+}
+function sessionToRow(s) {
+  // flatten to a row with a session_id key for the sheet
+  return { session_id: s.id, ...s };
+}
+
+const round2 = round;
+
+// ============================================================================
+// APP
+// ============================================================================
+function App() {
+  const [tab, setTab] = useState("today");
+  const [pos, setPos] = useState({ macro: 2, meso: 3, week: 1, weekday: "hard" });
+  const [weights, setWeights] = useState(DEFAULT_WEIGHTS);
+  const [sessions, setSessions] = useState([]);
+  const [deloadWeeks, setDeloadWeeks] = useState({});
+  const [status, setStatus] = useState("loading"); // loading | ready | error
+  const [errMsg, setErrMsg] = useState("");
+
+  const reload = useCallback(async () => {
+    setStatus("loading");
+    try {
+      const data = await api.load();
+      if (!data || !data.ok) throw new Error(data && data.error ? data.error : "load failed");
+      const w = rowsToWeights(data.working_weights) || DEFAULT_WEIGHTS;
+      const ss = (data.sessions || []).map(coerceSession).sort((a,b)=>a.date<b.date?1:-1);
+      const dw = rowsToDeload(data.deload);
+      // position is derived/stored locally for convenience (not critical to sync)
+      const localPos = JSON.parse(localStorage.getItem("giant_pos") || "null");
+      setWeights(w); setSessions(ss); setDeloadWeeks(dw);
+      if (localPos) setPos(localPos);
+      setStatus("ready");
+    } catch (e) {
+      setErrMsg(String(e.message || e));
+      setStatus("error");
+    }
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  const savePosition = useCallback((p) => { setPos(p); localStorage.setItem("giant_pos", JSON.stringify(p)); }, []);
+
+  const saveWeights = useCallback(async (w) => {
+    setWeights(w);
+    await api.post("saveWeights", weightsToRows(w));
+  }, []);
+
+  const saveSession = useCallback(async (s) => {
+    setSessions((prev) => {
+      const next = prev.filter((x) => x.id !== s.id).concat(s);
+      next.sort((a, b) => (a.date < b.date ? 1 : -1));
+      return next;
+    });
+    await api.post("saveSession", sessionToRow(s));
+  }, []);
+
+  const deleteSession = useCallback(async (id) => {
+    setSessions((prev) => prev.filter((x) => x.id !== id));
+    await api.post("deleteSession", { session_id: id });
+  }, []);
+
+  const applyDeload = useCallback(async (weekKey, on) => {
+    setDeloadWeeks((prev) => {
+      const next = { ...prev };
+      if (on) next[weekKey] = true; else delete next[weekKey];
+      api.post("saveDeload", deloadToRows(next));
+      return next;
+    });
+  }, []);
+
+  if (status === "loading") return <Shell><Center>Loading from your sheet… <span className="spin" /></Center></Shell>;
+  if (status === "error") return (
+    <Shell>
+      <div style={{ ...cardStyle, border: `1px solid ${C.red}` }}>
+        <div style={{ color: C.red, fontWeight: 600, marginBottom: 8 }}>Couldn't reach your sheet</div>
+        <div style={{ fontSize: 13, color: C.off, marginBottom: 10 }}>{errMsg}</div>
+        <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>Check the endpoint URL in CONFIG and that the Apps Script is deployed with access "Anyone".</div>
+        <button onClick={reload} style={btnPrimary}>Retry</button>
+      </div>
+    </Shell>
+  );
+
+  return (
+    <Shell onSync={reload}>
+      <Tabs tab={tab} setTab={setTab} />
+      {tab === "today"   && <Today pos={pos} weights={weights} sessions={sessions} onSave={saveSession} onPos={savePosition} deloadWeeks={deloadWeeks} onApplyDeload={applyDeload} />}
+      {tab === "history" && <History sessions={sessions} onDelete={deleteSession} />}
+      {tab === "deload"  && <Deload sessions={sessions} deloadWeeks={deloadWeeks} />}
+      {tab === "weights" && <Weights weights={weights} onSave={saveWeights} pos={pos} onPos={savePosition} />}
+    </Shell>
+  );
+}
+
+const cardStyle = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 2, padding: 16, marginBottom: 14 };
+const btnPrimary = { background: C.gold, color: C.dark, border: "none", borderRadius: 2, padding: "12px 16px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", fontSize: 13, cursor: "pointer" };
+const inp = { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 2, color: C.white, fontSize: 14, padding: "8px 10px", width: "100%", outline: "none", boxSizing: "border-box" };
+const lbl = { fontSize: 10, fontWeight: 500, letterSpacing: "0.16em", textTransform: "uppercase", color: C.gold, display: "block", marginBottom: 6 };
+
+function Center({ children }) { return <div style={{ padding: 40, textAlign: "center", color: C.muted }}>{children}</div>; }
+
+function Shell({ children, onSync }) {
+  return (
+    <div style={{ minHeight: "100vh", background: C.dark, color: C.white }}>
+      <div style={{ maxWidth: 760, margin: "0 auto", padding: "28px 18px 80px" }}>
+        <header style={{ textAlign: "center", marginBottom: 22, position: "relative" }}>
+          <div style={{ fontSize: 10, letterSpacing: "0.28em", color: C.gold, textTransform: "uppercase", marginBottom: 6 }}>Training Log</div>
+          <h1 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 46, lineHeight: 0.9, letterSpacing: "0.03em", margin: 0 }}>
+            THE <span style={{ color: C.gold }}>GIANT</span> PROGRAM
+          </h1>
+          <div style={{ width: 50, height: 2, background: C.gold, margin: "12px auto" }} />
+          {onSync && <button onClick={onSync} title="Sync" style={{ position: "absolute", top: 0, right: 0, background: "transparent", border: `1px solid ${C.muted}`, color: C.muted, borderRadius: 2, fontSize: 11, padding: "4px 8px", cursor: "pointer" }}>↻ Sync</button>}
+        </header>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Tabs({ tab, setTab }) {
+  const items = [["today","Today"],["history","History"],["deload","Deload"],["weights","Setup"]];
+  return (
+    <div style={{ display: "flex", border: `1px solid ${C.border}`, borderRadius: 2, overflow: "hidden", marginBottom: 24 }}>
+      {items.map(([k, label]) => (
+        <button key={k} onClick={() => setTab(k)} style={{
+          flex: 1, background: tab === k ? C.gold : "transparent", border: "none",
+          color: tab === k ? C.dark : C.muted, fontSize: 12, fontWeight: 600,
+          padding: "12px 4px", cursor: "pointer", letterSpacing: "0.08em", textTransform: "uppercase",
+        }}>{label}</button>
+      ))}
+    </div>
+  );
+}
+
+const blockTitle = (t, tag) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${C.border}` }}>
+    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: "0.08em", color: C.gold }}>{t}</div>
+    {tag && <span style={{ marginLeft: "auto", fontSize: 10, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>{tag}</span>}
   </div>
+);
+const Row = ({ a, b, c, cls }) => (
+  <div style={{ display: "grid", gridTemplateColumns: "80px 1fr auto", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+    <span style={{ fontSize: 12, color: C.muted }}>{a}</span>
+    <span style={{ fontSize: 13, color: C.off }}>{b}</span>
+    <span style={{ fontSize: 14, fontWeight: 600, textAlign: "right", color: cls || C.off, fontVariantNumeric: "tabular-nums" }}>{c}</span>
+  </div>
+);
 
-  <!-- STRENGTH UI -->
-  <div id="strengthUI">
-    <div class="input-card">
-      <div class="input-grid">
-        <div class="field-group">
-          <label>Training Day</label>
-          <select id="day">
-            <option value="deadlift">Deadlift Day</option>
-            <option value="ohp">OHP Day</option>
-            <option value="squat">Squat Day</option>
-            <option value="dips">Dips Day</option>
-          </select>
+function todayISO() { return new Date().toISOString().slice(0, 10); }
+function rpeNum(r) { if (!r) return 0; return parseFloat(String(r).replace("R","")) || 0; }
+function speedArrow(s) { return s === "up" ? "↑" : s === "down" ? "↓" : "→"; }
+function pillColor(d) { return d === "hard" ? C.red : d === "medium" ? C.gold : C.green; }
+function antagDesc(type, diff) {
+  if (type === "hold") return "max hold, sub-maximal";
+  if (type === "hold20") return "20 sec";
+  if (type === "pullup") return `${PULLUP[diff]} reps/round (clusters ok)`;
+  if (type === "ringrow") return "sub-maximal, scale by angle";
+  return "";
+}
+
+function computeWeekSignals(weekSessions) {
+  const found = new Set();
+  for (const s of weekSessions) {
+    if (s.difficulty === "light" && rpeNum(s.rpe) >= 9) found.add("S1");
+    if (s.volDone === false) found.add("S2");
+    if (s.carrySkipped && s.carrySkipReason === "fatigue") found.add("S3");
+  }
+  const byLift = {};
+  weekSessions.slice().sort((a,b)=>a.date<b.date?-1:1).forEach((s)=>{
+    byLift[s.dayType] = byLift[s.dayType] || [];
+    byLift[s.dayType].push(s.barSpeed);
+  });
+  Object.values(byLift).forEach((arr)=>{
+    for (let i=1;i<arr.length;i++) if (arr[i]==="down" && arr[i-1]==="down") found.add("S5");
+  });
+  return found;
+}
+
+// ---- TODAY -----------------------------------------------------------------
+function Today({ pos, weights, sessions, onSave, onPos, deloadWeeks, onApplyDeload }) {
+  const dayType = ROTATION[pos.week - 1][pos.weekday];
+  const difficulty = pos.weekday;
+  const meta = DAY_META[dayType];
+  const scheme = SCHEMES[difficulty];
+  const baseTop = weights[dayType][difficulty];
+  const sessionId = `${todayISO()}-${dayType}-${difficulty[0].toUpperCase()}`;
+  const existing = sessions.find((s) => s.id === sessionId);
+
+  const weekKey = `M${pos.macro}C${pos.meso}W${pos.week}`;
+  const isDeload = !!deloadWeeks[weekKey];
+  const prevWeekSessions = pos.week > 1 ? sessions.filter((s) => s.macro === pos.macro && s.meso === pos.meso && s.week === pos.week - 1) : [];
+  const prevFired = pos.week > 1 && computeWeekSignals(prevWeekSessions).size >= 3;
+  const deloadUsedThisMeso = Object.keys(deloadWeeks).some((k) => k.startsWith(`M${pos.macro}C${pos.meso}W`));
+  const recommendDeload = prevFired && !isDeload && !deloadUsedThisMeso;
+  const top = isDeload ? round(baseTop * 0.70) : baseTop;
+
+  function blankLog() {
+    return { id: sessionId, date: todayISO(), macro: pos.macro, meso: pos.meso, week: pos.week,
+      dayType, difficulty, topReps: scheme.sets[3], topWeight: top, rpe: "", barSpeed: "",
+      volDone: true, volRpe: "", volSpeed: "", cleanSpeed: "", cleanLoad: 70,
+      carrySkipped: false, carrySkipReason: "", carryRpe: "", notes: "" };
+  }
+  const [log, setLog] = useState(() => existing || blankLog());
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { setLog(existing || blankLog()); setSaved(false); /* eslint-disable-next-line */ }, [sessionId, isDeload]);
+
+  const set = (k, v) => setLog((p) => ({ ...p, [k]: v }));
+  async function handleSave() {
+    const record = { ...log, id: sessionId, date: log.date || todayISO(),
+      macro: pos.macro, meso: pos.meso, week: pos.week,
+      dayType, difficulty, topReps: scheme.sets[3], topWeight: top };
+    setSaving(true);
+    await onSave(record);
+    setLog(record); setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 1800);
+  }
+  const set1 = round(top * scheme.pct[0]);
+
+  return (
+    <div>
+      {recommendDeload && (
+        <div style={{ ...cardStyle, border: `1px solid ${C.red}`, background: "rgba(232,136,136,0.10)" }}>
+          <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", color: C.red, textTransform: "uppercase", marginBottom: 6 }}>Reactive deload recommended</div>
+          <div style={{ fontSize: 13, color: C.off, lineHeight: 1.5, marginBottom: 10 }}>Last week (W{pos.week - 1}) logged 3+ fatigue signals. The rule recommends a deload: Giant Block only at ~70%, no volume, light/skipped carries. Skill days stay normal.</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => onApplyDeload(weekKey, true)} style={{ background: C.red, color: C.dark, border: "none", borderRadius: 2, fontSize: 12, fontWeight: 600, padding: "8px 14px", cursor: "pointer", letterSpacing: "0.05em", textTransform: "uppercase" }}>Apply deload</button>
+            <button onClick={() => onApplyDeload(weekKey, false)} style={{ background: "transparent", color: C.muted, border: `1px solid ${C.muted}`, borderRadius: 2, fontSize: 12, padding: "8px 14px", cursor: "pointer" }}>Dismiss</button>
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 8, fontStyle: "italic" }}>Dismiss if it was a one-off or a break is already coming.</div>
         </div>
-        <div class="field-group">
-          <label>Difficulty</label>
-          <select id="difficulty">
-            <option value="hard">Hard</option>
-            <option value="medium">Medium</option>
-            <option value="light">Light</option>
-          </select>
+      )}
+      {isDeload && (
+        <div style={{ ...cardStyle, border: `1px solid ${C.gold}`, background: "rgba(201,168,76,0.10)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", color: C.gold, textTransform: "uppercase" }}>Deload week active</div>
+            <div style={{ fontSize: 12, color: C.off, marginTop: 4 }}>Giant Block only · loads ~70% · volume &amp; carry off</div>
+          </div>
+          <button onClick={() => onApplyDeload(weekKey, false)} style={{ background: "transparent", color: C.muted, border: `1px solid ${C.muted}`, borderRadius: 2, fontSize: 11, padding: "5px 10px", cursor: "pointer" }}>Undo</button>
         </div>
-        <div class="field-group">
-          <label>Unit</label>
-          <div class="unit-toggle">
-            <button class="unit-btn active" onclick="setUnit('kg')">kg</button>
-            <button class="unit-btn" onclick="setUnit('lb')">lb</button>
+      )}
+
+      <div style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <div style={{ fontSize: 11, color: C.muted, letterSpacing: "0.1em" }}>M{pos.macro} · C{pos.meso} · W{pos.week}</div>
+          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: "0.05em" }}>
+            {LIFT_LABEL[dayType]} <span style={{ color: pillColor(difficulty) }}>· {difficulty.toUpperCase()}</span>
           </div>
         </div>
+        <DayPicker pos={pos} onPos={onPos} />
       </div>
-      <div class="input-row2">
-        <div class="field-group">
-          <label>Top Set — Main Lift</label>
-          <input type="number" id="topWeight" placeholder="e.g. 120" min="1" step="0.5">
+
+      <div style={cardStyle}>
+        {blockTitle("A. Warm-Up", "GOWOD + build-up")}
+        <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic", marginBottom: 8 }}>GOWOD Activate flow (3/6/10 min) — then barbell build-up:</div>
+        {WU_PCT.map((p, i) => <Row key={i} a={`WU${i+1}`} b={`${WU_REPS[i]} reps @ ~${Math.round(p*100)}%`} c={fmt(round(set1*p))} cls={C.muted} />)}
+        {dayType === "dips" && <div style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>+ a few build-up power cleans</div>}
+      </div>
+
+      {dayType === "dips" && !isDeload && (
+        <div style={cardStyle}>
+          {blockTitle("B. Clean Block", "5×3 · bar speed")}
+          <Row a="Power clean" b="5 × 3, touch-and-go, RPE 7 ceiling" c={fmt(log.cleanLoad)} cls={C.gold} />
+          <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+            <div style={{ flex: 1 }}><label style={lbl}>Load</label><input style={inp} type="number" step="2.5" value={log.cleanLoad} onChange={(e) => set("cleanLoad", parseFloat(e.target.value) || 0)} /></div>
+            <div style={{ flex: 1 }}><label style={lbl}>Bar speed</label><SpeedPick value={log.cleanSpeed} onChange={(v) => set("cleanSpeed", v)} /></div>
+          </div>
         </div>
-        <div class="field-group">
-          <label>Top Set — Antagonist <span>(optional, upper days)</span></label>
-          <input type="number" id="topWeightB" placeholder="e.g. 70" min="1" step="0.5">
+      )}
+
+      <div style={cardStyle}>
+        {blockTitle(dayType === "dips" ? "C. Giant Block" : "B. Giant Block", "4 rounds · 2 min")}
+        {scheme.pct.map((p, i) => {
+          const isTop = i === 3;
+          return <Row key={i} a={isTop ? "Set 4 — top" : `Set ${i+1}`} b={`${scheme.sets[i]} reps @ ${Math.round(p*100)}%`} c={fmt(isTop ? top : round(top*p))} cls={isTop ? C.gold : C.off} />;
+        })}
+        <Row a={meta.antag} b={antagDesc(meta.antagType, difficulty)} c="" cls={C.muted} />
+        <Row a={meta.core} b="10 reps" c="BW" cls={C.muted} />
+        <Row a="Cardio" b="30 sec high effort" c="" cls={C.muted} />
+        <LogRpe label="Top set" rpe={log.rpe} speed={log.barSpeed} onRpe={(v)=>set("rpe",v)} onSpeed={(v)=>set("barSpeed",v)} />
+      </div>
+
+      {!isDeload && (
+        <div style={cardStyle}>
+          {blockTitle(dayType === "dips" ? "D. Volume Block" : "C. Volume Block", "2 sets · 80%")}
+          {dayType === "dips"
+            ? <Row a="Push-ups" b={`2 × ${scheme.vol} (BW — elbow protocol)`} c="BW" cls={C.blue} />
+            : <Row a={LIFT_LABEL[dayType]} b={`2 × ${scheme.vol} @ 80%`} c={fmt(round(top*0.8))} cls={C.blue} />}
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.off, marginTop: 10 }}>
+            <input type="checkbox" checked={log.volDone} onChange={(e)=>set("volDone", e.target.checked)} /> Both sets completed
+          </label>
+          <LogRpe label="Volume" rpe={log.volRpe} speed={log.volSpeed} onRpe={(v)=>set("volRpe",v)} onSpeed={(v)=>set("volSpeed",v)} />
         </div>
+      )}
+
+      {!isDeload && (
+        <div style={cardStyle}>
+          {blockTitle(dayType === "dips" ? "E. Carry" : "D. Carry", "10 min")}
+          <Row a={meta.carry.name} b={`${meta.carry.sets} sets · ${meta.carry.dist}`} c={meta.carry.load} cls={C.off} />
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.off, marginTop: 8 }}>
+            <input type="checkbox" checked={log.carrySkipped} onChange={(e)=>set("carrySkipped", e.target.checked)} /> Skipped today
+          </label>
+          {log.carrySkipped && (
+            <div style={{ marginTop: 8 }}>
+              <label style={lbl}>Reason</label>
+              <select style={inp} value={log.carrySkipReason} onChange={(e)=>set("carrySkipReason", e.target.value)}>
+                <option value="">—</option><option value="fatigue">Fatigue</option><option value="schedule">Schedule / time</option>
+              </select>
+            </div>
+          )}
+          {!log.carrySkipped && <LogRpe label="Carry" rpe={log.carryRpe} speed={null} onRpe={(v)=>set("carryRpe",v)} />}
+        </div>
+      )}
+
+      <div style={cardStyle}>
+        <label style={lbl}>Notes</label>
+        <textarea style={{ ...inp, minHeight: 60, resize: "vertical" }} value={log.notes} onChange={(e)=>set("notes", e.target.value)} placeholder="Grip reset, technique cue, how it felt…" />
+      </div>
+
+      <button onClick={handleSave} disabled={saving} style={{ width: "100%", background: saved ? C.green : C.gold, color: C.dark, border: "none", borderRadius: 2, padding: "14px", fontSize: 14, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", cursor: saving ? "wait" : "pointer", opacity: saving ? 0.7 : 1 }}>
+        {saving ? <span>Saving… <span className="spin" /></span> : saved ? "Saved ✓" : existing ? "Update session" : "Save session"}
+      </button>
+
+      <SignalBanner sessions={sessions} pos={pos} draft={log} />
+    </div>
+  );
+}
+
+function DayPicker({ pos, onPos }) {
+  return (
+    <div style={{ display: "flex", gap: 6 }}>
+      {["hard","medium","light"].map((d) => (
+        <button key={d} onClick={() => onPos({ ...pos, weekday: d })}
+          style={{ background: pos.weekday === d ? pillColor(d) : "transparent", color: pos.weekday === d ? C.dark : C.muted, border: `1px solid ${pillColor(d)}`, borderRadius: 2, fontSize: 10, fontWeight: 600, padding: "4px 7px", cursor: "pointer", textTransform: "uppercase" }}>
+          {d[0]}
+        </button>
+      ))}
+    </div>
+  );
+}
+function SpeedPick({ value, onChange }) {
+  const opts = [["up","↑"],["normal","→"],["down","↓"]];
+  return (
+    <div style={{ display: "flex", gap: 4 }}>
+      {opts.map(([k, s]) => (
+        <button key={k} onClick={() => onChange(k)} style={{ flex: 1, background: value === k ? C.gold : "rgba(255,255,255,0.06)", color: value === k ? C.dark : C.off, border: "1px solid rgba(255,255,255,0.14)", borderRadius: 2, fontSize: 16, padding: "6px", cursor: "pointer" }}>{s}</button>
+      ))}
+    </div>
+  );
+}
+function LogRpe({ label, rpe, speed, onRpe, onSpeed }) {
+  return (
+    <div style={{ display: "flex", gap: 10, marginTop: 10, alignItems: "flex-end" }}>
+      <div style={{ flex: 1 }}>
+        <label style={lbl}>{label} RPE</label>
+        <select style={inp} value={rpe} onChange={(e)=>onRpe(e.target.value)}>
+          <option value="">—</option>
+          {["R6","R7","R8","R8.5","R9","R9.5","R10"].map((r)=><option key={r} value={r}>{r}</option>)}
+        </select>
+      </div>
+      {onSpeed && <div style={{ flex: 1 }}><label style={lbl}>Bar speed</label><SpeedPick value={speed} onChange={onSpeed} /></div>}
+    </div>
+  );
+}
+
+function SignalBanner({ sessions, pos, draft }) {
+  const week = sessions.filter((s)=>s.macro===pos.macro && s.meso===pos.meso && s.week===pos.week);
+  const merged = week.filter((s)=>s.id!==draft.id).concat(draft);
+  const sig = computeWeekSignals(merged);
+  const n = sig.size;
+  if (n === 0) return null;
+  const fired = n >= 3;
+  return (
+    <div style={{ marginTop: 16, padding: 14, borderRadius: 2, background: fired ? "rgba(232,136,136,0.12)" : "rgba(201,168,76,0.10)", border: `1px solid ${fired ? C.red : C.gold}` }}>
+      <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", color: fired ? C.red : C.gold, textTransform: "uppercase", marginBottom: 6 }}>
+        {fired ? "Reactive deload triggered" : `Fatigue signals: ${n} of 3`}
+      </div>
+      <div style={{ fontSize: 12, color: C.off, lineHeight: 1.5 }}>{[...sig].map((id)=>SIGNALS.find((x)=>x.id===id)?.label).join(" · ")}</div>
+      {fired && <div style={{ fontSize: 12, color: C.off, marginTop: 8, fontStyle: "italic" }}>Next week the app will recommend a deload (unless a break is scheduled).</div>}
+    </div>
+  );
+}
+
+// ---- HISTORY ---------------------------------------------------------------
+function History({ sessions, onDelete }) {
+  const [confirmId, setConfirmId] = useState(null);
+  if (sessions.length === 0) return <div style={{ ...cardStyle, textAlign: "center", color: C.muted, padding: 40 }}>No sessions logged yet.</div>;
+  const latest = {};
+  sessions.slice().sort((a,b)=>a.date<b.date?-1:1).forEach((s)=>{
+    latest[s.dayType] = latest[s.dayType] || {};
+    if (s.rpe || s.topWeight) latest[s.dayType][s.difficulty] = { w: s.topWeight };
+  });
+  return (
+    <div>
+      <div style={cardStyle}>
+        {blockTitle("Working Top Sets", "latest logged")}
+        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 4, fontSize: 12 }}>
+          <span></span>
+          <span style={{ color: C.red, textAlign: "center", fontWeight: 600 }}>H</span>
+          <span style={{ color: C.gold, textAlign: "center", fontWeight: 600 }}>M</span>
+          <span style={{ color: C.green, textAlign: "center", fontWeight: 600 }}>L</span>
+          {["deadlift","ohp","squat","dips"].map((lift)=>(
+            <Fragment key={lift}>
+              <span style={{ color: C.off }}>{LIFT_LABEL[lift]}</span>
+              {["hard","medium","light"].map((d)=>(
+                <span key={d} style={{ textAlign: "center", color: C.off, fontVariantNumeric: "tabular-nums" }}>{latest[lift]?.[d] ? latest[lift][d].w : "—"}</span>
+              ))}
+            </Fragment>
+          ))}
+        </div>
+      </div>
+      <div style={cardStyle}>
+        {blockTitle("Recent Sessions", `${sessions.length} logged`)}
+        {sessions.slice(0, 50).map((s)=>(
+          <div key={s.id} style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span style={{ fontSize: 13, color: C.off, fontWeight: 600 }}>{LIFT_LABEL[s.dayType]} <span style={{ color: pillColor(s.difficulty), fontSize: 11 }}>{s.difficulty?.toUpperCase()}</span></span>
+              <span style={{ fontSize: 11, color: C.muted }}>{s.date} · M{s.macro}C{s.meso}W{s.week}</span>
+            </div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+              Top {fmt(s.topWeight)} × {s.topReps} {s.rpe && `| ${s.rpe}`} {s.barSpeed && `| ${speedArrow(s.barSpeed)}`}
+              {s.carrySkipped && " · carry skipped"}{s.volDone === false && " · volume incomplete"}
+            </div>
+            {s.notes && <div style={{ fontSize: 12, color: C.off, marginTop: 3, fontStyle: "italic" }}>{s.notes}</div>}
+            <div style={{ marginTop: 6 }}>
+              {confirmId === s.id ? (
+                <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+                  <span style={{ fontSize: 11, color: C.red }}>Delete?</span>
+                  <button onClick={() => { onDelete(s.id); setConfirmId(null); }} style={{ background: C.red, color: C.dark, border: "none", borderRadius: 2, fontSize: 11, fontWeight: 600, padding: "3px 10px", cursor: "pointer" }}>Yes</button>
+                  <button onClick={() => setConfirmId(null)} style={{ background: "transparent", color: C.muted, border: `1px solid ${C.muted}`, borderRadius: 2, fontSize: 11, padding: "3px 10px", cursor: "pointer" }}>Cancel</button>
+                </span>
+              ) : (
+                <button onClick={() => setConfirmId(s.id)} style={{ background: "transparent", color: C.muted, border: "none", fontSize: 11, padding: 0, cursor: "pointer", textDecoration: "underline" }}>Delete</button>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
-    <div id="emptyState">
-      <div class="empty-icon">🏋️</div>
-      <p>Select your training day and enter<br>your top set weight to generate<br>the full session plan</p>
+  );
+}
+
+// ---- DELOAD ----------------------------------------------------------------
+function Deload({ sessions, deloadWeeks }) {
+  const weeks = {};
+  sessions.forEach((s)=>{ const k = `M${s.macro}C${s.meso}W${s.week}`; weeks[k] = weeks[k] || []; weeks[k].push(s); });
+  const keys = Object.keys(weeks).sort().reverse();
+  return (
+    <div>
+      <div style={cardStyle}>
+        {blockTitle("Reactive Deload Signals", "per week")}
+        <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>Three signals in one week triggers a deload recommendation the following week.</div>
+        {keys.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>No data yet.</div>}
+        {keys.map((k)=>{
+          const sig = computeWeekSignals(weeks[k]);
+          const fired = sig.size >= 3;
+          const confirmed = deloadWeeks && deloadWeeks[k];
+          return (
+            <div key={k} style={{ padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, color: C.off, fontWeight: 600 }}>{k}{confirmed && <span style={{ fontSize: 10, color: C.gold, marginLeft: 8, letterSpacing: "0.08em" }}>DELOAD APPLIED</span>}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: fired ? C.red : sig.size > 0 ? C.gold : C.green }}>{fired ? "3+ SIGNALS" : `${sig.size} / 3`}</span>
+              </div>
+              {sig.size > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{[...sig].map((id)=>SIGNALS.find((x)=>x.id===id)?.label).join(" · ")}</div>}
+            </div>
+          );
+        })}
+      </div>
+      <div style={cardStyle}>
+        {blockTitle("The Five Signals", "reference")}
+        {SIGNALS.map((s)=><Row key={s.id} a={s.id} b={s.label} c="" />)}
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 10, fontStyle: "italic" }}>S4 (Set 1 &gt; R7) is left to manual judgment in v1.</div>
+      </div>
     </div>
-    <div id="results"></div>
-  </div>
-
-  <!-- SKILL DAY UI -->
-  <div id="skillUI" style="display:none;">
-    <div id="skillResults"></div>
-  </div>
-
-  <footer>
-    <p>Train Hard &nbsp;·&nbsp; Train Smart &nbsp;·&nbsp; Stay Capable</p>
-  </footer>
-</div>
-
-<script>
-// ── Data ──────────────────────────────────────────────────────────────────────
-const SCHEMES = {
-  hard:   { sets:[8,6,4,2],  pcts:[0.75,0.82,0.90,1.00], volReps:6  },
-  medium: { sets:[9,7,5,3],  pcts:[0.72,0.80,0.88,1.00], volReps:8  },
-  light:  { sets:[10,8,6,4], pcts:[0.70,0.78,0.86,1.00], volReps:10 },
-};
-const WU_PCTS = [0.40,0.55,0.70,0.85];
-const WU_REPS = [8,5,3,2];
-const PULLUP_REPS = { hard:10, medium:8, light:6 };
-
-const DAYS = {
-  deadlift: {
-    label:'Deadlift Day', type:'lower',
-    main:'Deadlift', antagonist:'Sørensen Hold', antagonistType:'hold', core:'Ab Rollout',
-    warmupDrills:['2 min row / bike / jump rope','Jefferson curl × 5 slow reps','Empty bar Romanian DL × 8 — hamstring stretch focus'],
-    cooldown:{ name:'Forward Fold', duration:'2 min' },
-    carry:{ name:"Farmer's Carry", load:'50–60 kg / hand', distance:'20–30 m', sets:'3–4 sets', progress:'M1: lock position · M2: +5kg/hand · M3: +5kg/hand' },
-    skill:[{ title:'Focused Skill — Current Cycle', tag:'15–20 min', rows:[
-      { label:'Option A', detail:'Turkish get-up — 5–6/side alternating, full rest between reps, 10–12 total', weight:'12 kg' },
-      { label:'Option B', detail:'Animal flow — beast crawl → kickthrough → beast-to-crab → crab reach → underswitch', weight:'BW' },
-      { label:'Option C', detail:'Floor-to-stand — cross-legged ×3, shin box ×3/side, roll-to-squat ×4, roll-to-lunge ×3/side', weight:'BW' },
-      { label:'Rule',     detail:'Pick ONE skill per macrocycle and stay with it. Rotate next cycle.', weight:'—' },
-    ]}],
-  },
-  ohp: {
-    label:'OHP Day', type:'upper',
-    main:'Overhead Press', antagonist:'Pull-ups', antagonistType:'bw', core:'GHD Abs', coreFallback:'Hollow Body Hold if GHD unavailable',
-    warmupDrills:['2 min light row or arm circles','Prone banded shoulder extension × 10','Empty bar press × 10 — pause at top','Dead hang × 20–30 sec + 3–5 scapular pulls'],
-    cooldown:{ name:'Anterior Line Stretch', duration:'2 min per side' },
-    carry:{ name:'Suitcase Carry', load:'40–50 kg / hand', distance:'20 m / side', sets:'3–4 sets', progress:'M1: lock position · M2: +5kg/hand · M3: +5kg/hand' },
-    skill:[{ title:'Focused Skill — Current Cycle', tag:'15–20 min', rows:[
-      { label:'Option A', detail:'Double unders — 3–4 max unbroken sets + 5–10 min on one variation (crosses / single leg / alt)', weight:'—' },
-      { label:'Option B', detail:'Rope flow — one pattern at a time: waves → figure-8s → side circles', weight:'—' },
-      { label:'Option C', detail:'Kettlebell flow — swings, cleans, presses linked in sequence', weight:'—' },
-      { label:'Rule',     detail:'Pick ONE skill per macrocycle and stay with it. Rotate next cycle.', weight:'—' },
-    ]}],
-  },
-  squat: {
-    label:'Squat Day', type:'lower',
-    main:'Back Squat', antagonist:'Copenhagen Plank', antagonistType:'hold', core:'Leg Raises',
-    warmupDrills:['2 min row / bike','Reverse nordic × 5 slow reps','Goblet squat × 8 deep and slow'],
-    cooldown:{ name:'Couch Stretch', duration:'2 min per side' },
-    carry:{ name:'Sandbag Bear Hug Carry', load:'40–50 kg sandbag', distance:'20–30 m', sets:'3–4 sets', progress:'M1: lock position · M2: next bag up · M3: next bag up' },
-    skill:[{ title:'Focused Skill — Current Cycle', tag:'15–20 min', rows:[
-      { label:'Option A', detail:'Double unders — 3–4 max unbroken sets, track max in notebook, then one variation focus', weight:'—' },
-      { label:'Option B', detail:'Jump rope skill — crosses / single leg / alternate leg, one at a time per cycle', weight:'—' },
-      { label:'Option C', detail:'Bounding — single leg hops ×10/side, lateral bounds ×5/dir, hurdle hops ×10', weight:'BW' },
-      { label:'Rule',     detail:'Pick ONE skill per macrocycle and stay with it. Rotate next cycle.', weight:'—' },
-    ]}],
-  },
-  dips: {
-    label:'Dips Day', type:'upper',
-    main:'Weighted Ring Dips', antagonist:'Barbell Row', antagonistType:'weighted', core:'GHD Back Extension',
-    warmupDrills:['2 min light movement','Skin the cat × 3–5 controlled reps','BW ring dips × 8–10 slow reps — pause at bottom (groove pattern before load)','Band pull-apart × 15 reps × 2 sets, controlled tempo (primes rows)'],
-    cooldown:{ name:'Bottom of Dip Hold', duration:'2 min' },
-    carry:{ name:'Overhead Carry', load:'20–24 kg / hand', distance:'20 m / side', sets:'3–4 sets', progress:'M1: lock position · M2: +4–5kg · M3: +4–5kg · Drop weight if shoulder fatigued' },
-    skill:[{ title:'Focused Skill — Current Cycle', tag:'15–20 min', rows:[
-      { label:'Phase 1',   detail:'Muscle-up progressions: ring rows 3×8–10 → jumping negatives 3×3–5 → banded transitions 3×3–5 → strict attempts', weight:'—' },
-      { label:'Phase 2',   detail:'Sandbag work: clean ×5 ×3–4 sets · carry 20–30m ×3–4 sets · shouldering ×3–5/side', weight:'—' },
-      { label:'Always',    detail:'Rope flow — 5–10 min permanent fixture after main skill', weight:'—' },
-      { label:'Free play', detail:'Juggling / kettlebell flow / tumbling / dance — remaining time', weight:'—' },
-    ]}],
-  },
-};
-
-// ── Skill day data ────────────────────────────────────────────────────────────
-const CARDIO_FORMATS = [
-  { name:':30/:30 Single Tool', detail:':30 bike (or row / ski / jump rope) · :30 rest × 30 sets', duration:'30 min', note:'Simplest option — structure enforces correct intensity automatically' },
-  { name:':30/:30 Two Tools', detail:':30 row · :30 rest × 15, then :30 bike · :30 rest × 15', duration:'30 min', note:'Rotate equipment halfway for variety' },
-  { name:'Monostructural Repeats', detail:'500m row × 10 sets · 60 sec rest between sets', duration:'~30 min', note:'Adjust distance so each rep takes ~2 min at sustainable pace' },
-  { name:'Three Tool Circuit', detail:'Every 3 min: 15 cal row + 12 cal bike + 9 cal ski × 10 sets', duration:'30 min', note:'Scale calories so each round takes ~2:00–2:15' },
-  { name:'Descending Intervals', detail:':60 bike · :30 rest · :60 row · :30 rest × 10 rounds', duration:'30 min', note:'Good option when energy is lower — longer rest built in' },
-];
-
-const GYMNASTICS_PHASES = [
-  { phase:'Current', skill:'Handstand', program:'Ganbaru app — 12-week program', trigger:'Complete the program', duration:'15–20 min/session' },
-  { phase:'Next', skill:'Handstand Walk', program:'Dedicated progression once freestanding HS is consistent', trigger:'Freestanding HS holdable and repeatable', duration:'15–20 min/session' },
-  { phase:'After', skill:'Muscle-Up Progressions', program:'Ring rows → jumping negatives → banded transitions → strict attempts', trigger:'Pull-ups unbroken across all Giant Block rounds', duration:'15–20 min/session' },
-];
-
-const MOTOR_CIRCUIT = [
-  { label:'Animal Flow', detail:'Beast crawl 10m → crab reach ×5/side → side kickthrough ×3/side → croc crawl 10m', weight:'3 min', cls:'plain' },
-  { label:'Turkish Get-Up', detail:'2–3 reps per side — full rest between reps, stand/breathe/reset. Progress: 12→16→20→24kg', weight:'12 kg · 3 min', cls:'gold' },
-  { label:'Rope Flow', detail:'One pattern only — groove before adding next: waves → figure-8s → side circles', weight:'2 min', cls:'plain' },
-  { label:'Floor-to-Stand', detail:'Cross-legged ×3 · shin box ×3/side · roll-to-squat ×4 · roll-to-lunge ×3/side', weight:'2 min', cls:'plain' },
-];
-
-// ── State ─────────────────────────────────────────────────────────────────────
-let unit = 'kg';
-let mode = 'strength';
-
-function setMode(m) {
-  mode = m;
-  document.getElementById('strengthUI').style.display = m==='strength' ? 'block' : 'none';
-  document.getElementById('skillUI').style.display    = m==='skill'    ? 'block' : 'none';
-  document.getElementById('modeStrength').classList.toggle('active', m==='strength');
-  document.getElementById('modeSkill').classList.toggle('active',    m==='skill');
-  if (m==='skill') renderSkillDay();
+  );
 }
 
-function setUnit(u) {
-  unit = u;
-  document.querySelectorAll('.unit-btn').forEach(b=>b.classList.toggle('active',b.textContent===u));
-  calculate();
-}
-
-function roundW(w) { const s=unit==='kg'?2.5:5; return Math.round(w/s)*s; }
-function fmt(w) { return (w%1===0?w.toFixed(0):w.toFixed(1))+' '+unit; }
-function diffClass(d) { return {hard:'diff-hard',medium:'diff-medium',light:'diff-light'}[d]; }
-function pill(d) { const l=d[0].toUpperCase()+d.slice(1); return `<span class="diff-pill ${diffClass(d)}">${l}</span>`; }
-
-function exCard(name, role, rows) {
-  const rHTML = rows.map(r=>`<div class="ex-row"><div class="ex-label">${r.label}</div><div class="ex-detail">${r.detail}</div><div class="ex-weight ${r.cls||'plain'}">${r.weight}</div></div>`).join('');
-  return `<div class="ex-card"><div class="ex-head"><div class="ex-name">${name}</div><div class="ex-role">${role}</div></div>${rHTML}</div>`;
-}
-
-function blockHdr(title, tagClass, tagLabel, extra='') {
-  return `<div class="block-header"><div class="block-title">${title}</div><span class="block-tag ${tagClass}">${tagLabel}</span>${extra}</div>`;
-}
-
-// ── Skill Day Render ──────────────────────────────────────────────────────────
-function renderSkillDay() {
-  let html = '';
-
-  // A. Cardio
-  html += `<div class="session-block">`;
-  html += blockHdr('A. Cardio','tag-cardio','30 min · RPE 6–7');
-  html += exCard('Session Formats','rotate for variety — pick one per session',
-    CARDIO_FORMATS.map(f=>({ label:f.name, detail:`${f.detail} — ${f.note}`, weight:f.duration, cls:'blue' })));
-  html += `<p class="block-note">Target intensity: you can speak in full sentences. Never push beyond RPE 7. The 30/30 format is the default — structure enforces correct intensity automatically.</p>`;
-  html += `</div>`;
-
-  // B. Gymnastics
-  html += `<div class="session-block">`;
-  html += blockHdr('B. Gymnastics Skill','tag-gym','15–20 min · One focus per macrocycle');
-  html += exCard('Skill Progression Roadmap','one phase at a time — never mix skills',
-    GYMNASTICS_PHASES.map(g=>({ label:g.phase, detail:`${g.skill} — ${g.program} · Advance when: ${g.trigger}`, weight:g.duration, cls: g.phase==='Current'?'gold':g.phase==='Next'?'plain':'muted' })));
-  html += `<p class="block-note">Current focus: Handstand via Ganbaru app. Never train to failure — stop when form degrades. One clean rep is worth ten sloppy ones.</p>`;
-  html += `</div>`;
-
-  // C. Motor Circuit
-  html += `<div class="session-block">`;
-  html += blockHdr('C. Motor Circuit','tag-motor','10–12 min · Same every session');
-  html += `<div class="circuit-note">Permanent, unchanging circuit — automaticity is the point. No decisions, just execute.</div>`;
-  html += exCard('The Circuit','animal flow → TGU → rope flow → floor-to-stand', MOTOR_CIRCUIT);
-  html += `<p class="block-note">This circuit never changes. Only the gymnastics block evolves. Covers all motor pattern gaps that strength training leaves — rotation, ground transitions, unilateral load, rhythm, spinal mobility.</p>`;
-  html += `</div>`;
-
-  document.getElementById('skillResults').innerHTML = html;
-}
-
-// ── Strength Day Render ───────────────────────────────────────────────────────
-function calculate() {
-  const dayKey = document.getElementById('day').value;
-  const diff   = document.getElementById('difficulty').value;
-  const topRaw = parseFloat(document.getElementById('topWeight').value);
-  const topBRaw= parseFloat(document.getElementById('topWeightB').value);
-  const day    = DAYS[dayKey];
-  const scheme = SCHEMES[diff];
-
-  document.getElementById('emptyState').style.display = (topRaw>0)?'none':'block';
-  document.getElementById('results').style.display    = (topRaw>0)?'block':'none';
-  if (!topRaw||topRaw<=0) return;
-
-  const top  = topRaw;
-  const topB = topBRaw>0?topBRaw:null;
-  const set1 = roundW(top*scheme.pcts[0]);
-  let html   = '';
-
-  // A. Warm-up
-  html += `<div class="session-block">`;
-  html += blockHdr('A. Warm-Up','tag-wu','Activation');
-  html += exCard('Activation Sequence','movement prep', day.warmupDrills.map((d,i)=>({label:`Step ${i+1}`,detail:d,weight:'—',cls:'muted'})));
-  html += exCard(day.main,'build-up sets — % of Giant Block Set 1', WU_PCTS.map((p,i)=>({label:`WU${i+1}`,detail:`${WU_REPS[i]} reps @ ~${Math.round(p*100)}%`,weight:fmt(roundW(set1*p)),cls:'muted'})));
-  if (day.antagonistType==='weighted'&&topB) {
-    const antSet1=roundW(topB*scheme.pcts[0]);
-    html += exCard(day.antagonist,'build-up sets — antagonist', WU_PCTS.map((p,i)=>({label:`WU${i+1}`,detail:`${WU_REPS[i]} reps @ ~${Math.round(p*100)}%`,weight:fmt(roundW(antSet1*p)),cls:'muted'})));
+// ---- WEIGHTS / SETUP -------------------------------------------------------
+function Weights({ weights, onSave, pos, onPos }) {
+  const [w, setW] = useState(weights);
+  const [p, setP] = useState(pos);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  useEffect(()=>{ setW(weights); }, [weights]);
+  const setWeight = (lift, diff, val) => setW((prev)=>({ ...prev, [lift]: { ...prev[lift], [diff]: parseFloat(val) || 0 } }));
+  async function save() {
+    setSaving(true);
+    onPos(p);
+    await onSave(w);
+    setSaving(false); setSaved(true); setTimeout(()=>setSaved(false), 1600);
   }
-  html += `<p class="block-note">Always start with 2 loose reps with the empty bar before WU1.</p>`;
-  html += `</div>`;
-
-  // B. Giant Block
-  html += `<div class="session-block">`;
-  html += blockHdr('B. Giant Block','tag-gb','4 Rounds · 2 min rest',pill(diff));
-  html += `<div class="circuit-note">Circuit order per round: Main lift → Antagonist → Core → 30 sec cardio</div>`;
-  html += exCard(day.main,'main lift', scheme.pcts.map((p,i)=>{
-    const isTop=i===scheme.pcts.length-1; const w=isTop?top:roundW(top*p);
-    return {label:isTop?'Set 4 — Top':`Set ${i+1}`,detail:`${scheme.sets[i]} reps @ ${Math.round(p*100)}%`,weight:fmt(w),cls:isTop?'gold':''};
-  }));
-  if (day.antagonistType==='hold') {
-    html += exCard(day.antagonist,'structural accessory',[{label:'Each round',detail:'Max hold — sub-maximal effort',weight:'BW',cls:'muted'}]);
-  } else if (day.antagonistType==='bw') {
-    const pr=PULLUP_REPS[diff];
-    html += exCard(day.antagonist,'antagonist — bodyweight',[
-      {label:'Each round',detail:`${pr} reps total (cluster sets allowed — 10–15 sec pause OK)`,weight:'BW',cls:'muted'},
-      {label:'Progress',detail:'Consolidate clusters → unbroken → add weight',weight:'—',cls:'muted'},
-    ]);
-  } else if (topB) {
-    html += exCard(day.antagonist,'antagonist lift', scheme.pcts.map((p,i)=>{
-      const isTop=i===scheme.pcts.length-1; const w=isTop?topB:roundW(topB*p);
-      return {label:isTop?'Set 4 — Top':`Set ${i+1}`,detail:`${scheme.sets[i]} reps @ ${Math.round(p*100)}%`,weight:fmt(w),cls:isTop?'gold':''};
-    }));
-  } else {
-    html += exCard(day.antagonist,'antagonist lift',[{label:'Each round',detail:`${scheme.sets.join('-')} reps`,weight:'Add weight →',cls:'muted'}]);
-  }
-  const coreName = day.coreFallback ? `${day.core} <span style="font-size:11px;color:var(--muted);font-weight:400">(${day.coreFallback})</span>` : day.core;
-  html += exCard(coreName,'core',[{label:'Each round',detail:'10 reps',weight:'BW',cls:'muted'}]);
-  html += exCard('Cardio','conditioning',[{label:'Each round',detail:'30 sec — high effort',weight:'Row / Bike / Skip',cls:'muted'}]);
-  html += `<p class="block-note">Leave 1–2 reps in the tank every set. If Set 1 feels harder than RPE 6–7, back off the top set.</p>`;
-  html += `</div>`;
-
-  // C. Volume Block
-  const volW=roundW(top*0.80);
-  html += `<div class="session-block">`;
-  html += blockHdr('C. Volume Block','tag-vol','Density Work',pill(diff));
-  html += exCard(day.main,`80% of top set · 60–90 sec rest between sets`,[
-    {label:'Set 1',detail:`${scheme.volReps} reps`,weight:fmt(volW),cls:'blue'},
-    {label:'Set 2',detail:`${scheme.volReps} reps`,weight:fmt(volW),cls:'blue'},
-  ]);
-  html += exCard(day.core,'core — between volume sets',[{label:'Between sets',detail:'10 reps',weight:'BW',cls:'muted'}]);
-  html += `<p class="block-note">Once both sets hit RIR 2+ cleanly, add ${day.type==='upper'?'2.5':'5'}kg next session.</p>`;
-  html += `</div>`;
-
-  // D. Carry Finisher
-  const c=day.carry;
-  html += `<div class="session-block">`;
-  html += blockHdr('D. Carry Finisher','tag-carry','10 min');
-  html += exCard(c.name,'loaded locomotion finisher',[
-    {label:'Load',    detail:'Starting recommendation — adjust based on feel',weight:c.load,    cls:'purple'},
-    {label:'Distance',detail:'Per set',                                        weight:c.distance,cls:'plain'},
-    {label:'Sets',    detail:'Rest just enough to walk back and reset',        weight:c.sets,    cls:'plain'},
-    {label:'Progress',detail:c.progress,                                       weight:'—',       cls:'muted'},
-    {label:'Rule',    detail:'Finish each length with 3–4 steps still in reserve — never grind position',weight:'—',cls:'muted'},
-  ]);
-  html += `</div>`;
-
-  // E. Cooldown
-  html += `<div class="session-block">`;
-  html += blockHdr('E. Cooldown','tag-cd','Passive Recovery');
-  html += exCard(day.cooldown.name,'passive stretch',[{label:'Duration',detail:'Hold fully — no bouncing, breathe into the stretch',weight:day.cooldown.duration,cls:'green'}]);
-  html += `</div>`;
-
-  document.getElementById('results').innerHTML = html;
+  return (
+    <div>
+      <div style={cardStyle}>
+        {blockTitle("Current Position", "")}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          {[["macro","Macro"],["meso","Cycle"],["week","Week"]].map(([k,label])=>(
+            <div key={k}><label style={lbl}>{label}</label><input style={inp} type="number" min="1" value={p[k]} onChange={(e)=>setP({ ...p, [k]: parseInt(e.target.value)||1 })} /></div>
+          ))}
+        </div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>Week 1–4 sets the rotation. H/M/L is chosen on the Today tab.</div>
+      </div>
+      <div style={cardStyle}>
+        {blockTitle("Working Top Sets", "per difficulty")}
+        <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr 1fr", gap: 6, alignItems: "center" }}>
+          <span></span>
+          <span style={{ color: C.red, textAlign: "center", fontSize: 11, fontWeight: 600 }}>HARD</span>
+          <span style={{ color: C.gold, textAlign: "center", fontSize: 11, fontWeight: 600 }}>MED</span>
+          <span style={{ color: C.green, textAlign: "center", fontSize: 11, fontWeight: 600 }}>LIGHT</span>
+          {["deadlift","ohp","squat","dips"].map((lift)=>(
+            <Fragment key={lift}>
+              <span style={{ fontSize: 12, color: C.off }}>{LIFT_LABEL[lift]}</span>
+              {["hard","medium","light"].map((d)=>(
+                <input key={d} style={{ ...inp, padding: "6px", textAlign: "center" }} type="number" step="2.5" value={w[lift][d]} onChange={(e)=>setWeight(lift,d,e.target.value)} />
+              ))}
+            </Fragment>
+          ))}
+        </div>
+      </div>
+      <button onClick={save} disabled={saving} style={{ width: "100%", background: saved ? C.green : C.gold, color: C.dark, border: "none", borderRadius: 2, padding: "13px", fontSize: 13, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", cursor: saving ? "wait" : "pointer", opacity: saving ? 0.7 : 1 }}>
+        {saving ? <span>Saving… <span className="spin" /></span> : saved ? "Saved ✓" : "Save setup"}
+      </button>
+      <div style={{ ...cardStyle, marginTop: 16, fontSize: 11, color: C.muted, lineHeight: 1.6 }}>
+        Synced to your Google Sheet. Open this same URL on any device — phone or laptop — and the data follows.
+      </div>
+    </div>
+  );
 }
 
-['day','difficulty','topWeight','topWeightB'].forEach(id=>{
-  document.getElementById(id).addEventListener((id==='day'||id==='difficulty')?'change':'input', calculate);
-});
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 </script>
 </body>
 </html>
