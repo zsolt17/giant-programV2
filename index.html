@@ -279,68 +279,63 @@ function mondayOf(dt) {
 // Given a macro start ISO and a target Date, compute full position.
 // Returns { macro, meso, week, weekday, dayType, difficulty, phase, weekType,
 //           isSessionDay, daysSinceStart, weekIndex, nextSession }
-function computePosition(startISO, macroNumber, target) {
+// Core position math only — never computes nextSession, so it cannot recurse.
+function corePosition(startISO, macroNumber, target) {
   const start = mondayOf(parseLocalDate(startISO));
   const t = new Date(target.getFullYear(), target.getMonth(), target.getDate());
   const daysSinceStart = Math.floor((t - start) / 86400000);
 
-  // Before the macro begins
   if (daysSinceStart < 0) {
     return { macro: macroNumber, beforeStart: true, daysSinceStart, phase: "upcoming" };
   }
-
-  let weekIndex = Math.floor(daysSinceStart / 7); // 0-based across the macro
-
-  // After the macro ends -> complete (prompt to start next macro)
+  let weekIndex = Math.floor(daysSinceStart / 7);
   if (weekIndex >= MACRO_WEEKS) {
     return { macro: macroNumber, complete: true, weekIndex, daysSinceStart, phase: "complete" };
   }
-
-  const weekday = t.getDay(); // 0..6
+  const weekday = t.getDay();
   const isSessionDay = weekday === 1 || weekday === 3 || weekday === 5;
-
-  // Determine week type by macro position
-  let weekType = "training"; // training | testing | deload
+  let weekType = "training";
   if (weekIndex >= 12 && weekIndex <= 13) weekType = "testing";
   else if (weekIndex === 14) weekType = "deload";
-
   let meso, weekInMeso;
   if (weekType === "training") {
-    meso = Math.floor(weekIndex / 4) + 1;        // 1..3
-    weekInMeso = (weekIndex % 4) + 1;            // 1..4
+    meso = Math.floor(weekIndex / 4) + 1;
+    weekInMeso = (weekIndex % 4) + 1;
   } else {
     meso = null;
     weekInMeso = null;
   }
-
-  // Resolve lift + difficulty for a training session day
   let dayType = null, difficulty = null;
   if (weekType === "training" && isSessionDay) {
     difficulty = DAY_SLOT[weekday];
     dayType = ROTATION[weekInMeso - 1][difficulty];
   }
-
-  // Find the next session day (today if a session day, else upcoming)
-  const nextSession = nextSessionFrom(startISO, macroNumber, t);
-
   return {
     macro: macroNumber, meso, week: weekInMeso, weekday: difficulty,
     dayType, difficulty, weekType, isSessionDay,
     weekIndex, daysSinceStart,
     displayWeekGlobal: weekIndex + 1,
-    nextSession,
     phase: weekType,
   };
 }
 
+function computePosition(startISO, macroNumber, target) {
+  const base = corePosition(startISO, macroNumber, target);
+  if (base.beforeStart || base.complete) return base;
+  const t = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  base.nextSession = nextSessionFrom(startISO, macroNumber, t);
+  return base;
+}
+
 // Walk forward from a date to the next Mon/Wed/Fri session within the macro.
+// Uses corePosition (not computePosition) so there is no recursion.
 function nextSessionFrom(startISO, macroNumber, fromDate) {
   for (let i = 0; i < 10; i++) {
     const d = new Date(fromDate);
     d.setDate(fromDate.getDate() + i);
     const wd = d.getDay();
     if (wd === 1 || wd === 3 || wd === 5) {
-      const p = computePosition(startISO, macroNumber, d);
+      const p = corePosition(startISO, macroNumber, d);
       if (p.complete || p.beforeStart) return null;
       if (p.weekType === "training" && p.dayType) {
         return { date: isoLocal(d), dayType: p.dayType, difficulty: p.difficulty, meso: p.meso, week: p.week };
