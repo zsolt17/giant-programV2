@@ -165,6 +165,12 @@ const LIFT_LABEL = {
   squat: "Back Squat",
   dips: "Weighted Ring Dips"
 };
+const LIFT_SHORT = {
+  deadlift: "Deadlift",
+  ohp: "OHP",
+  squat: "Squat",
+  dips: "Dips"
+};
 const DAY_META = {
   deadlift: {
     antag: "Sørensen Hold",
@@ -347,6 +353,41 @@ function nextSessionFrom(startISO, macroNumber, fromDate) {
   return null;
 }
 
+// Enumerate every session slot in the macro as { date, weekday, weekIndex,
+// weekType, meso, week, dayType, difficulty }. Mon/Wed/Fri across all 15 weeks.
+function enumerateMacro(startISO, macroNumber) {
+  const start = mondayOf(parseLocalDate(startISO));
+  const rows = []; // one per program week
+  for (let wi = 0; wi < MACRO_WEEKS; wi++) {
+    const weekStart = new Date(start);
+    weekStart.setDate(start.getDate() + wi * 7);
+    const cells = [];
+    [1, 3, 5].forEach(offsetDow => {
+      const d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + (offsetDow - 1)); // Mon=+0, Wed=+2, Fri=+4
+      const p = corePosition(startISO, macroNumber, d);
+      cells.push({
+        date: isoLocal(d),
+        dow: offsetDow,
+        weekType: p.weekType,
+        meso: p.meso,
+        week: p.week,
+        dayType: p.dayType,
+        difficulty: p.difficulty,
+      });
+    });
+    rows.push({
+      weekIndex: wi,
+      displayWeek: wi + 1,
+      weekType: cells[0].weekType,
+      meso: cells[0].meso,
+      week: cells[0].week,
+      cells,
+    });
+  }
+  return rows;
+}
+
 const C = {
   navy: "#2E4057",
   dark: "#1a2535",
@@ -437,6 +478,7 @@ function App() {
   const [weights, setWeights] = useState(DEFAULT_WEIGHTS);
   const [sessions, setSessions] = useState([]);
   const [deloadWeeks, setDeloadWeeks] = useState({});
+  const [breakDays, setBreakDays] = useState({}); // { "2026-06-15": true }
   const [status, setStatus] = useState("loading"); // loading | ready | error
   const [errMsg, setErrMsg] = useState("");
   const reload = useCallback(async () => {
@@ -447,12 +489,14 @@ function App() {
       const w = rowsToWeights(data.working_weights) || DEFAULT_WEIGHTS;
       const ss = (data.sessions || []).map(coerceSession).sort((a, b) => a.date < b.date ? 1 : -1);
       const dw = rowsToDeload(data.deload);
-      // macro anchor stored locally (not part of the synced sheet schema yet)
+      // macro anchor + break days stored locally (not part of the synced sheet schema yet)
       const cfg = JSON.parse(localStorage.getItem("giant_cfg") || "null");
       if (cfg) {
         if (cfg.startISO) setStartISO(cfg.startISO);
         if (cfg.macroNumber) setMacroNumber(cfg.macroNumber);
       }
+      const bd = JSON.parse(localStorage.getItem("giant_breaks") || "{}");
+      setBreakDays(bd || {});
       setWeights(w);
       setSessions(ss);
       setDeloadWeeks(dw);
@@ -469,6 +513,14 @@ function App() {
     setStartISO(nextStart);
     setMacroNumber(nextMacro);
     localStorage.setItem("giant_cfg", JSON.stringify({ startISO: nextStart, macroNumber: nextMacro }));
+  }, []);
+  const toggleBreakDay = useCallback((iso, on) => {
+    setBreakDays(prev => {
+      const next = { ...prev };
+      if (on) next[iso] = true; else delete next[iso];
+      localStorage.setItem("giant_breaks", JSON.stringify(next));
+      return next;
+    });
   }, []);
   const saveWeights = useCallback(async w => {
     setWeights(w);
@@ -550,6 +602,15 @@ function App() {
     onSave: saveSession,
     deloadWeeks: deloadWeeks,
     onApplyDeload: applyDeload
+  }), tab === "calendar" && /*#__PURE__*/React.createElement(Calendar, {
+    startISO: startISO,
+    macroNumber: macroNumber,
+    weights: weights,
+    sessions: sessions,
+    breakDays: breakDays,
+    onToggleBreak: toggleBreakDay,
+    onSave: saveSession,
+    onDelete: deleteSession
   }), tab === "history" && /*#__PURE__*/React.createElement(History, {
     sessions: sessions,
     onDelete: deleteSession
@@ -685,7 +746,7 @@ function Tabs({
   tab,
   setTab
 }) {
-  const items = [["today", "Today"], ["history", "History"], ["deload", "Deload"], ["weights", "Setup"]];
+  const items = [["today", "Today"], ["calendar", "Calendar"], ["history", "History"], ["deload", "Deload"], ["weights", "Setup"]];
   return /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -1407,6 +1468,178 @@ function SignalBanner({
       fontStyle: "italic"
     }
   }, "Next week the app will recommend a deload (unless a break is scheduled)."));
+}
+
+// ---- CALENDAR (Phase 2) ----------------------------------------------------
+function shortDate(iso) {
+  const d = parseLocalDate(iso);
+  return d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" });
+}
+function Calendar({ startISO, macroNumber, weights, sessions, breakDays, onToggleBreak, onSave, onDelete }) {
+  const rows = enumerateMacro(startISO, macroNumber);
+  const todayStr = todayISO();
+  const [modal, setModal] = useState(null); // { cell } when open
+  const byDate = {};
+  sessions.forEach(s => { byDate[s.date + "-" + s.dayType + "-" + (s.difficulty ? s.difficulty[0].toUpperCase() : "")] = s; });
+  // also index by plain date for quick lookup of "is there a session logged that day"
+  const loggedOnDate = {};
+  sessions.forEach(s => { loggedOnDate[s.date] = s; });
+
+  function cellState(cell) {
+    if (breakDays[cell.date]) return "break";
+    const logged = loggedOnDate[cell.date];
+    if (logged) return "logged";
+    if (cell.date === todayStr) return "today";
+    if (cell.date < todayStr) return "missed";
+    return "upcoming";
+  }
+  const stateColor = { logged: C.green, missed: C.red, today: C.gold, upcoming: C.muted, break: C.blue };
+
+  return /*#__PURE__*/React.createElement("div", null,
+    /*#__PURE__*/React.createElement("div", { style: { ...cardStyle } },
+      /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: C.muted, lineHeight: 1.6, marginBottom: 4 } },
+        "Macro ", macroNumber, " · 15 weeks from ", shortDate(isoLocal(mondayOf(parseLocalDate(startISO)))), ". Tap any session to log, edit, or mark a break."),
+      /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 12, flexWrap: "wrap", marginTop: 8 } },
+        [["logged", "Logged"], ["missed", "Missed"], ["today", "Today"], ["upcoming", "Upcoming"], ["break", "Break"]].map(([k, label]) =>
+          /*#__PURE__*/React.createElement("span", { key: k, style: { fontSize: 10, color: C.muted, display: "flex", alignItems: "center", gap: 4 } },
+            /*#__PURE__*/React.createElement("span", { style: { width: 8, height: 8, borderRadius: 8, background: stateColor[k], display: "inline-block" } }), label)))),
+    rows.map(row => {
+      const isTest = row.weekType === "testing";
+      const isDeload = row.weekType === "deload";
+      const rowLabel = isTest ? "Testing" : isDeload ? "Deload" : `C${row.meso} · W${row.week}`;
+      return /*#__PURE__*/React.createElement("div", { key: row.weekIndex, style: { ...cardStyle, padding: 12 } },
+        /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 } },
+          /*#__PURE__*/React.createElement("span", { style: { fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, letterSpacing: "0.06em", color: isTest || isDeload ? C.gold : C.off } }, rowLabel),
+          /*#__PURE__*/React.createElement("span", { style: { fontSize: 10, color: C.muted } }, "wk ", row.displayWeek, "/15")),
+        /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 } },
+          row.cells.map(cell => {
+            const st = cellState(cell);
+            const logged = loggedOnDate[cell.date];
+            const lift = cell.dayType;
+            return /*#__PURE__*/React.createElement("button", {
+              key: cell.date,
+              onClick: () => setModal({ cell }),
+              style: {
+                background: st === "today" ? "rgba(201,168,76,0.12)" : "rgba(255,255,255,0.03)",
+                border: `1px solid ${st === "today" ? C.gold : "rgba(255,255,255,0.08)"}`,
+                borderLeft: `3px solid ${stateColor[st]}`,
+                borderRadius: 2, padding: "7px 8px", cursor: "pointer", textAlign: "left", color: C.off,
+                fontFamily: "inherit", minHeight: 58,
+              }
+            },
+              /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, color: C.muted, marginBottom: 3 } }, shortDate(cell.date)),
+              isTest
+                ? /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, color: C.gold, fontWeight: 600 } }, "Test")
+                : isDeload
+                  ? /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, color: C.gold, fontWeight: 600 } }, "Deload")
+                  : /*#__PURE__*/React.createElement("div", null,
+                      /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: stateColor[st] === C.muted ? C.off : stateColor[st] } },
+                        LIFT_SHORT[lift] || "—"),
+                      /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, color: pillColor(cell.difficulty), textTransform: "uppercase" } }, cell.difficulty)),
+              logged && /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, color: C.muted, marginTop: 2 } }, fmt(logged.topWeight), logged.rpe ? " " + logged.rpe : ""),
+              st === "break" && /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, color: C.blue, marginTop: 2 } }, "break"));
+          })));
+    }),
+    modal && /*#__PURE__*/React.createElement(SessionModal, {
+      cell: modal.cell,
+      weights: weights,
+      existing: loggedOnDate[modal.cell.date],
+      isBreak: !!breakDays[modal.cell.date],
+      onToggleBreak: onToggleBreak,
+      macroNumber: macroNumber,
+      onSave: onSave,
+      onDelete: onDelete,
+      onClose: () => setModal(null)
+    }));
+}
+
+function SessionModal({ cell, weights, existing, isBreak, onToggleBreak, macroNumber, onSave, onDelete, onClose }) {
+  const isSpecial = cell.weekType === "testing" || cell.weekType === "deload";
+  const dayType = cell.dayType;
+  const difficulty = cell.difficulty;
+  const scheme = !isSpecial && difficulty ? SCHEMES[difficulty] : null;
+  const meta = !isSpecial && dayType ? DAY_META[dayType] : null;
+  const baseTop = !isSpecial && dayType ? weights[dayType][difficulty] : 0;
+  const sessionId = `${cell.date}-${dayType}-${difficulty ? difficulty[0].toUpperCase() : "X"}`;
+
+  function blank() {
+    return {
+      id: sessionId, date: cell.date, macro: macroNumber, meso: cell.meso, week: cell.week,
+      dayType, difficulty, topReps: scheme ? scheme.sets[3] : 0, topWeight: baseTop,
+      rpe: "", barSpeed: "", volDone: true, volRpe: "", volSpeed: "",
+      cleanSpeed: "", cleanLoad: 70, carrySkipped: false, carrySkipReason: "", carryRpe: "", notes: ""
+    };
+  }
+  const [log, setLog] = useState(() => existing || blank());
+  const [saving, setSaving] = useState(false);
+  const set = (k, v) => setLog(p => ({ ...p, [k]: v }));
+
+  async function handleSave() {
+    setSaving(true);
+    await onSave({ ...log, id: sessionId, date: cell.date, macro: macroNumber, meso: cell.meso, week: cell.week, dayType, difficulty, topReps: scheme ? scheme.sets[3] : 0 });
+    setSaving(false);
+    onClose();
+  }
+  async function handleDelete() {
+    if (existing) { await onDelete(existing.id); }
+    onClose();
+  }
+
+  const overlay = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "20px 12px", overflowY: "auto", zIndex: 50 };
+  const sheet = { background: C.dark, border: `1px solid ${C.border}`, borderRadius: 4, maxWidth: 520, width: "100%", padding: 18, marginTop: 20 };
+
+  return /*#__PURE__*/React.createElement("div", { style: overlay, onClick: onClose },
+    /*#__PURE__*/React.createElement("div", { style: sheet, onClick: e => e.stopPropagation() },
+      /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 } },
+        /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, color: C.muted } }, shortDate(cell.date), cell.meso ? ` · C${cell.meso} W${cell.week}` : ""),
+          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, letterSpacing: "0.04em" } },
+            isSpecial ? (cell.weekType === "testing" ? "Testing Session" : "Deload Session")
+              : /*#__PURE__*/React.createElement("span", null, LIFT_LABEL[dayType], " ", /*#__PURE__*/React.createElement("span", { style: { color: pillColor(difficulty) } }, "· ", difficulty.toUpperCase())))),
+        /*#__PURE__*/React.createElement("button", { onClick: onClose, style: { background: "transparent", border: "none", color: C.muted, fontSize: 22, cursor: "pointer", lineHeight: 1 } }, "×")),
+
+      // Break toggle (always available)
+      /*#__PURE__*/React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.off, padding: "8px 0", borderBottom: `1px solid ${C.border}`, marginBottom: 12 } },
+        /*#__PURE__*/React.createElement("input", { type: "checkbox", checked: isBreak, onChange: e => onToggleBreak(cell.date, e.target.checked) }),
+        "Mark this day as a break (exempt from missed + deload signals)"),
+
+      isSpecial
+        ? /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: C.muted, lineHeight: 1.5 } },
+            cell.weekType === "testing"
+              ? "Testing session — log your 2–3RM result in your notebook for now. The in-app testing logger is a later update."
+              : "End-of-macro deload — Giant Block only at 50–60%. Nothing to log in detail here.")
+        : /*#__PURE__*/React.createElement("div", null,
+            // Top set
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, color: C.muted, marginBottom: 8 } }, "Top set: ", scheme.sets[3], " reps @ ", fmt(baseTop)),
+            /*#__PURE__*/React.createElement(LogRpe, { label: "Top set", rpe: log.rpe, speed: log.barSpeed, onRpe: v => set("rpe", v), onSpeed: v => set("barSpeed", v) }),
+            // dips clean block
+            dayType === "dips" && /*#__PURE__*/React.createElement("div", { style: { marginTop: 12 } },
+              /*#__PURE__*/React.createElement("label", { style: lbl }, "Clean load (5×3)"),
+              /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 10 } },
+                /*#__PURE__*/React.createElement("input", { style: inp, type: "number", step: "2.5", value: log.cleanLoad, onChange: e => set("cleanLoad", parseFloat(e.target.value) || 0) }),
+                /*#__PURE__*/React.createElement(SpeedPick, { value: log.cleanSpeed, onChange: v => set("cleanSpeed", v) }))),
+            // Volume
+            /*#__PURE__*/React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.off, marginTop: 14 } },
+              /*#__PURE__*/React.createElement("input", { type: "checkbox", checked: log.volDone, onChange: e => set("volDone", e.target.checked) }),
+              "Volume block completed (2 × ", scheme.vol, ")"),
+            /*#__PURE__*/React.createElement(LogRpe, { label: "Volume", rpe: log.volRpe, speed: log.volSpeed, onRpe: v => set("volRpe", v), onSpeed: v => set("volSpeed", v) }),
+            // Carry
+            /*#__PURE__*/React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.off, marginTop: 14 } },
+              /*#__PURE__*/React.createElement("input", { type: "checkbox", checked: log.carrySkipped, onChange: e => set("carrySkipped", e.target.checked) }),
+              "Carry skipped"),
+            log.carrySkipped && /*#__PURE__*/React.createElement("select", { style: { ...inp, marginTop: 8 }, value: log.carrySkipReason, onChange: e => set("carrySkipReason", e.target.value) },
+              /*#__PURE__*/React.createElement("option", { value: "" }, "— reason —"),
+              /*#__PURE__*/React.createElement("option", { value: "fatigue" }, "Fatigue"),
+              /*#__PURE__*/React.createElement("option", { value: "schedule" }, "Schedule / time")),
+            !log.carrySkipped && /*#__PURE__*/React.createElement(LogRpe, { label: "Carry", rpe: log.carryRpe, speed: null, onRpe: v => set("carryRpe", v) }),
+            // Notes
+            /*#__PURE__*/React.createElement("div", { style: { marginTop: 14 } },
+              /*#__PURE__*/React.createElement("label", { style: lbl }, "Notes"),
+              /*#__PURE__*/React.createElement("textarea", { style: { ...inp, minHeight: 50, resize: "vertical" }, value: log.notes, onChange: e => set("notes", e.target.value) })),
+            // Actions
+            /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 16 } },
+              /*#__PURE__*/React.createElement("button", { onClick: handleSave, disabled: saving, style: { flex: 1, background: C.gold, color: C.dark, border: "none", borderRadius: 2, padding: "12px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", fontSize: 13, cursor: saving ? "wait" : "pointer", opacity: saving ? 0.7 : 1 } }, saving ? "Saving…" : existing ? "Update" : "Log session"),
+              existing && /*#__PURE__*/React.createElement("button", { onClick: handleDelete, style: { background: "transparent", color: C.red, border: `1px solid ${C.red}`, borderRadius: 2, padding: "12px 16px", fontSize: 13, cursor: "pointer" } }, "Delete")))));
 }
 
 // ---- HISTORY ---------------------------------------------------------------
