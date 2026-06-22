@@ -235,7 +235,7 @@ const DEFAULT_WEIGHTS = {
 };
 const SIGNALS = [{
   id: "S1",
-  label: "Light day top set ≥ R9"
+  label: "Any day, top set R9.5+"
 }, {
   id: "S2",
   label: "Volume block incomplete"
@@ -243,14 +243,115 @@ const SIGNALS = [{
   id: "S3",
   label: "Carry skipped (fatigue)"
 }, {
-  id: "S4",
-  label: "Set 1 heavier than R7"
-}, {
   id: "S5",
-  label: "Bar speed ↓ two sessions running"
+  label: "Bar speed ↓ on top set in 2+ sessions"
 }];
 const round = w => Math.round(w / 2.5) * 2.5;
 const fmt = w => (w % 1 === 0 ? w.toFixed(0) : w.toFixed(1)) + " kg";
+
+// ---- MACRO DATE ENGINE -----------------------------------------------------
+// Strict-date model: position is computed from the macro start date, never set
+// manually. 15-week macro: weeks 1-12 = 3 mesocycles (H/M/L rotation),
+// weeks 13-14 = testing, week 15 = end-of-macro deload.
+const MACRO_WEEKS = 15;
+const DEFAULT_START = "2026-04-13"; // M2 began Monday 13 Apr 2026
+const DAY_SLOT = { 1: "hard", 3: "medium", 5: "light" }; // Mon/Wed/Fri -> difficulty
+
+// Parse a YYYY-MM-DD string to a local Date at midnight (no UTC drift).
+function parseLocalDate(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+// Local YYYY-MM-DD for a Date.
+function isoLocal(dt) {
+  const y = dt.getFullYear(), m = String(dt.getMonth() + 1).padStart(2, "0"), d = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+// The macro start is anchored to a Monday. Snap any given start to its Monday.
+function mondayOf(dt) {
+  const day = dt.getDay(); // 0 Sun .. 6 Sat
+  const diff = day === 0 ? -6 : 1 - day; // move back to Monday
+  const m = new Date(dt);
+  m.setDate(dt.getDate() + diff);
+  return m;
+}
+
+// Given a macro start ISO and a target Date, compute full position.
+// Returns { macro, meso, week, weekday, dayType, difficulty, phase, weekType,
+//           isSessionDay, daysSinceStart, weekIndex, nextSession }
+function computePosition(startISO, macroNumber, target) {
+  const start = mondayOf(parseLocalDate(startISO));
+  const t = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  const daysSinceStart = Math.floor((t - start) / 86400000);
+
+  // Before the macro begins
+  if (daysSinceStart < 0) {
+    return { macro: macroNumber, beforeStart: true, daysSinceStart, phase: "upcoming" };
+  }
+
+  let weekIndex = Math.floor(daysSinceStart / 7); // 0-based across the macro
+
+  // After the macro ends -> complete (prompt to start next macro)
+  if (weekIndex >= MACRO_WEEKS) {
+    return { macro: macroNumber, complete: true, weekIndex, daysSinceStart, phase: "complete" };
+  }
+
+  const weekday = t.getDay(); // 0..6
+  const isSessionDay = weekday === 1 || weekday === 3 || weekday === 5;
+
+  // Determine week type by macro position
+  let weekType = "training"; // training | testing | deload
+  if (weekIndex >= 12 && weekIndex <= 13) weekType = "testing";
+  else if (weekIndex === 14) weekType = "deload";
+
+  let meso, weekInMeso;
+  if (weekType === "training") {
+    meso = Math.floor(weekIndex / 4) + 1;        // 1..3
+    weekInMeso = (weekIndex % 4) + 1;            // 1..4
+  } else {
+    meso = null;
+    weekInMeso = null;
+  }
+
+  // Resolve lift + difficulty for a training session day
+  let dayType = null, difficulty = null;
+  if (weekType === "training" && isSessionDay) {
+    difficulty = DAY_SLOT[weekday];
+    dayType = ROTATION[weekInMeso - 1][difficulty];
+  }
+
+  // Find the next session day (today if a session day, else upcoming)
+  const nextSession = nextSessionFrom(startISO, macroNumber, t);
+
+  return {
+    macro: macroNumber, meso, week: weekInMeso, weekday: difficulty,
+    dayType, difficulty, weekType, isSessionDay,
+    weekIndex, daysSinceStart,
+    displayWeekGlobal: weekIndex + 1,
+    nextSession,
+    phase: weekType,
+  };
+}
+
+// Walk forward from a date to the next Mon/Wed/Fri session within the macro.
+function nextSessionFrom(startISO, macroNumber, fromDate) {
+  for (let i = 0; i < 10; i++) {
+    const d = new Date(fromDate);
+    d.setDate(fromDate.getDate() + i);
+    const wd = d.getDay();
+    if (wd === 1 || wd === 3 || wd === 5) {
+      const p = computePosition(startISO, macroNumber, d);
+      if (p.complete || p.beforeStart) return null;
+      if (p.weekType === "training" && p.dayType) {
+        return { date: isoLocal(d), dayType: p.dayType, difficulty: p.difficulty, meso: p.meso, week: p.week };
+      }
+      if (p.weekType === "testing") return { date: isoLocal(d), testing: true };
+      if (p.weekType === "deload") return { date: isoLocal(d), deload: true };
+    }
+  }
+  return null;
+}
+
 const C = {
   navy: "#2E4057",
   dark: "#1a2535",
@@ -332,12 +433,12 @@ const round2 = round;
 // ============================================================================
 function App() {
   const [tab, setTab] = useState("today");
-  const [pos, setPos] = useState({
-    macro: 2,
-    meso: 3,
-    week: 1,
-    weekday: "hard"
-  });
+  // Macro anchor (persisted). Position is COMPUTED from this, never set manually.
+  const [startISO, setStartISO] = useState(DEFAULT_START);
+  const [macroNumber, setMacroNumber] = useState(2);
+  // viewDay lets the user peek at a different session day's prescription without
+  // changing their real date-derived position. null = today.
+  const [viewWeekday, setViewWeekday] = useState(null);
   const [weights, setWeights] = useState(DEFAULT_WEIGHTS);
   const [sessions, setSessions] = useState([]);
   const [deloadWeeks, setDeloadWeeks] = useState({});
@@ -351,12 +452,15 @@ function App() {
       const w = rowsToWeights(data.working_weights) || DEFAULT_WEIGHTS;
       const ss = (data.sessions || []).map(coerceSession).sort((a, b) => a.date < b.date ? 1 : -1);
       const dw = rowsToDeload(data.deload);
-      // position is derived/stored locally for convenience (not critical to sync)
-      const localPos = JSON.parse(localStorage.getItem("giant_pos") || "null");
+      // macro anchor stored locally (not part of the synced sheet schema yet)
+      const cfg = JSON.parse(localStorage.getItem("giant_cfg") || "null");
+      if (cfg) {
+        if (cfg.startISO) setStartISO(cfg.startISO);
+        if (cfg.macroNumber) setMacroNumber(cfg.macroNumber);
+      }
       setWeights(w);
       setSessions(ss);
       setDeloadWeeks(dw);
-      if (localPos) setPos(localPos);
       setStatus("ready");
     } catch (e) {
       setErrMsg(String(e.message || e));
@@ -366,9 +470,10 @@ function App() {
   useEffect(() => {
     reload();
   }, [reload]);
-  const savePosition = useCallback(p => {
-    setPos(p);
-    localStorage.setItem("giant_pos", JSON.stringify(p));
+  const saveConfig = useCallback((nextStart, nextMacro) => {
+    setStartISO(nextStart);
+    setMacroNumber(nextMacro);
+    localStorage.setItem("giant_cfg", JSON.stringify({ startISO: nextStart, macroNumber: nextMacro }));
   }, []);
   const saveWeights = useCallback(async w => {
     setWeights(w);
@@ -428,17 +533,26 @@ function App() {
     onClick: reload,
     style: btnPrimary
   }, "Retry")));
+  // Compute today's position strictly from the macro start date.
+  const today = new Date();
+  const computed = computePosition(startISO, macroNumber, today);
+  // The difficulty actually viewed: real today's slot, or a user peek.
+  const effectiveWeekday = viewWeekday || computed.difficulty || "hard";
+
   return /*#__PURE__*/React.createElement(Shell, {
     onSync: reload
   }, /*#__PURE__*/React.createElement(Tabs, {
     tab: tab,
     setTab: setTab
   }), tab === "today" && /*#__PURE__*/React.createElement(Today, {
-    pos: pos,
+    computed: computed,
+    viewWeekday: viewWeekday,
+    setViewWeekday: setViewWeekday,
+    startISO: startISO,
+    macroNumber: macroNumber,
     weights: weights,
     sessions: sessions,
     onSave: saveSession,
-    onPos: savePosition,
     deloadWeeks: deloadWeeks,
     onApplyDeload: applyDeload
   }), tab === "history" && /*#__PURE__*/React.createElement(History, {
@@ -450,8 +564,10 @@ function App() {
   }), tab === "weights" && /*#__PURE__*/React.createElement(Weights, {
     weights: weights,
     onSave: saveWeights,
-    pos: pos,
-    onPos: savePosition
+    startISO: startISO,
+    macroNumber: macroNumber,
+    computed: computed,
+    onSaveConfig: saveConfig
   }));
 }
 const cardStyle = {
@@ -679,54 +795,113 @@ function antagDesc(type, diff) {
   return "";
 }
 function computeWeekSignals(weekSessions) {
-  const found = new Set();
+  // Revised rule:
+  //  S1 any-day top set R9.5+   S2 volume incomplete   S3 carry skipped (fatigue)
+  //  S5 bar speed ↓ on the top set in 2+ sessions this week (any lift)
+  //  (S4 Set1>R7 is notebook-only, not auto-detected.)
+  // Each per-session signal is one "occurrence". S5 is a week-level signal.
+  // TRIGGER: 3+ total occurrences spanning at least 2 different sessions.
+  const types = new Set();
+  let occurrences = 0;
+  const sessionsWithSignal = new Set();
+  let downTopSets = 0;
+
   for (const s of weekSessions) {
-    if (s.difficulty === "light" && rpeNum(s.rpe) >= 9) found.add("S1");
-    if (s.volDone === false) found.add("S2");
-    if (s.carrySkipped && s.carrySkipReason === "fatigue") found.add("S3");
+    let hit = false;
+    if (rpeNum(s.rpe) >= 9.5) { types.add("S1"); occurrences++; hit = true; }
+    if (s.volDone === false) { types.add("S2"); occurrences++; hit = true; }
+    if (s.carrySkipped && s.carrySkipReason === "fatigue") { types.add("S3"); occurrences++; hit = true; }
+    if (s.barSpeed === "down") downTopSets++;
+    if (hit) sessionsWithSignal.add(s.id);
   }
-  const byLift = {};
-  weekSessions.slice().sort((a, b) => a.date < b.date ? -1 : 1).forEach(s => {
-    byLift[s.dayType] = byLift[s.dayType] || [];
-    byLift[s.dayType].push(s.barSpeed);
-  });
-  Object.values(byLift).forEach(arr => {
-    for (let i = 1; i < arr.length; i++) if (arr[i] === "down" && arr[i - 1] === "down") found.add("S5");
-  });
-  return found;
+  // S5: top-set bar speed down in 2+ sessions this week
+  if (downTopSets >= 2) {
+    types.add("S5");
+    occurrences++;
+    // count the down sessions toward the "spanning 2 sessions" requirement
+    weekSessions.forEach(s => { if (s.barSpeed === "down") sessionsWithSignal.add(s.id); });
+  }
+
+  const fired = occurrences >= 3 && sessionsWithSignal.size >= 2;
+  return { types, occurrences, sessionCount: sessionsWithSignal.size, fired };
 }
 
 // ---- TODAY -----------------------------------------------------------------
 function Today({
-  pos,
+  computed,
+  viewWeekday,
+  setViewWeekday,
+  startISO,
+  macroNumber,
   weights,
   sessions,
   onSave,
-  onPos,
   deloadWeeks,
   onApplyDeload
 }) {
-  const dayType = ROTATION[pos.week - 1][pos.weekday];
-  const difficulty = pos.weekday;
+  // Special macro states first.
+  if (computed.beforeStart) {
+    return /*#__PURE__*/React.createElement("div", { style: { ...cardStyle, textAlign: "center", color: C.muted, padding: 30 } },
+      "Macro hasn't started yet. First session: ", isoLocal(mondayOf(parseLocalDate(startISO))), ".");
+  }
+  if (computed.complete) {
+    return /*#__PURE__*/React.createElement("div", { style: { ...cardStyle, border: `1px solid ${C.gold}`, textAlign: "center", padding: 30 } },
+      /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: C.gold, letterSpacing: "0.05em", marginBottom: 8 } }, "MACRO COMPLETE"),
+      /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: C.off, lineHeight: 1.5 } }, "All 15 weeks done. Head to Setup to start the next macrocycle — it will carry your C3 weights forward as the new starting loads."));
+  }
+
+  // Testing weeks (13-14): marker only in Phase 1; rich testing logger is later.
+  if (computed.weekType === "testing") {
+    return /*#__PURE__*/React.createElement("div", null,
+      /*#__PURE__*/React.createElement(PositionHeader, { computed: computed, viewWeekday: viewWeekday, setViewWeekday: setViewWeekday, label: "Testing Week" }),
+      /*#__PURE__*/React.createElement("div", { style: { ...cardStyle, border: `1px solid ${C.gold}` } },
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: C.gold, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 6 } }, "Testing block"),
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: C.off, lineHeight: 1.5 } }, "Find a clean 2\u20133RM with 1 rep in reserve \u2014 no grinders, no missed reps. Cleans: note the heaviest crisp 5\u00d73. Log testing results in your notebook for now; the in-app testing logger is coming in a later update.")));
+  }
+  if (computed.weekType === "deload") {
+    return /*#__PURE__*/React.createElement("div", null,
+      /*#__PURE__*/React.createElement(PositionHeader, { computed: computed, viewWeekday: viewWeekday, setViewWeekday: setViewWeekday, label: "Deload Week" }),
+      /*#__PURE__*/React.createElement("div", { style: { ...cardStyle, border: `1px solid ${C.gold}` } },
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: C.gold, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 6 } }, "End-of-macro deload"),
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: C.off, lineHeight: 1.5 } }, "Giant Block only at 50\u201360% of working loads, hard rep scheme. No volume, no carries. Keep skill days. This should feel easy \u2014 that's correct.")));
+  }
+
+  // Non-session day in a training week: show skill/rest + next session.
+  if (!computed.isSessionDay) {
+    const ns = computed.nextSession;
+    return /*#__PURE__*/React.createElement("div", null,
+      /*#__PURE__*/React.createElement(PositionHeader, { computed: computed, viewWeekday: viewWeekday, setViewWeekday: setViewWeekday }),
+      /*#__PURE__*/React.createElement("div", { style: { ...cardStyle, textAlign: "center", padding: 24 } },
+        /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, color: C.gold, letterSpacing: "0.05em" } }, "Skill day / Rest"),
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: C.muted, marginTop: 6 } }, "No strength session scheduled today."),
+        ns && ns.dayType && /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: C.off, marginTop: 12 } }, "Next: ", LIFT_LABEL[ns.dayType], " ", /*#__PURE__*/React.createElement("span", { style: { color: pillColor(ns.difficulty) } }, "\u00b7 ", ns.difficulty.toUpperCase()), " (", ns.date, ")")));
+  }
+
+  // Normal training session day. Allow peeking at another difficulty via viewWeekday.
+  const difficulty = viewWeekday || computed.difficulty;
+  const week = computed.week;
+  const meso = computed.meso;
+  const macro = computed.macro;
+  const dayType = ROTATION[week - 1][difficulty];
   const meta = DAY_META[dayType];
   const scheme = SCHEMES[difficulty];
   const baseTop = weights[dayType][difficulty];
   const sessionId = `${todayISO()}-${dayType}-${difficulty[0].toUpperCase()}`;
   const existing = sessions.find(s => s.id === sessionId);
-  const weekKey = `M${pos.macro}C${pos.meso}W${pos.week}`;
+  const weekKey = `M${macro}C${meso}W${week}`;
   const isDeload = !!deloadWeeks[weekKey];
-  const prevWeekSessions = pos.week > 1 ? sessions.filter(s => s.macro === pos.macro && s.meso === pos.meso && s.week === pos.week - 1) : [];
-  const prevFired = pos.week > 1 && computeWeekSignals(prevWeekSessions).size >= 3;
-  const deloadUsedThisMeso = Object.keys(deloadWeeks).some(k => k.startsWith(`M${pos.macro}C${pos.meso}W`));
+  const prevWeekSessions = week > 1 ? sessions.filter(s => s.macro === macro && s.meso === meso && s.week === week - 1) : [];
+  const prevFired = week > 1 && computeWeekSignals(prevWeekSessions).fired;
+  const deloadUsedThisMeso = Object.keys(deloadWeeks).some(k => k.startsWith(`M${macro}C${meso}W`));
   const recommendDeload = prevFired && !isDeload && !deloadUsedThisMeso;
   const top = isDeload ? round(baseTop * 0.70) : baseTop;
   function blankLog() {
     return {
       id: sessionId,
       date: todayISO(),
-      macro: pos.macro,
-      meso: pos.meso,
-      week: pos.week,
+      macro: macro,
+      meso: meso,
+      week: week,
       dayType,
       difficulty,
       topReps: scheme.sets[3],
@@ -760,9 +935,9 @@ function Today({
       ...log,
       id: sessionId,
       date: log.date || todayISO(),
-      macro: pos.macro,
-      meso: pos.meso,
-      week: pos.week,
+      macro: macro,
+      meso: meso,
+      week: week,
       dayType,
       difficulty,
       topReps: scheme.sets[3],
@@ -798,7 +973,7 @@ function Today({
       lineHeight: 1.5,
       marginBottom: 10
     }
-  }, "Last week (W", pos.week - 1, ") logged 3+ fatigue signals. The rule recommends a deload: Giant Block only at ~70%, no volume, light/skipped carries. Skill days stay normal."), /*#__PURE__*/React.createElement("div", {
+  }, "Last week (W", week - 1, ") logged 3+ fatigue signals. The rule recommends a deload: Giant Block only at ~70%, no volume, light/skipped carries. Skill days stay normal."), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8
@@ -869,33 +1044,11 @@ function Today({
       padding: "5px 10px",
       cursor: "pointer"
     }
-  }, "Undo")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      ...cardStyle,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between"
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      color: C.muted,
-      letterSpacing: "0.1em"
-    }
-  }, "M", pos.macro, " · C", pos.meso, " · W", pos.week), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontFamily: "'Bebas Neue',sans-serif",
-      fontSize: 26,
-      letterSpacing: "0.05em"
-    }
-  }, LIFT_LABEL[dayType], " ", /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: pillColor(difficulty)
-    }
-  }, "· ", difficulty.toUpperCase()))), /*#__PURE__*/React.createElement(DayPicker, {
-    pos: pos,
-    onPos: onPos
-  })), /*#__PURE__*/React.createElement("div", {
+  }, "Undo")), /*#__PURE__*/React.createElement(PositionHeader, {
+    computed: computed,
+    viewWeekday: viewWeekday,
+    setViewWeekday: setViewWeekday
+  }), /*#__PURE__*/React.createElement("div", {
     style: cardStyle
   }, blockTitle("A. Warm-Up", "GOWOD + build-up"), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1088,28 +1241,58 @@ function Today({
     className: "spin"
   })) : saved ? "Saved ✓" : existing ? "Update session" : "Save session"), /*#__PURE__*/React.createElement(SignalBanner, {
     sessions: sessions,
-    pos: pos,
+    macro: macro,
+    meso: meso,
+    week: week,
     draft: log
   }));
 }
-function DayPicker({
-  pos,
-  onPos
+function PositionHeader({
+  computed,
+  viewWeekday,
+  setViewWeekday,
+  label
 }) {
+  const isPeeking = viewWeekday && viewWeekday !== computed.difficulty;
+  const shownDiff = viewWeekday || computed.difficulty;
+  const shownLift = computed.weekType === "training" && computed.week ? ROTATION[computed.week - 1][shownDiff] : null;
   return /*#__PURE__*/React.createElement("div", {
     style: {
+      ...cardStyle,
       display: "flex",
-      gap: 6
+      alignItems: "center",
+      justifyContent: "space-between"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: C.muted,
+      letterSpacing: "0.1em"
+    }
+  }, "M", computed.macro, computed.meso ? ` · C${computed.meso}` : "", computed.week ? ` · W${computed.week}` : "", " · ", "wk ", computed.displayWeekGlobal, "/15"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Bebas Neue',sans-serif",
+      fontSize: 26,
+      letterSpacing: "0.05em"
+    }
+  }, label ? label : shownLift ? LIFT_LABEL[shownLift] : "—", shownLift && /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: pillColor(shownDiff)
+    }
+  }, " · ", shownDiff.toUpperCase()), isPeeking && /*#__PURE__*/React.createElement("span", {
+    style: { fontSize: 11, color: C.muted, marginLeft: 8, fontFamily: "'DM Sans',sans-serif", letterSpacing: 0 }
+  }, "(preview)"))), computed.weekType === "training" && computed.isSessionDay && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      alignItems: "center"
     }
   }, ["hard", "medium", "light"].map(d => /*#__PURE__*/React.createElement("button", {
     key: d,
-    onClick: () => onPos({
-      ...pos,
-      weekday: d
-    }),
+    onClick: () => setViewWeekday(d === computed.difficulty ? null : d),
     style: {
-      background: pos.weekday === d ? pillColor(d) : "transparent",
-      color: pos.weekday === d ? C.dark : C.muted,
+      background: shownDiff === d ? pillColor(d) : "transparent",
+      color: shownDiff === d ? C.dark : C.muted,
       border: `1px solid ${pillColor(d)}`,
       borderRadius: 2,
       fontSize: 10,
@@ -1118,7 +1301,7 @@ function DayPicker({
       cursor: "pointer",
       textTransform: "uppercase"
     }
-  }, d[0])));
+  }, d[0]))));
 }
 function SpeedPick({
   value,
@@ -1187,15 +1370,17 @@ function LogRpe({
 }
 function SignalBanner({
   sessions,
-  pos,
+  macro,
+  meso,
+  week,
   draft
 }) {
-  const week = sessions.filter(s => s.macro === pos.macro && s.meso === pos.meso && s.week === pos.week);
-  const merged = week.filter(s => s.id !== draft.id).concat(draft);
+  const weekSessions = sessions.filter(s => s.macro === macro && s.meso === meso && s.week === week);
+  const merged = weekSessions.filter(s => s.id !== draft.id).concat(draft);
   const sig = computeWeekSignals(merged);
-  const n = sig.size;
+  const n = sig.occurrences;
   if (n === 0) return null;
-  const fired = n >= 3;
+  const fired = sig.fired;
   return /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 16,
@@ -1213,13 +1398,13 @@ function SignalBanner({
       textTransform: "uppercase",
       marginBottom: 6
     }
-  }, fired ? "Reactive deload triggered" : `Fatigue signals: ${n} of 3`), /*#__PURE__*/React.createElement("div", {
+  }, fired ? "Reactive deload triggered" : `Fatigue signals: ${n} occ · ${sig.sessionCount} day${sig.sessionCount === 1 ? "" : "s"}`), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
       color: C.off,
       lineHeight: 1.5
     }
-  }, [...sig].map(id => SIGNALS.find(x => x.id === id)?.label).join(" · ")), fired && /*#__PURE__*/React.createElement("div", {
+  }, [...sig.types].map(id => SIGNALS.find(x => x.id === id)?.label).join(" · ")), fired && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
       color: C.off,
@@ -1409,14 +1594,14 @@ function Deload({
       lineHeight: 1.5,
       marginBottom: 12
     }
-  }, "Three signals in one week triggers a deload recommendation the following week."), keys.length === 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Fires when there are 3+ signal occurrences across at least 2 different sessions in a week. One bad day alone never triggers it."), keys.length === 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       color: C.muted,
       fontSize: 13
     }
   }, "No data yet."), keys.map(k => {
     const sig = computeWeekSignals(weeks[k]);
-    const fired = sig.size >= 3;
+    const fired = sig.fired;
     const confirmed = deloadWeeks && deloadWeeks[k];
     return /*#__PURE__*/React.createElement("div", {
       key: k,
@@ -1447,18 +1632,18 @@ function Deload({
       style: {
         fontSize: 12,
         fontWeight: 600,
-        color: fired ? C.red : sig.size > 0 ? C.gold : C.green
+        color: fired ? C.red : sig.occurrences > 0 ? C.gold : C.green
       }
-    }, fired ? "3+ SIGNALS" : `${sig.size} / 3`)), sig.size > 0 && /*#__PURE__*/React.createElement("div", {
+    }, fired ? "DELOAD TRIGGERED" : `${sig.occurrences} occ · ${sig.sessionCount} days`)), sig.occurrences > 0 && /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 11,
         color: C.muted,
         marginTop: 4
       }
-    }, [...sig].map(id => SIGNALS.find(x => x.id === id)?.label).join(" · ")));
+    }, [...sig.types].map(id => SIGNALS.find(x => x.id === id)?.label).join(" · ")));
   })), /*#__PURE__*/React.createElement("div", {
     style: cardStyle
-  }, blockTitle("The Five Signals", "reference"), SIGNALS.map(s => /*#__PURE__*/React.createElement(Row, {
+  }, blockTitle("The Signals", "reference"), SIGNALS.map(s => /*#__PURE__*/React.createElement(Row, {
     key: s.id,
     a: s.id,
     b: s.label,
@@ -1470,23 +1655,30 @@ function Deload({
       marginTop: 10,
       fontStyle: "italic"
     }
-  }, "S4 (Set 1 > R7) is left to manual judgment in v1.")));
+  }, "S4 (Set 1 > R7) stays a notebook-only check — not auto-detected here, since the logger captures the top set, not every set.")));
 }
 
 // ---- WEIGHTS / SETUP -------------------------------------------------------
 function Weights({
   weights,
   onSave,
-  pos,
-  onPos
+  startISO,
+  macroNumber,
+  computed,
+  onSaveConfig
 }) {
   const [w, setW] = useState(weights);
-  const [p, setP] = useState(pos);
+  const [start, setStart] = useState(startISO);
+  const [macroNum, setMacroNum] = useState(macroNumber);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     setW(weights);
   }, [weights]);
+  useEffect(() => {
+    setStart(startISO);
+    setMacroNum(macroNumber);
+  }, [startISO, macroNumber]);
   const setWeight = (lift, diff, val) => setW(prev => ({
     ...prev,
     [lift]: {
@@ -1496,40 +1688,56 @@ function Weights({
   }));
   async function save() {
     setSaving(true);
-    onPos(p);
+    onSaveConfig(start, macroNum);
     await onSave(w);
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 1600);
   }
+  // Human-readable computed position summary.
+  const posText = computed.complete ? "Macro complete" :
+    computed.beforeStart ? "Before macro start" :
+    computed.weekType === "testing" ? `Testing week (wk ${computed.displayWeekGlobal}/15)` :
+    computed.weekType === "deload" ? `Deload week (wk ${computed.displayWeekGlobal}/15)` :
+    `M${computed.macro} · C${computed.meso} · W${computed.week}  (wk ${computed.displayWeekGlobal}/15)`;
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: cardStyle
-  }, blockTitle("Current Position", ""), /*#__PURE__*/React.createElement("div", {
+  }, blockTitle("Macro Anchor", "computed from date"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "1fr 1fr 1fr",
+      gridTemplateColumns: "2fr 1fr",
       gap: 10
     }
-  }, [["macro", "Macro"], ["meso", "Cycle"], ["week", "Week"]].map(([k, label]) => /*#__PURE__*/React.createElement("div", {
-    key: k
-  }, /*#__PURE__*/React.createElement("label", {
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     style: lbl
-  }, label), /*#__PURE__*/React.createElement("input", {
+  }, "Macro start (Monday)"), /*#__PURE__*/React.createElement("input", {
+    style: inp,
+    type: "date",
+    value: start,
+    onChange: e => setStart(e.target.value)
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    style: lbl
+  }, "Macro #"), /*#__PURE__*/React.createElement("input", {
     style: inp,
     type: "number",
     min: "1",
-    value: p[k],
-    onChange: e => setP({
-      ...p,
-      [k]: parseInt(e.target.value) || 1
-    })
-  })))), /*#__PURE__*/React.createElement("div", {
+    value: macroNum,
+    onChange: e => setMacroNum(parseInt(e.target.value) || 1)
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: C.gold,
+      marginTop: 12,
+      fontWeight: 600
+    }
+  }, "Today: ", posText), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: C.muted,
-      marginTop: 8
+      marginTop: 6,
+      lineHeight: 1.5
     }
-  }, "Week 1–4 sets the rotation. H/M/L is chosen on the Today tab.")), /*#__PURE__*/React.createElement("div", {
+  }, "Position is computed from the start date — never set manually. Miss a session and you rejoin where the calendar says. When a macro ends, set the next start date and bump the macro number; carry your C3 weights forward as the new working loads.")), /*#__PURE__*/React.createElement("div", {
     style: cardStyle
   }, blockTitle("Working Top Sets", "per difficulty"), /*#__PURE__*/React.createElement("div", {
     style: {
