@@ -1,0 +1,110 @@
+import React from 'react'
+import { C, HEADING, cardStyle } from './theme.js'
+
+export function Spinner() {
+  return <span className="spin" />
+}
+
+export function Center({ children, style }) {
+  return <div style={{ padding: 40, textAlign: 'center', color: C.muted, ...style }}>{children}</div>
+}
+
+export function Card({ children, style }) {
+  return <div style={{ ...cardStyle, ...style }}>{children}</div>
+}
+
+export function BlockTitle({ children, tag }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 10,
+        paddingBottom: 8,
+        borderBottom: `1px solid ${C.border}`,
+      }}
+    >
+      <div style={{ fontFamily: HEADING, fontSize: 20, letterSpacing: '0.08em', color: C.gold }}>{children}</div>
+      {tag && (
+        <span style={{ marginLeft: 'auto', fontSize: 10, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+          {tag}
+        </span>
+      )}
+    </div>
+  )
+}
+
+export function Shell({ children, onSignOut }) {
+  return (
+    <div style={{ minHeight: '100vh', background: C.dark, color: C.white }}>
+      <div style={{ maxWidth: 760, margin: '0 auto', padding: '28px 18px 80px' }}>
+        <header style={{ textAlign: 'center', marginBottom: 22, position: 'relative' }}>
+          <div style={{ fontSize: 10, letterSpacing: '0.28em', color: C.gold, textTransform: 'uppercase', marginBottom: 6 }}>
+            Training Log
+          </div>
+          <h1 style={{ fontFamily: HEADING, fontSize: 46, lineHeight: 0.9, letterSpacing: '0.03em', margin: 0 }}>
+            THE <span style={{ color: C.gold }}>GIANT</span> PROGRAM
+          </h1>
+          <div style={{ width: 50, height: 2, background: C.gold, margin: '12px auto' }} />
+          {onSignOut && (
+            <button
+              onClick={onSignOut}
+              title="Sign out"
+              style={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                background: 'transparent',
+                border: `1px solid ${C.muted}`,
+                color: C.muted,
+                borderRadius: 2,
+                fontSize: 11,
+                padding: '4px 8px',
+                cursor: 'pointer',
+              }}
+            >
+              Sign out
+            </button>
+          )}
+        </header>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+const TABS = [
+  ['today', 'Today'],
+  ['calendar', 'Calendar'],
+  ['history', 'History'],
+  ['deload', 'Deload'],
+  ['setup', 'Setup'],
+]
+
+export function Tabs({ tab, setTab }) {
+  return (
+    <div style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: 2, overflow: 'hidden', marginBottom: 24 }}>
+      {TABS.map(([k, label]) => (
+        <button
+          key={k}
+          onClick={() => setTab(k)}
+          style={{
+            flex: 1,
+            background: tab === k ? C.gold : 'transparent',
+            border: 'none',
+            color: tab === k ? C.dark : C.muted,
+            fontSize: 12,
+            fontWeight: 600,
+            padding: '12px 4px',
+            cursor: 'pointer',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+          }}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
