@@ -34,6 +34,10 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-24
+- `fix(mobile)`: iOS date inputs were overflowing their card (native intrinsic
+  width) — added `-webkit-appearance:none` via a shared `DATE_INPUT` style applied to
+  both Setup date fields so they respect their container (`Setup.jsx`). This is the
+  actual cure for the iOS date-input sizing saga (min-width/stacking only mitigated it).
 - `feat`: **sticky tab nav** — the menu pins to the top of the viewport on scroll so
   it's always reachable (e.g. at the bottom of the Calendar) (`components.jsx` Tabs).
 - `fix(mobile)`: **stacked** the Macro start / Macro # fields vertically — the

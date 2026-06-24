@@ -17,6 +17,10 @@ const ACC_LABEL = {
 }
 const ACC_ITEMS = Object.keys(ACC_LABEL)
 
+// Native <input type="date"> on iOS keeps an intrinsic width and overflows its
+// container; -webkit-appearance:none strips that so it respects width:100%.
+const DATE_INPUT = { ...inp, WebkitAppearance: 'none', appearance: 'none', display: 'block' }
+
 // Build editable state: every cycle/lift/difficulty present, blank if unset.
 function initWeights(loaded) {
   const w = {}
@@ -158,7 +162,7 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
         <div style={{ display: 'grid', gap: 12 }}>
           <div>
             <label style={lbl}>Macro start (Monday)</label>
-            <input style={inp} type="date" value={startISO} onChange={(e) => setStartISO(e.target.value)} />
+            <input style={DATE_INPUT} type="date" value={startISO} onChange={(e) => setStartISO(e.target.value)} />
           </div>
           <div>
             <label style={lbl}>Macro #</label>
@@ -278,7 +282,7 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
             as the new C1</strong> (cleans + carries too). Macro {macro.number}'s history stays viewable via the picker above.
           </div>
           <label style={lbl}>New macro start (Monday)</label>
-          <input style={inp} type="date" value={nextStart} onChange={(e) => setNextStart(e.target.value)} />
+          <input style={DATE_INPUT} type="date" value={nextStart} onChange={(e) => setNextStart(e.target.value)} />
           <div style={{ marginTop: 12 }}>
             {!rollConfirm ? (
               <button
