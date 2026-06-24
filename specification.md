@@ -36,6 +36,11 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-24
+- `chore(test)`: **smoke test no longer touches real data** — it ran against the
+  real macro and *deleted its weights* on cleanup (a footgun once real data
+  existed). Rewritten to run against a throwaway macro (number 999, status
+  `completed`) that's cascade-deleted at the end (`scripts/smoke-test.js`). Verified
+  macro 2's weights/sessions unchanged across a run. (Audit item #3.)
 - `feat`: **keep screen awake while a session runs** — `useWakeLock` hook
   (Screen Wake Lock API) held only while the timer is running (battery-friendly),
   re-acquired on visibility regain, no-op where unsupported/denied (e.g. Low Power
