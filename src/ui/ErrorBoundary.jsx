@@ -1,5 +1,6 @@
 import React from 'react'
 import { C, HEADING, BODY } from './theme.js'
+import { captureError } from '../monitoring.js'
 
 // Catches render errors anywhere below it so a single bad render shows a branded
 // recovery screen instead of a blank page. (Does not catch async/event-handler
@@ -15,8 +16,8 @@ export class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, info) {
-    // Hook point for a real error monitor (e.g. Sentry) later.
     console.error('App error boundary caught:', error, info)
+    captureError(error, info) // -> Sentry when a DSN is configured; no-op otherwise
   }
 
   render() {

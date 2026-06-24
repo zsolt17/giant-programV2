@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client'
 import './ui/global.css'
 import { App } from './ui/App.jsx'
 import { ErrorBoundary } from './ui/ErrorBoundary.jsx'
+import { initMonitoring } from './monitoring.js'
+
+initMonitoring() // no-op unless VITE_SENTRY_DSN is set
 
 createRoot(document.getElementById('root')).render(
   React.createElement(React.StrictMode, null, React.createElement(ErrorBoundary, null, React.createElement(App)))

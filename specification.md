@@ -36,6 +36,12 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-24
+- `feat`: **error monitoring (Sentry)** wired (`src/monitoring.js`) — **inert until
+  `VITE_SENTRY_DSN` is set**, and lazy-loaded so it's tree-shaken out entirely while
+  off (zero bundle cost — verified main chunk unchanged). `ErrorBoundary` forwards
+  render crashes via `captureError`; Sentry's default integrations capture unhandled
+  errors/promise rejections once enabled. DSN goes in `.env.production` (public client
+  key). (Audit item #4.)
 - `chore(test)`: **smoke test no longer touches real data** — it ran against the
   real macro and *deleted its weights* on cleanup (a footgun once real data
   existed). Rewritten to run against a throwaway macro (number 999, status
