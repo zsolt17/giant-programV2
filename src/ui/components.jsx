@@ -5,6 +5,33 @@ export function Spinner() {
   return <span className="spin" />
 }
 
+// Connectivity / offline-sync strip. Hidden when online with nothing pending.
+export function SyncStatus({ online, pending }) {
+  if (online && !pending) return null
+  const offline = !online
+  const msg = offline
+    ? pending > 0
+      ? `Offline — ${pending} change${pending > 1 ? 's' : ''} saved on this device, will sync when you reconnect`
+      : 'Offline — showing your last saved data; changes will save on this device'
+    : `Syncing ${pending} change${pending > 1 ? 's' : ''}…`
+  return (
+    <div
+      style={{
+        marginBottom: 14,
+        padding: '8px 12px',
+        borderRadius: 2,
+        fontSize: 12,
+        textAlign: 'center',
+        color: offline ? C.blue : C.gold,
+        background: offline ? 'rgba(126,184,247,0.10)' : 'rgba(201,168,76,0.10)',
+        border: `1px solid ${offline ? C.blue : C.gold}`,
+      }}
+    >
+      {msg}
+    </div>
+  )
+}
+
 // Slim fixed top progress bar — a global signal during data loads/reloads that
 // doesn't blank the screen.
 export function TopLoadingBar() {

@@ -36,6 +36,15 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-24
+- `feat`: **PWA — offline logging (audit #7, stage B)** — durable write queue
+  (`src/data/offline-queue.js`, localStorage) for session save/delete: while offline
+  the write is queued and the UI updates optimistically; on reconnect `repo.flushQueue`
+  replays it (safe — idempotent upsert-by-id), and `load()` flushes before reading.
+  A bundle cache (`src/data/cache.js`) snapshots the last-loaded data so reopening
+  offline shows real data, not a "couldn't load" screen. A `SyncStatus` strip shows
+  offline / N-pending. Repository is browser-guarded so the Node smoke test is
+  unaffected. Verified deterministically: offline save → queued (not written) →
+  reconnect → flushed to DB → queue cleared.
 - `feat`: **PWA — installable + offline app shell (audit #7, stage A)** — real web
   manifest (navy/gold, `standalone`, `/giant-programV2/` scope), generated icons
   (192/512/maskable + iOS apple-touch-icon, navy dumbbell emblem via

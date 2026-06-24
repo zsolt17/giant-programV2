@@ -3,6 +3,16 @@
 // single-file change. All functions throw on error; callers handle it.
 import { supabase } from './supabase.js'
 import * as M from './mappers.js'
+import * as queue from './offline-queue.js'
+
+// Browser-only offline handling (Node smoke test has no navigator/localStorage).
+const isBrowser = typeof navigator !== 'undefined' && typeof window !== 'undefined'
+const isOffline = () => isBrowser && navigator.onLine === false
+function isNetworkError(e) {
+  if (isOffline()) return true
+  const m = String(e?.message || e).toLowerCase()
+  return e?.name === 'TypeError' || m.includes('fetch') || m.includes('network') || m.includes('timeout')
+}
 
 // ---- macros ----------------------------------------------------------------
 export async function getMacros() {
@@ -95,17 +105,59 @@ export async function getSessions(macroId) {
 }
 
 // Idempotent: upsert on the human-readable id (date-lift-difficulty).
+// Offline (or on a network failure), the write is queued and the call resolves
+// optimistically so the UI updates; it replays on reconnect via flushQueue().
 export async function saveSession(session) {
   const row = M.sessionToRow(session)
-  const { data, error } = await supabase.from('sessions').upsert(row, { onConflict: 'id' }).select().single()
-  if (error) throw error
-  return M.rowToSession(data)
+  if (isOffline()) {
+    queue.enqueue({ kind: 'saveSession', payload: row })
+    return M.rowToSession(row)
+  }
+  try {
+    const { data, error } = await supabase.from('sessions').upsert(row, { onConflict: 'id' }).select().single()
+    if (error) throw error
+    return M.rowToSession(data)
+  } catch (e) {
+    if (isNetworkError(e)) {
+      queue.enqueue({ kind: 'saveSession', payload: row })
+      return M.rowToSession(row)
+    }
+    throw e
+  }
 }
 
 export async function deleteSession(id) {
-  const { error } = await supabase.from('sessions').delete().eq('id', id)
-  if (error) throw error
+  if (isOffline()) {
+    queue.enqueue({ kind: 'deleteSession', payload: { id } })
+    return
+  }
+  try {
+    const { error } = await supabase.from('sessions').delete().eq('id', id)
+    if (error) throw error
+  } catch (e) {
+    if (isNetworkError(e)) {
+      queue.enqueue({ kind: 'deleteSession', payload: { id } })
+      return
+    }
+    throw e
+  }
 }
+
+// Replay queued offline writes. Call on reconnect and at startup.
+const QUEUE_EXECUTORS = {
+  async saveSession(row) {
+    const { error } = await supabase.from('sessions').upsert(row, { onConflict: 'id' })
+    if (error) throw error
+  },
+  async deleteSession({ id }) {
+    const { error } = await supabase.from('sessions').delete().eq('id', id)
+    if (error) throw error
+  },
+}
+export function flushQueue() {
+  return queue.flush(QUEUE_EXECUTORS)
+}
+export { pendingCount, onPendingChange } from './offline-queue.js'
 
 // ---- deloads ---------------------------------------------------------------
 export async function getDeloads(macroId) {

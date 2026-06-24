@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { onAuthChange, getUser, signOut } from '../data/supabase.js'
 import * as repo from '../data/repository.js'
-import { Shell, Center, Spinner, Tabs, Card, TopLoadingBar } from './components.jsx'
+import { Shell, Center, Spinner, Tabs, Card, TopLoadingBar, SyncStatus } from './components.jsx'
+import { saveSnapshot, readSnapshot } from '../data/cache.js'
 import { Auth } from './Auth.jsx'
 import { Setup } from './Setup.jsx'
 import { Today } from './Today.jsx'
@@ -25,6 +26,8 @@ export function App() {
   const [testing, setTesting] = useState([])
   const [status, setStatus] = useState('idle')
   const [err, setErr] = useState('')
+  const [online, setOnline] = useState(typeof navigator === 'undefined' || navigator.onLine !== false)
+  const [pending, setPending] = useState(repo.pendingCount())
 
   useEffect(() => {
     getUser()
@@ -36,44 +39,87 @@ export function App() {
     return () => subscription.unsubscribe()
   }, [])
 
+  function applySnapshot(snap) {
+    setMacros(snap.macros || [])
+    setViewedMacroId(snap.viewedMacroId ?? null)
+    setMacro(snap.macro || null)
+    setWeights(snap.weights || {})
+    setAccessory(snap.accessory || {})
+    setSessions(snap.sessions || [])
+    setDeloads(snap.deloads || {})
+    setBreakDays(snap.breakDays || {})
+    setTesting(snap.testing || [])
+  }
+
   const load = useCallback(async () => {
     setStatus('loading')
     setErr('')
     try {
+      // Persist any offline writes before reading, so the canonical fetch includes them.
+      if (navigator.onLine !== false) await repo.flushQueue()
       const all = await repo.getMacros()
       const target =
         (viewedMacroId && all.find((m) => m.id === viewedMacroId)) ||
         all.find((m) => m.status === 'active') ||
         all[all.length - 1] ||
         null
-      if (target) {
-        const b = await repo.loadMacroBundle(target.id)
-        setWeights(b.weights)
-        setAccessory(b.accessory)
-        setSessions(b.sessions)
-        setDeloads(b.deloads)
-        setBreakDays(b.breakDays)
-        setTesting(b.testing)
-      } else {
-        setWeights({})
-        setAccessory({})
-        setSessions([])
-        setDeloads({})
-        setTesting([])
-      }
+      const b = target
+        ? await repo.loadMacroBundle(target.id)
+        : { weights: {}, accessory: {}, sessions: [], deloads: {}, breakDays: {}, testing: [] }
       setMacros(all)
       setMacro(target)
       setViewedMacroId(target?.id ?? null)
+      setWeights(b.weights)
+      setAccessory(b.accessory)
+      setSessions(b.sessions)
+      setDeloads(b.deloads)
+      setBreakDays(b.breakDays)
+      setTesting(b.testing)
       setStatus('ready')
     } catch (e) {
-      setErr(String(e?.message || e))
-      setStatus('error')
+      // Offline / network failure: fall back to the last cached snapshot if we have one.
+      const snap = readSnapshot()
+      if (snap && snap.macro) {
+        applySnapshot(snap)
+        setStatus('ready')
+      } else {
+        setErr(String(e?.message || e))
+        setStatus('error')
+      }
     }
   }, [viewedMacroId])
 
   useEffect(() => {
     if (user) load()
   }, [user, load])
+
+  // Track connectivity; on reconnect, reload (which flushes the queue first).
+  useEffect(() => {
+    function goOnline() {
+      setOnline(true)
+      if (user) load()
+    }
+    function goOffline() {
+      setOnline(false)
+    }
+    window.addEventListener('online', goOnline)
+    window.addEventListener('offline', goOffline)
+    return () => {
+      window.removeEventListener('online', goOnline)
+      window.removeEventListener('offline', goOffline)
+    }
+  }, [user, load])
+
+  // Keep the pending-writes count in sync for the status strip.
+  useEffect(() => repo.onPendingChange(setPending), [])
+
+  // Cache the loaded bundle so reopening offline shows last-known data (incl.
+  // optimistic offline writes, since those flow through state).
+  useEffect(() => {
+    if (status === 'ready' && user && macro) {
+      saveSnapshot({ macros, viewedMacroId, macro, weights, accessory, sessions, deloads, breakDays, testing })
+    }
+  }, [status, user, macro, macros, viewedMacroId, weights, accessory, sessions, deloads, breakDays, testing])
 
   const onSaveSession = useCallback(async (record) => {
     const saved = await repo.saveSession(record)
@@ -181,6 +227,7 @@ export function App() {
     <Shell onSignOut={signOut}>
       {status === 'loading' && <TopLoadingBar />}
       <Tabs tab={tab} setTab={setTab} />
+      <SyncStatus online={online} pending={pending} />
 
       {needsMacro && tab !== 'setup' && (
         <Card style={{ textAlign: 'center', color: C.muted }}>No active macro yet — create one in the Setup tab.</Card>
