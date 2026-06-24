@@ -34,9 +34,12 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-24
-- `fix(mobile)`: iOS native date input was overflowing its grid track and touching
-  the Macro # field — added `min-width:0` to the grid items + `min-width:0`/
-  `max-width:100%` on the shared input style (`theme.js`, `Setup.jsx`).
+- `fix(mobile)`: **stacked** the Macro start / Macro # fields vertically — the
+  `min-width:0` approach didn't hold for the iOS native date input in standalone
+  (home-screen) mode; stacking removes the side-by-side overlap entirely (`Setup.jsx`).
+- `fix(mobile)`: (superseded by the above) tried `min-width:0` on the grid items +
+  `min-width:0`/`max-width:100%` on the shared input style for the date-input overflow
+  (`theme.js`, `Setup.jsx`).
 - `feat`: global loading indicators — instant pre-React splash baked into
   `index.html` (removed on mount via `main.jsx`) + `TopLoadingBar` shown during data
   loads; first load keeps the centered spinner, reloads keep content (`App.jsx`,

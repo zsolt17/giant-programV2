@@ -152,15 +152,18 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
       {/* Macro anchor */}
       <Card>
         <BlockTitle tag="computed from date">Macro Anchor</BlockTitle>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 88px', gap: 16 }}>
-          <div style={{ minWidth: 0 }}>
+        {/* Stacked, not side-by-side: iOS native date inputs keep an intrinsic width
+            and won't shrink into a grid track, so they bumped the Macro # field.
+            Stacking removes that failure mode entirely. */}
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div>
             <label style={lbl}>Macro start (Monday)</label>
             <input style={inp} type="date" value={startISO} onChange={(e) => setStartISO(e.target.value)} />
           </div>
-          <div style={{ minWidth: 0 }}>
+          <div>
             <label style={lbl}>Macro #</label>
             <input
-              style={inp}
+              style={{ ...inp, width: 100 }}
               type="number"
               min="1"
               value={number}
