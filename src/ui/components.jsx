@@ -39,34 +39,36 @@ export function Shell({ children, onSignOut }) {
   return (
     <div style={{ minHeight: '100vh', background: C.dark, color: C.white }}>
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '28px 18px 80px' }}>
-        <header style={{ textAlign: 'center', marginBottom: 22, position: 'relative' }}>
-          <div style={{ fontSize: 10, letterSpacing: '0.28em', color: C.gold, textTransform: 'uppercase', marginBottom: 6 }}>
-            Training Log
+        <header style={{ marginBottom: 22 }}>
+          {/* Sign out sits in its own right-aligned row so it never overlaps the title. */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', minHeight: 26, marginBottom: 6 }}>
+            {onSignOut && (
+              <button
+                onClick={onSignOut}
+                title="Sign out"
+                style={{
+                  background: 'transparent',
+                  border: `1px solid ${C.muted}`,
+                  color: C.muted,
+                  borderRadius: 2,
+                  fontSize: 11,
+                  padding: '4px 8px',
+                  cursor: 'pointer',
+                }}
+              >
+                Sign out
+              </button>
+            )}
           </div>
-          <h1 style={{ fontFamily: HEADING, fontSize: 46, lineHeight: 0.9, letterSpacing: '0.03em', margin: 0 }}>
-            THE <span style={{ color: C.gold }}>GIANT</span> PROGRAM
-          </h1>
-          <div style={{ width: 50, height: 2, background: C.gold, margin: '12px auto' }} />
-          {onSignOut && (
-            <button
-              onClick={onSignOut}
-              title="Sign out"
-              style={{
-                position: 'absolute',
-                top: 0,
-                right: 0,
-                background: 'transparent',
-                border: `1px solid ${C.muted}`,
-                color: C.muted,
-                borderRadius: 2,
-                fontSize: 11,
-                padding: '4px 8px',
-                cursor: 'pointer',
-              }}
-            >
-              Sign out
-            </button>
-          )}
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.28em', color: C.gold, textTransform: 'uppercase', marginBottom: 6 }}>
+              Training Log
+            </div>
+            <h1 style={{ fontFamily: HEADING, fontSize: 46, lineHeight: 0.9, letterSpacing: '0.03em', margin: 0 }}>
+              THE <span style={{ color: C.gold }}>GIANT</span> PROGRAM
+            </h1>
+            <div style={{ width: 50, height: 2, background: C.gold, margin: '12px auto' }} />
+          </div>
         </header>
         {children}
       </div>
