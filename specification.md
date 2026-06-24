@@ -36,6 +36,10 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-24
+- `feat`: **keep screen awake while a session runs** — `useWakeLock` hook
+  (Screen Wake Lock API) held only while the timer is running (battery-friendly),
+  re-acquired on visibility regain, no-op where unsupported/denied (e.g. Low Power
+  Mode). Wired in `Today.jsx` `SessionEditor` (`useWakeLock(running)`).
 - `feat`: **session timer on Today** — optional Start/End timer, three states
   (not-started: prescription locked + "Start session"; running: live mm:ss + "End
   session"; completed: duration + editable "Edit (min)" + "Update"). Backed by

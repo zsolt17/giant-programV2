@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { C, cardStyle, HEADING, pillColor, inp, lbl } from './theme.js'
 import { Card } from './components.jsx'
 import { PositionHeader, fmtClock } from './controls.jsx'
+import { useWakeLock } from './useWakeLock.js'
 import { SessionForm, buildBlankSession } from './SessionForm.jsx'
 import { TestingResultForm } from './TestingResultForm.jsx'
 import { ROTATION, SCHEMES, LIFT_LABEL, SIGNALS } from '../engine/constants.js'
@@ -219,6 +220,9 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
   const running = !!draft.startedAt && !draft.endedAt
   const completed = !running && (!!existing || !!draft.endedAt)
   const notStarted = !running && !completed
+
+  // Keep the screen awake while a session is running (battery-friendly: only then).
+  useWakeLock(running)
 
   // Tick only to re-render while running; the shown time is always recomputed from
   // started_at, so sleep / backgrounding / reopen read correctly.
