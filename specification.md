@@ -36,6 +36,13 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-24
+- `feat`: **PWA — installable + offline app shell (audit #7, stage A)** — real web
+  manifest (navy/gold, `standalone`, `/giant-programV2/` scope), generated icons
+  (192/512/maskable + iOS apple-touch-icon, navy dumbbell emblem via
+  `scripts/gen-icons.mjs` → `public/`), iOS PWA metas in `index.html`, and a service
+  worker (`vite-plugin-pwa`/Workbox, `autoUpdate`) precaching the built app shell
+  (14 entries) so it opens & renders offline; Google Fonts cached at runtime. Stage B
+  (offline write queue) next.
 - `feat`: **error monitoring (Sentry)** wired (`src/monitoring.js`) — **inert until
   `VITE_SENTRY_DSN` is set**, and lazy-loaded so it's tree-shaken out entirely while
   off (zero bundle cost — verified main chunk unchanged). `ErrorBoundary` forwards
