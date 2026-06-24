@@ -45,6 +45,10 @@ export const inp = {
   fontSize: 14,
   padding: '8px 10px',
   width: '100%',
+  // minWidth:0 + maxWidth let inputs (esp. iOS native date inputs, which keep an
+  // intrinsic width) shrink to their grid/flex track instead of overflowing.
+  minWidth: 0,
+  maxWidth: '100%',
   outline: 'none',
   boxSizing: 'border-box',
 }

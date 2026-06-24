@@ -153,11 +153,11 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
       <Card>
         <BlockTitle tag="computed from date">Macro Anchor</BlockTitle>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 88px', gap: 16 }}>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <label style={lbl}>Macro start (Monday)</label>
             <input style={inp} type="date" value={startISO} onChange={(e) => setStartISO(e.target.value)} />
           </div>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <label style={lbl}>Macro #</label>
             <input
               style={inp}
