@@ -28,30 +28,42 @@ export function SessionModal({ cell, macroNumber, macroId, weights, accessory, d
       buildBlankSession({ date: cell.date, macroId, cycle, week: cell.week, weekType: cell.weekType, dayType, difficulty, baseTop: base, isDeload, cleanDefault })
   )
   const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
   const setField = (k, v) => setDraft((p) => ({ ...p, [k]: v }))
 
   async function handleSave() {
     setSaving(true)
-    const record = {
-      ...draft,
-      id: `${cell.date}-${dayType}-${difficulty[0].toUpperCase()}`,
-      date: cell.date,
-      macroId,
-      cycle,
-      week: cell.week,
-      weekType: cell.weekType,
-      dayType,
-      difficulty,
-      topReps: SCHEMES[difficulty].sets[3],
-      topWeight: top,
+    setErr('')
+    try {
+      const record = {
+        ...draft,
+        id: `${cell.date}-${dayType}-${difficulty[0].toUpperCase()}`,
+        date: cell.date,
+        macroId,
+        cycle,
+        week: cell.week,
+        weekType: cell.weekType,
+        dayType,
+        difficulty,
+        topReps: SCHEMES[difficulty].sets[3],
+        topWeight: top,
+      }
+      await onSaveSession(record)
+      onClose()
+    } catch (e) {
+      setErr(String(e?.message || e))
+    } finally {
+      setSaving(false)
     }
-    await onSaveSession(record)
-    setSaving(false)
-    onClose()
   }
   async function handleDelete() {
-    if (existing) await onDeleteSession(existing.id)
-    onClose()
+    setErr('')
+    try {
+      if (existing) await onDeleteSession(existing.id)
+      onClose()
+    } catch (e) {
+      setErr(String(e?.message || e))
+    }
   }
 
   const overlay = {
@@ -138,6 +150,7 @@ export function SessionModal({ cell, macroNumber, macroId, weights, accessory, d
                 </button>
               )}
             </div>
+            {err && <div style={{ marginTop: 10, fontSize: 12, color: C.red }}>Couldn't save — {err}. Check your connection and try again.</div>}
           </>
         )}
       </div>

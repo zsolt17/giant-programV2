@@ -23,12 +23,19 @@ export function TestingResultForm({ macroId, lift, testedOn, results, onSave, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lift, existing?.id])
 
+  const [err, setErr] = useState('')
   async function save() {
     setSaving(true)
-    await onSave({ id: existing?.id, macroId, lift, weight, reps, notes, testedOn })
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 1600)
+    setErr('')
+    try {
+      await onSave({ id: existing?.id, macroId, lift, weight, reps, notes, testedOn })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 1600)
+    } catch (e) {
+      setErr(String(e?.message || e))
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -66,6 +73,7 @@ export function TestingResultForm({ macroId, lift, testedOn, results, onSave, on
           </button>
         )}
       </div>
+      {err && <div style={{ marginTop: 10, fontSize: 12, color: C.red }}>Couldn't save — {err}. Check your connection and try again.</div>}
     </Card>
   )
 }

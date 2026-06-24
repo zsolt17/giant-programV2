@@ -34,6 +34,15 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-24
+- `feat`: **error boundary** — a render crash now shows a branded recovery screen
+  with a Reload button instead of a blank page (`ErrorBoundary.jsx`, wrapping `App`
+  in `main.jsx`).
+- `fix`: **save handlers surface failures** — `try/catch` + visible "couldn't save —
+  retry" on session, calendar-modal, and testing-result saves (and delete), so a
+  failed write (e.g. flaky gym wifi) no longer silently sticks on "Saving…" and lose
+  the entry (`Today.jsx`, `SessionModal.jsx`, `TestingResultForm.jsx`).
+- `chore(ci)`: deploy workflow now runs `npm test` before `npm run build` — engine
+  tests gate the deploy (`deploy.yml`).
 - `fix(mobile)`: iOS date inputs were overflowing their card (native intrinsic
   width) — added `-webkit-appearance:none` via a shared `DATE_INPUT` style applied to
   both Setup date fields so they respect their container (`Setup.jsx`). This is the

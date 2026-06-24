@@ -198,15 +198,22 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
   }, [sessionId])
 
   const setField = (k, v) => setDraft((p) => ({ ...p, [k]: v }))
+  const [err, setErr] = useState('')
 
   async function handleSave() {
     setSaving(true)
-    const record = { ...draft, ...stamp }
-    await onSaveSession(record)
-    setDraft(record)
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 1800)
+    setErr('')
+    try {
+      const record = { ...draft, ...stamp }
+      await onSaveSession(record)
+      setDraft(record)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 1800)
+    } catch (e) {
+      setErr(String(e?.message || e))
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -220,6 +227,9 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
       >
         {saving ? 'Saving…' : saved ? 'Saved ✓' : existing ? 'Update session' : 'Save session'}
       </button>
+      {err && (
+        <div style={{ marginTop: 10, fontSize: 12, color: C.red }}>Couldn't save — {err}. Check your connection and tap save again.</div>
+      )}
       <SignalBanner currentWeekSessions={currentWeekSessions} draft={draft} />
     </div>
   )
