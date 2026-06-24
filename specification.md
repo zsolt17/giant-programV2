@@ -41,7 +41,9 @@ user-facing capability.
   off (zero bundle cost — verified main chunk unchanged). `ErrorBoundary` forwards
   render crashes via `captureError`; Sentry's default integrations capture unhandled
   errors/promise rejections once enabled. DSN goes in `.env.production` (public client
-  key). (Audit item #4.)
+  key). **Enabled in production** — verified a real test event delivered to the Sentry
+  dashboard (ingest responded `200`). Sentry loads as a lazy chunk; main bundle
+  unchanged. (Audit item #4.)
 - `chore(test)`: **smoke test no longer touches real data** — it ran against the
   real macro and *deleted its weights* on cleanup (a footgun once real data
   existed). Rewritten to run against a throwaway macro (number 999, status
