@@ -6,6 +6,13 @@ export function speedArrow(s) {
   return s === 'up' ? '↑' : s === 'down' ? '↓' : '→'
 }
 
+// ms -> "m:ss" (minutes uncapped, e.g. 73:20). Shared by the session timer (Today)
+// and the calendar modal's duration editor.
+export function fmtClock(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000))
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+}
+
 export function antagDesc(type, diff) {
   if (type === 'hold') return 'max hold, sub-maximal'
   if (type === 'hold20') return '20 sec'

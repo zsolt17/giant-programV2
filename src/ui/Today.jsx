@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { C, cardStyle, HEADING, pillColor, inp, lbl } from './theme.js'
 import { Card } from './components.jsx'
-import { PositionHeader } from './controls.jsx'
+import { PositionHeader, fmtClock } from './controls.jsx'
 import { SessionForm, buildBlankSession } from './SessionForm.jsx'
 import { TestingResultForm } from './TestingResultForm.jsx'
 import { ROTATION, SCHEMES, LIFT_LABEL, SIGNALS } from '../engine/constants.js'
@@ -24,12 +24,6 @@ function breakInWeek(startISO, weekIndex, breakDays) {
 // --- session timer helpers --------------------------------------------------
 const CAP_MS = 90 * 60 * 1000 // 90-minute auto-end safeguard
 const AUTO_END_NOTE = 'auto-ended at 90 min'
-
-// ms -> "m:ss" (minutes uncapped, e.g. 73:20).
-function fmtClock(ms) {
-  const total = Math.max(0, Math.floor(ms / 1000))
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
-}
 
 function appendNote(notes, addition) {
   const n = (notes || '').trim()

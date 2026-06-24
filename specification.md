@@ -45,8 +45,11 @@ user-facing capability.
   auto-end safeguard** (evaluated from `started_at`, fires even if the app was
   closed) caps the end and appends "auto-ended at 90 min". No auto-start. Files:
   `Today.jsx` (timer + `TimerBar`), `SessionForm.jsx` (`locked` prop), `mappers.js`.
-  Verified end-to-end incl. auto-end persistence. *(SessionModal duration edit for
-  past sessions still to come.)*
+  Verified end-to-end incl. auto-end persistence.
+- `feat`: **calendar duration edit** — the `SessionModal` now shows + edits the
+  duration of a timed session (editable-after-the-fact for past days). `mm:ss`
+  formatter `fmtClock` extracted to `controls.jsx` and shared by Today + the modal.
+  Verified: edited a past session's duration → persisted.
 - `feat`: **error boundary** — a render crash now shows a branded recovery screen
   with a Reload button instead of a blank page (`ErrorBoundary.jsx`, wrapping `App`
   in `main.jsx`).
