@@ -5,6 +5,12 @@ export function Spinner() {
   return <span className="spin" />
 }
 
+// Slim fixed top progress bar — a global signal during data loads/reloads that
+// doesn't blank the screen.
+export function TopLoadingBar() {
+  return <div className="gp-loadbar" aria-hidden="true" />
+}
+
 export function Center({ children, style }) {
   return <div style={{ padding: 40, textAlign: 'center', color: C.muted, ...style }}>{children}</div>
 }

@@ -6,3 +6,12 @@ import { App } from './ui/App.jsx'
 createRoot(document.getElementById('root')).render(
   React.createElement(React.StrictMode, null, React.createElement(App))
 )
+
+// Fade out the instant splash now that React has mounted.
+const splash = document.getElementById('splash')
+if (splash) {
+  requestAnimationFrame(() => {
+    splash.style.opacity = '0'
+  })
+  setTimeout(() => splash.remove(), 350)
+}

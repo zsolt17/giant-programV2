@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { onAuthChange, getUser, signOut } from '../data/supabase.js'
 import * as repo from '../data/repository.js'
-import { Shell, Center, Spinner, Tabs, Card } from './components.jsx'
+import { Shell, Center, Spinner, Tabs, Card, TopLoadingBar } from './components.jsx'
 import { Auth } from './Auth.jsx'
 import { Setup } from './Setup.jsx'
 import { Today } from './Today.jsx'
@@ -142,15 +142,19 @@ export function App() {
   if (user === undefined)
     return (
       <Shell>
+        <TopLoadingBar />
         <Center>
           <Spinner /> Checking session…
         </Center>
       </Shell>
     )
   if (!user) return <Auth />
-  if (status === 'idle' || status === 'loading')
+  // First load (nothing to show yet) gets the centered spinner; later reloads keep
+  // the current content and show the slim top bar instead of blanking the screen.
+  if ((status === 'idle' || status === 'loading') && !macro)
     return (
       <Shell onSignOut={signOut}>
+        <TopLoadingBar />
         <Center>
           <Spinner /> Loading your data…
         </Center>
@@ -175,6 +179,7 @@ export function App() {
 
   return (
     <Shell onSignOut={signOut}>
+      {status === 'loading' && <TopLoadingBar />}
       <Tabs tab={tab} setTab={setTab} />
 
       {needsMacro && tab !== 'setup' && (
