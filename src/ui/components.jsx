@@ -91,28 +91,43 @@ const TABS = [
 ]
 
 export function Tabs({ tab, setTab }) {
+  // Sticky: the nav pins to the top of the viewport on scroll so it's always
+  // reachable. The wrapper carries the page background so content scrolls cleanly
+  // underneath it.
   return (
-    <div style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: 2, overflow: 'hidden', marginBottom: 24 }}>
-      {TABS.map(([k, label]) => (
-        <button
-          key={k}
-          onClick={() => setTab(k)}
-          style={{
-            flex: 1,
-            background: tab === k ? C.gold : 'transparent',
-            border: 'none',
-            color: tab === k ? C.dark : C.muted,
-            fontSize: 12,
-            fontWeight: 600,
-            padding: '12px 4px',
-            cursor: 'pointer',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-          }}
-        >
-          {label}
-        </button>
-      ))}
+    <div
+      style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 20,
+        background: C.dark,
+        paddingTop: 10,
+        paddingBottom: 10,
+        marginBottom: 14,
+      }}
+    >
+      <div style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: 2, overflow: 'hidden' }}>
+        {TABS.map(([k, label]) => (
+          <button
+            key={k}
+            onClick={() => setTab(k)}
+            style={{
+              flex: 1,
+              background: tab === k ? C.gold : 'transparent',
+              border: 'none',
+              color: tab === k ? C.dark : C.muted,
+              fontSize: 12,
+              fontWeight: 600,
+              padding: '12px 4px',
+              cursor: 'pointer',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

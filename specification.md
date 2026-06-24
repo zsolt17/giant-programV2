@@ -34,6 +34,8 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-24
+- `feat`: **sticky tab nav** — the menu pins to the top of the viewport on scroll so
+  it's always reachable (e.g. at the bottom of the Calendar) (`components.jsx` Tabs).
 - `fix(mobile)`: **stacked** the Macro start / Macro # fields vertically — the
   `min-width:0` approach didn't hold for the iOS native date input in standalone
   (home-screen) mode; stacking removes the side-by-side overlap entirely (`Setup.jsx`).
