@@ -77,6 +77,8 @@ export function rowToSession(r) {
     carrySkipReason: r.carry_skip_reason || '',
     carryRpe: r.carry_rpe || '',
     notes: r.notes || '',
+    startedAt: r.started_at || null,
+    endedAt: r.ended_at || null,
     updatedAt: r.updated_at,
   }
 }
@@ -104,6 +106,8 @@ export function sessionToRow(s) {
     carry_skip_reason: blankToNull(s.carrySkipReason),
     carry_rpe: blankToNull(s.carryRpe),
     notes: blankToNull(s.notes),
+    started_at: s.startedAt ?? null,
+    ended_at: s.endedAt ?? null,
   }
 }
 

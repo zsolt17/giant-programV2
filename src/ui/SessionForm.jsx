@@ -34,13 +34,15 @@ export function buildBlankSession({ date, macroId, cycle, week, weekType, dayTyp
     carrySkipReason: '',
     carryRpe: '',
     notes: '',
+    startedAt: null,
+    endedAt: null,
   }
 }
 
 // The prescription + log fields for a training-week session. Reused by Today
 // (inline) and SessionModal (overlay). The parent owns the draft + Save button;
 // it stamps the prescribed top weight/reps on save.
-export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, draft, setField }) {
+export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, draft, setField, locked = false }) {
   const scheme = SCHEMES[difficulty]
   const meta = DAY_META[dayType]
   const w = (v) => (hasWeight ? fmt(v) : '—')
@@ -51,8 +53,9 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
   const volLetter = dayType === 'dips' ? 'D' : 'C'
   const carryLetter = dayType === 'dips' ? 'E' : 'D'
 
+  // When locked (timer not started), the prescription is readable but inert.
   return (
-    <>
+    <div style={locked ? { opacity: 0.5, pointerEvents: 'none' } : undefined}>
       {!hasWeight && (
         <Card style={{ border: `1px solid ${C.red}` }}>
           <div style={{ fontSize: 13, color: C.red, lineHeight: 1.5 }}>
@@ -170,7 +173,7 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
           placeholder="Grip reset, technique cue, how it felt…"
         />
       </Card>
-    </>
+    </div>
   )
 }
 

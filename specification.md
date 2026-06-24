@@ -18,7 +18,9 @@ user-facing capability.
 
 - **Single-user auth** (Supabase email/password, RLS-protected).
 - **Today** — date-computed position; full session prescription (warm-up, clean
-  block on dips day, Giant Block, volume, carry) and logging.
+  block on dips day, Giant Block, volume, carry) and logging. **Optional session
+  timer:** Start → live timer → End, duration derived from `started_at`/`ended_at`,
+  90-min auto-end safeguard, manual duration edit.
 - **Calendar** — 15-week × Mon/Wed/Fri grid; log/edit/delete any session; mark breaks.
 - **History** — latest top sets, recent-session feed, pull-up cluster trend, testing results.
 - **Deload** — per-week fatigue signals + reactive-deload recommend/apply (advise-and-confirm).
@@ -34,6 +36,17 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-24
+- `feat`: **session timer on Today** — optional Start/End timer, three states
+  (not-started: prescription locked + "Start session"; running: live mm:ss + "End
+  session"; completed: duration + editable "Edit (min)" + "Update"). Backed by
+  `started_at`/`ended_at` (`timestamptz`, migration `0002_session_timer.sql`);
+  duration is always **derived**, never stored. Clock is recomputed from
+  `started_at` each render, so it survives sleep / backgrounding / reopen. **90-min
+  auto-end safeguard** (evaluated from `started_at`, fires even if the app was
+  closed) caps the end and appends "auto-ended at 90 min". No auto-start. Files:
+  `Today.jsx` (timer + `TimerBar`), `SessionForm.jsx` (`locked` prop), `mappers.js`.
+  Verified end-to-end incl. auto-end persistence. *(SessionModal duration edit for
+  past sessions still to come.)*
 - `feat`: **error boundary** — a render crash now shows a branded recovery screen
   with a Reload button instead of a blank page (`ErrorBoundary.jsx`, wrapping `App`
   in `main.jsx`).

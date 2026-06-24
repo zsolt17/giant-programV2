@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { C, cardStyle, HEADING, pillColor } from './theme.js'
+import React, { useState, useEffect, useRef } from 'react'
+import { C, cardStyle, HEADING, pillColor, inp, lbl } from './theme.js'
 import { Card } from './components.jsx'
 import { PositionHeader } from './controls.jsx'
 import { SessionForm, buildBlankSession } from './SessionForm.jsx'
@@ -19,6 +19,22 @@ function breakInWeek(startISO, weekIndex, breakDays) {
     if (breakDays[isoLocal(d)]) return true
   }
   return false
+}
+
+// --- session timer helpers --------------------------------------------------
+const CAP_MS = 90 * 60 * 1000 // 90-minute auto-end safeguard
+const AUTO_END_NOTE = 'auto-ended at 90 min'
+
+// ms -> "m:ss" (minutes uncapped, e.g. 73:20).
+function fmtClock(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000))
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+}
+
+function appendNote(notes, addition) {
+  const n = (notes || '').trim()
+  if (n.includes(addition)) return notes
+  return n ? `${n} · ${addition}` : addition
 }
 
 export function Today({ computed, macroId, weights, accessory, sessions, deloads, breakDays = {}, testingResults = [], onSaveSession, onApplyDeload, onSaveTestingResult, onDeleteTestingResult }) {
@@ -191,24 +207,63 @@ export function Today({ computed, macroId, weights, accessory, sessions, deloads
 
 function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, currentWeekSessions, stamp, onSaveSession, saving, setSaving, saved, setSaved }) {
   const [draft, setDraft] = useState(() => existing || blank())
+  const [err, setErr] = useState('')
+  const [nowTs, setNowTs] = useState(() => Date.now())
+  const autoEndingRef = useRef(false)
+
   useEffect(() => {
     setDraft(existing || blank())
     setSaved(false)
+    setErr('')
+    autoEndingRef.current = false
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
 
   const setField = (k, v) => setDraft((p) => ({ ...p, [k]: v }))
-  const [err, setErr] = useState('')
 
-  async function handleSave() {
+  // Three states derived from the timestamps (no phase column).
+  const running = !!draft.startedAt && !draft.endedAt
+  const completed = !running && (!!existing || !!draft.endedAt)
+  const notStarted = !running && !completed
+
+  // Tick only to re-render while running; the shown time is always recomputed from
+  // started_at, so sleep / backgrounding / reopen read correctly.
+  useEffect(() => {
+    if (!running) return
+    const iv = setInterval(() => setNowTs(Date.now()), 1000)
+    return () => clearInterval(iv)
+  }, [running])
+
+  const startedMs = draft.startedAt ? new Date(draft.startedAt).getTime() : null
+  const elapsedMs = startedMs != null ? nowTs - startedMs : 0
+  const durationMs = startedMs != null && draft.endedAt ? new Date(draft.endedAt).getTime() - startedMs : null
+
+  // 90-min safeguard, evaluated from started_at (fires even if the app was closed
+  // when the limit passed — checked on every render/open while running).
+  useEffect(() => {
+    if (running && startedMs != null && nowTs - startedMs >= CAP_MS && !autoEndingRef.current) {
+      autoEndingRef.current = true
+      const record = {
+        ...draft,
+        ...stamp,
+        endedAt: new Date(startedMs + CAP_MS).toISOString(),
+        notes: appendNote(draft.notes, AUTO_END_NOTE),
+      }
+      setDraft(record)
+      onSaveSession(record).catch((e) => setErr(String(e?.message || e)))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running, nowTs, startedMs])
+
+  // Persist on Start so the running state survives a reload; only flip the UI to
+  // running after the save succeeds.
+  async function handleStart() {
     setSaving(true)
     setErr('')
+    const record = { ...draft, ...stamp, startedAt: new Date().toISOString(), endedAt: null }
     try {
-      const record = { ...draft, ...stamp }
       await onSaveSession(record)
       setDraft(record)
-      setSaved(true)
-      setTimeout(() => setSaved(false), 1800)
     } catch (e) {
       setErr(String(e?.message || e))
     } finally {
@@ -216,22 +271,116 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
     }
   }
 
+  async function persist(record, flashSaved) {
+    setSaving(true)
+    setErr('')
+    try {
+      await onSaveSession(record)
+      setDraft(record)
+      if (flashSaved) {
+        setSaved(true)
+        setTimeout(() => setSaved(false), 1800)
+      }
+    } catch (e) {
+      setErr(String(e?.message || e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleEnd = () => persist({ ...draft, ...stamp, endedAt: new Date().toISOString() }, true)
+  const handleSave = () => persist({ ...draft, ...stamp }, true)
+
+  // Manual duration edit (completed/auto-ended): recompute ended_at from started_at.
+  function setDurationMin(val) {
+    const n = parseFloat(val)
+    if (startedMs == null || !Number.isFinite(n) || n < 0) return
+    setField('endedAt', new Date(startedMs + n * 60000).toISOString())
+  }
+
+  const autoEnded = (draft.notes || '').includes(AUTO_END_NOTE)
+
   return (
     <div>
       {headerSlot}
-      <SessionForm dayType={dayType} difficulty={difficulty} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} />
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        style={{ width: '100%', background: saved ? C.green : C.gold, color: C.dark, border: 'none', borderRadius: 2, padding: 14, fontSize: 14, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}
-      >
-        {saving ? 'Saving…' : saved ? 'Saved ✓' : existing ? 'Update session' : 'Save session'}
-      </button>
+
+      <TimerBar
+        notStarted={notStarted}
+        running={running}
+        elapsedMs={elapsedMs}
+        durationMs={durationMs}
+        hasTimer={startedMs != null}
+        autoEnded={autoEnded}
+        saving={saving}
+        onStart={handleStart}
+        durationMin={durationMs != null ? Math.round(durationMs / 60000) : ''}
+        onDurationMin={setDurationMin}
+      />
+
+      <SessionForm dayType={dayType} difficulty={difficulty} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} locked={notStarted} />
+
+      {!notStarted && (
+        <button
+          onClick={running ? handleEnd : handleSave}
+          disabled={saving}
+          style={{ width: '100%', background: saved ? C.green : C.gold, color: C.dark, border: 'none', borderRadius: 2, padding: 14, fontSize: 14, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}
+        >
+          {saving ? 'Saving…' : saved ? 'Saved ✓' : running ? 'End session' : 'Update session'}
+        </button>
+      )}
       {err && (
-        <div style={{ marginTop: 10, fontSize: 12, color: C.red }}>Couldn't save — {err}. Check your connection and tap save again.</div>
+        <div style={{ marginTop: 10, fontSize: 12, color: C.red }}>Couldn't save — {err}. Check your connection and try again.</div>
       )}
       <SignalBanner currentWeekSessions={currentWeekSessions} draft={draft} />
     </div>
+  )
+}
+
+// Top of the session: Start button (not started) / live mm:ss (running) /
+// duration + manual edit (completed).
+function TimerBar({ notStarted, running, elapsedMs, durationMs, hasTimer, autoEnded, saving, onStart, durationMin, onDurationMin }) {
+  if (notStarted) {
+    return (
+      <Card style={{ textAlign: 'center' }}>
+        <button
+          onClick={onStart}
+          disabled={saving}
+          style={{ width: '100%', background: C.gold, color: C.dark, border: 'none', borderRadius: 2, padding: 14, fontSize: 14, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}
+        >
+          {saving ? 'Starting…' : 'Start session'}
+        </button>
+        <div style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>Fields unlock once you start. (Logging via the Calendar skips the timer.)</div>
+      </Card>
+    )
+  }
+  if (running) {
+    return (
+      <Card style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 10, letterSpacing: '0.16em', color: C.gold, textTransform: 'uppercase', marginBottom: 4 }}>Session running</div>
+        <div style={{ fontFamily: HEADING, fontSize: 44, color: C.gold, letterSpacing: '0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{fmtClock(elapsedMs)}</div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>Auto-ends at 90 min.</div>
+      </Card>
+    )
+  }
+  // completed
+  return (
+    <Card>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 10, letterSpacing: '0.16em', color: C.gold, textTransform: 'uppercase', marginBottom: 4 }}>Duration</div>
+          <div style={{ fontFamily: HEADING, fontSize: 28, color: C.off, letterSpacing: '0.04em', fontVariantNumeric: 'tabular-nums' }}>
+            {hasTimer ? fmtClock(durationMs) : 'Not timed'}
+          </div>
+          {autoEnded && <div style={{ fontSize: 11, color: C.red, marginTop: 4 }}>Auto-ended at 90 min — adjust if needed.</div>}
+        </div>
+        {hasTimer && (
+          <div style={{ width: 110 }}>
+            <label style={lbl}>Edit (min)</label>
+            <input style={inp} type="number" min="0" step="1" value={durationMin} onChange={(e) => onDurationMin(e.target.value)} />
+          </div>
+        )}
+      </div>
+    </Card>
   )
 }
 
