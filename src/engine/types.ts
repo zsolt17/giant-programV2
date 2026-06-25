@@ -107,13 +107,18 @@ export interface Session {
   rpe: string
   barSpeed: string
   cleanLoad: number | null
+  cleanRounds: number | null
   cleanSpeed: string
+  // Per-round Giant Block cardio calories, ordered [R1..R4]; null entry = unfilled round.
+  cardioCals: (number | null)[]
   volDone: boolean
   volRpe: string
   volSpeed: string
   pullupCluster: string
   carrySkipped: boolean
   carrySkipReason: string
+  carryRounds: number | null
+  carryDistance: number | null
   carryRpe: string
   notes: string
   startedAt: string | null
@@ -124,8 +129,12 @@ export interface Session {
 // A session as held in the UI form state and handed to the persistence layer.
 // Numeric inputs hold raw strings until the mappers coerce them (toNum/blankToNull),
 // so the form-bound fields are looser than the canonical persisted Session.
-export interface SessionDraft extends Omit<Session, 'cleanLoad'> {
+export interface SessionDraft extends Omit<Session, 'cleanLoad' | 'cleanRounds' | 'cardioCals' | 'carryRounds' | 'carryDistance'> {
   cleanLoad: number | string | null
+  cleanRounds: number | string | null
+  cardioCals: (number | string | null)[]
+  carryRounds: number | string | null
+  carryDistance: number | string | null
 }
 
 export interface WeekSignals {

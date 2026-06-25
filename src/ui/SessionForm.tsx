@@ -49,13 +49,17 @@ export function buildBlankSession({
     rpe: '',
     barSpeed: '',
     cleanLoad: cleanDefault ?? '',
+    cleanRounds: dayType === 'dips' ? 5 : null,
     cleanSpeed: '',
+    cardioCals: ['', '', '', ''],
     volDone: true,
     volRpe: '',
     volSpeed: '',
     pullupCluster: '',
     carrySkipped: false,
     carrySkipReason: '',
+    carryRounds: 3,
+    carryDistance: '',
     carryRpe: '',
     notes: '',
     startedAt: null,
@@ -116,8 +120,8 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
         <Card>
           {blockTitle('B. Clean Block', '5×3 · bar speed')}
           <Row a="Power clean" b="5 × 3, touch-and-go, RPE 7 ceiling" c={draft.cleanLoad ? fmt(Number(draft.cleanLoad)) : '—'} cls={C.gold} />
-          <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-            <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
+            <div style={{ flex: 1, minWidth: 90 }}>
               <label style={lbl}>Load</label>
               <input
                 style={inp}
@@ -127,7 +131,19 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
                 onChange={(e) => setField('cleanLoad', e.target.value)}
               />
             </div>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 70 }}>
+              <label style={lbl}>Rounds</label>
+              <input
+                data-clean-rounds="1"
+                style={inp}
+                type="number"
+                min="0"
+                step="1"
+                value={draft.cleanRounds ?? ''}
+                onChange={(e) => setField('cleanRounds', e.target.value)}
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: 120 }}>
               <label style={lbl}>Bar speed</label>
               <SpeedPick value={draft.cleanSpeed} onChange={(v) => setField('cleanSpeed', v)} />
             </div>
@@ -153,6 +169,10 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
         <Row a={meta.antag} b={antagDesc(meta.antagType, difficulty)} c="" cls={C.muted} />
         <Row a={meta.core} b="10 reps" c="BW" cls={C.muted} />
         <Row a="Cardio" b="30 sec high effort" c="" cls={C.muted} />
+        <CardioCals
+          values={draft.cardioCals}
+          onChange={(i, v) => setField('cardioCals', draft.cardioCals.map((x, idx) => (idx === i ? v : x)))}
+        />
         {dayType === 'ohp' && <PullupCluster difficulty={difficulty} value={draft.pullupCluster} onChange={(v) => setField('pullupCluster', v)} />}
         <LogRpe label="Top set" rpe={draft.rpe} speed={draft.barSpeed} onRpe={(v) => setField('rpe', v)} onSpeed={(v) => setField('barSpeed', v)} />
       </Card>
@@ -193,7 +213,38 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
               </select>
             </div>
           )}
-          {!draft.carrySkipped && <LogRpe label="Carry" rpe={draft.carryRpe} speed={null} onRpe={(v) => setField('carryRpe', v)} />}
+          {!draft.carrySkipped && (
+            <>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
+                <div style={{ flex: 1, minWidth: 70 }}>
+                  <label style={lbl}>Rounds</label>
+                  <input
+                    data-carry-rounds="1"
+                    style={inp}
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={draft.carryRounds ?? ''}
+                    onChange={(e) => setField('carryRounds', e.target.value)}
+                  />
+                </div>
+                <div style={{ flex: 1, minWidth: 120 }}>
+                  <label style={lbl}>Distance / round (m)</label>
+                  <input
+                    data-carry-distance="1"
+                    style={inp}
+                    type="number"
+                    min="0"
+                    step="1"
+                    inputMode="decimal"
+                    value={draft.carryDistance ?? ''}
+                    onChange={(e) => setField('carryDistance', e.target.value)}
+                  />
+                </div>
+              </div>
+              <LogRpe label="Carry" rpe={draft.carryRpe} speed={null} onRpe={(v) => setField('carryRpe', v)} />
+            </>
+          )}
         </Card>
       )}
 
@@ -207,6 +258,34 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
           placeholder="Grip reset, technique cue, how it felt…"
         />
       </Card>
+    </div>
+  )
+}
+
+// Per-round Giant Block cardio calories — four small cells (R1..R4), matching the
+// notebook habit of recording e.g. "15/14/15/15". Empty cells round-trip as NULL.
+function CardioCals({ values, onChange }: { values: (number | string | null)[]; onChange: (i: number, v: string) => void }) {
+  return (
+    <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+      <label style={lbl}>Cardio calories — per round</label>
+      <div style={{ display: 'flex', gap: 8 }}>
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} style={{ flex: 1, minWidth: 0 }}>
+            <input
+              data-cardio-round={i + 1}
+              aria-label={`Round ${i + 1} calories`}
+              style={{ ...inp, textAlign: 'center' }}
+              type="number"
+              min="0"
+              step="1"
+              inputMode="numeric"
+              placeholder={`R${i + 1}`}
+              value={values[i] ?? ''}
+              onChange={(e) => onChange(i, e.target.value)}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

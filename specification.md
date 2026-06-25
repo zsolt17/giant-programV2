@@ -39,6 +39,18 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-25
+- `feat`: **three new session logging fields** (Today + SessionModal, via the shared
+  `SessionForm`). **Clean rounds** — a "rounds completed" count in the dips-day clean block
+  (UI default 5). **Per-round cardio calories** — four cells in the Giant Block capturing each
+  round's 30 s cardio (the notebook's "15/14/15/15"). **Carry rounds + distance/round (m)** —
+  supporting the "distance before weight" progression. Schema: one batched migration
+  `0004_session_extra_logging.sql` adds `clean_rounds int`, `cardio_cals int[]` (ordered
+  [R1..R4], all-blank → NULL, blank round → NULL element), `carry_rounds int default 3`,
+  `carry_distance numeric` — all nullable, RLS inherited. Routed through the existing
+  mapper/repository pattern (new `rowToCardio`/`cardioToRow` helpers; generic `saveSession`
+  upsert unchanged). Applied via `supabase db push`. Verified: typecheck + 38 unit tests +
+  build, and **smoke 30/30** round-tripping all four columns against the live DB (real data
+  untouched). History/Calendar display of the new fields intentionally out of scope.
 - `chore(security)`: **public sign-ups disabled** in the Supabase dashboard (Auth settings) —
   app stays single-user; the public anon key can no longer be used by strangers to create
   accounts and consume project quota (data was already RLS-isolated). Dashboard-only change,

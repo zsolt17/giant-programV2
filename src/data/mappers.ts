@@ -57,13 +57,17 @@ export interface SessionRow {
   rpe: string | null
   bar_speed: string | null
   clean_load: number | null
+  clean_rounds: number | null
   clean_speed: string | null
+  cardio_cals: (number | null)[] | null
   vol_done: boolean | null
   vol_rpe: string | null
   vol_speed: string | null
   pullup_cluster: string | null
   carry_skipped: boolean | null
   carry_skip_reason: string | null
+  carry_rounds: number | null
+  carry_distance: number | null
   carry_rpe: string | null
   notes: string | null
   started_at: string | null
@@ -125,6 +129,19 @@ export function accessoryToRows(macroId: string, cycle: number, byItem: Record<s
   }))
 }
 
+// Per-round cardio cals <-> a fixed 4-cell array. DB stores int[] (or NULL when
+// no round was logged); the UI always works with exactly 4 ordered cells.
+const CARDIO_ROUNDS = 4
+function rowToCardio(v: (number | null)[] | null | undefined): (number | null)[] {
+  const a = Array.isArray(v) ? v : []
+  return Array.from({ length: CARDIO_ROUNDS }, (_, i) => (a[i] == null ? null : Number(a[i])))
+}
+function cardioToRow(v: (number | string | null)[] | null | undefined): (number | null)[] | null {
+  if (!Array.isArray(v)) return null
+  const nums = Array.from({ length: CARDIO_ROUNDS }, (_, i) => toNum(v[i]))
+  return nums.some((n) => n != null) ? nums : null // all-blank -> NULL column
+}
+
 // ---- session ---------------------------------------------------------------
 export function rowToSession(r: SessionRow): Session {
   return {
@@ -141,13 +158,17 @@ export function rowToSession(r: SessionRow): Session {
     rpe: r.rpe || '',
     barSpeed: r.bar_speed || '',
     cleanLoad: toNum(r.clean_load),
+    cleanRounds: r.clean_rounds ?? null,
     cleanSpeed: r.clean_speed || '',
+    cardioCals: rowToCardio(r.cardio_cals),
     volDone: r.vol_done ?? true,
     volRpe: r.vol_rpe || '',
     volSpeed: r.vol_speed || '',
     pullupCluster: r.pullup_cluster || '',
     carrySkipped: !!r.carry_skipped,
     carrySkipReason: r.carry_skip_reason || '',
+    carryRounds: r.carry_rounds ?? null,
+    carryDistance: toNum(r.carry_distance),
     carryRpe: r.carry_rpe || '',
     notes: r.notes || '',
     startedAt: r.started_at || null,
@@ -170,13 +191,17 @@ export function sessionToRow(s: SessionDraft): SessionRow {
     rpe: blankToNull(s.rpe),
     bar_speed: blankToNull(s.barSpeed),
     clean_load: toNum(s.cleanLoad),
+    clean_rounds: toNum(s.cleanRounds),
     clean_speed: blankToNull(s.cleanSpeed),
+    cardio_cals: cardioToRow(s.cardioCals),
     vol_done: s.volDone ?? true,
     vol_rpe: blankToNull(s.volRpe),
     vol_speed: blankToNull(s.volSpeed),
     pullup_cluster: blankToNull(s.pullupCluster),
     carry_skipped: !!s.carrySkipped,
     carry_skip_reason: blankToNull(s.carrySkipReason),
+    carry_rounds: toNum(s.carryRounds),
+    carry_distance: toNum(s.carryDistance),
     carry_rpe: blankToNull(s.carryRpe),
     notes: blankToNull(s.notes),
     started_at: s.startedAt ?? null,

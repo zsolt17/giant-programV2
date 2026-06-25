@@ -77,12 +77,20 @@ async function main() {
     const saved = await repo.saveSession({
       id: sid, macroId: id, date: '2099-01-04', cycle: 1, week: 1, weekType: 'training',
       dayType: 'deadlift', difficulty: 'hard', topReps: 2, topWeight: 160, rpe: 'R8', barSpeed: 'normal',
-      cleanLoad: '', cleanSpeed: '', volDone: true, volRpe: '', volSpeed: '', pullupCluster: '',
-      carrySkipped: false, carrySkipReason: '', carryRpe: '', notes: 'smoke test',
+      cleanLoad: '', cleanRounds: 5, cleanSpeed: '', cardioCals: [15, 14, '', 15],
+      volDone: true, volRpe: '', volSpeed: '', pullupCluster: '',
+      carrySkipped: false, carrySkipReason: '', carryRounds: 3, carryDistance: 40, carryRpe: '', notes: 'smoke test',
       startedAt: '2099-01-04T08:00:00Z', endedAt: '2099-01-04T08:45:00Z',
     })
     ok('session saved, topWeight = 160', saved.topWeight === 160, saved.topWeight)
     ok('timer fields round-trip', !!saved.startedAt && !!saved.endedAt, { s: saved.startedAt, e: saved.endedAt })
+
+    // 0004 extra logging fields round-trip (clean rounds, per-round cardio cals, carry rounds+distance).
+    ok('cleanRounds round-trips = 5', saved.cleanRounds === 5, saved.cleanRounds)
+    ok('carryRounds round-trips = 3', saved.carryRounds === 3, saved.carryRounds)
+    ok('carryDistance round-trips = 40', saved.carryDistance === 40, saved.carryDistance)
+    ok('cardioCals = [15,14,null,15] (blank round -> NULL, length 4)',
+      JSON.stringify(saved.cardioCals) === JSON.stringify([15, 14, null, 15]), saved.cardioCals)
 
     // "" -> NULL normalization at the raw row level.
     const { data: raw } = await supabase.from('sessions').select('clean_speed,carry_skip_reason,bar_speed').eq('id', sid).single()

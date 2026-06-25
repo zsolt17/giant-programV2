@@ -242,7 +242,9 @@ unbroken at target.
 Single-user app, but it uses Supabase Auth + Row Level Security so the data is private to the one
 account. Canonical schema lives in `supabase/migrations/` (`0001_init.sql`;
 `0002_session_timer.sql` adds `started_at`/`ended_at`; `0003_hardening.sql` adds the
-log-field CHECK constraints, the idempotent `testing_results` key, and FK/date indexes).
+log-field CHECK constraints, the idempotent `testing_results` key, and FK/date indexes;
+`0004_session_extra_logging.sql` adds `clean_rounds`, `cardio_cals int[]` (per-round Giant
+Block cardio cals), `carry_rounds`, `carry_distance`).
 See `supabase/MIGRATIONS.md` for how migrations are applied and the DB kept reproducible.
 Tables:
 
@@ -308,7 +310,10 @@ sessions (
   bar_speed     text,                      -- up | normal | down
   -- clean block (dips day)
   clean_load    numeric,
+  clean_rounds  int,                       -- rounds completed (UI default 5)
   clean_speed   text,
+  -- Giant Block per-round cardio calories, ordered [R1..R4] (e.g. {15,14,15,15})
+  cardio_cals   int[],
   -- volume
   vol_done      boolean default true,
   vol_rpe       text,
@@ -318,6 +323,8 @@ sessions (
   -- carry
   carry_skipped boolean default false,
   carry_skip_reason text,                  -- fatigue | schedule
+  carry_rounds  int default 3,             -- carry rounds completed
+  carry_distance numeric,                  -- metres per round ("distance before weight")
   carry_rpe     text,
   -- session timer (timestamps; duration is always derived, never stored)
   started_at    timestamptz,
