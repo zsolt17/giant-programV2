@@ -39,6 +39,11 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-25
+- `chore(security)`: **public sign-ups disabled** in the Supabase dashboard (Auth settings) —
+  app stays single-user; the public anon key can no longer be used by strangers to create
+  accounts and consume project quota (data was already RLS-isolated). Dashboard-only change,
+  invisible in code, noted here so "can't register" isn't a mystery. An approval-gated
+  multi-user feature (RLS-enforced, not UI-only) is **parked** for when onboarding real users.
 - `fix(db)`: **testing results are now idempotent** — `saveTestingResult` upserts a brand-new
   result on the natural key `(macro_id, lift, tested_on)` (was a plain `insert`), so a
   double-submit/re-save UPDATES in place instead of duplicating; edits still upsert by `id`.
