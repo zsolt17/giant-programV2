@@ -39,6 +39,16 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-25
+- `chore(db)`: **schema hardening migration `0003_hardening.sql` + migrations runbook**
+  (not yet applied — pending the CLI workflow). Adds CHECK constraints on the loose log
+  fields now that the mappers normalize unset → NULL (the `*_speed` ∈ up/normal/down,
+  `rpe`/`vol_rpe`/`carry_rpe` ∈ R6..R10, `carry_skip_reason` ∈ fatigue/schedule — all
+  `NOT VALID` so legacy rows can't fail the run), a `nulls not distinct` unique index on
+  `testing_results (macro_id, lift, tested_on)` to stop double-submit duplicates, and the
+  FK/`date` indexes Postgres doesn't auto-create. New `supabase/MIGRATIONS.md` documents the
+  Supabase-CLI workflow (link → reconcile hand-applied `0001`/`0002` → `db push`), forward-only
+  conventions, and a `pg_dump` backup routine. Follow-up noted: switch `saveTestingResult` to
+  `upsert(onConflict: 'macro_id,lift,tested_on')` so a re-save updates instead of erroring.
 - `docs`: **`CONVENTIONS.md` moved into the repo root** (was `…/ACTIVE/Claude/`), next to
   `ARCHITECTURE.md` and `specification.md` — all three docs now co-locate and version with the
   code. Dropped the "cross-project" framing in §10 (the file is in practice Giant-Program-specific):

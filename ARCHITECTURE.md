@@ -240,8 +240,11 @@ unbroken at target.
 ## 9. Supabase schema (implemented)
 
 Single-user app, but it uses Supabase Auth + Row Level Security so the data is private to the one
-account. Canonical schema lives in `supabase/migrations/` (`0001_init.sql`, plus
-`0002_session_timer.sql` adding `started_at`/`ended_at`). Tables:
+account. Canonical schema lives in `supabase/migrations/` (`0001_init.sql`;
+`0002_session_timer.sql` adds `started_at`/`ended_at`; `0003_hardening.sql` adds the
+log-field CHECK constraints, the idempotent `testing_results` key, and FK/date indexes).
+See `supabase/MIGRATIONS.md` for how migrations are applied and the DB kept reproducible.
+Tables:
 
 ```sql
 -- Macros: each macrocycle the athlete runs
