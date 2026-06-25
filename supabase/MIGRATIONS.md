@@ -35,36 +35,31 @@ brew install supabase/tap/supabase
 # 2. Authenticate
 supabase login
 
-# 3. Link this repo to your project (grab the ref from the project's dashboard URL,
-#    or `supabase projects list`). You'll be asked for the database password.
-supabase link --project-ref <your-project-ref>
+# 3. Link this repo to your project. You'll be asked for the database password
+#    (Project Settings -> Database). The ref below is this project's.
+supabase link --project-ref sjhhuypiqoyznhxittkl
 ```
 
 ### Reconcile the hand-applied history
 
-The remote already **has** the `0001`/`0002` objects, but no migration-history rows,
-so the CLI doesn't know they're applied. Pick one path:
+`0001`–`0003` were all applied by hand, so the remote **has** the objects but no
+migration-history rows — the CLI doesn't know they're applied. **Mark them applied** so
+it won't try to re-run them, keeping the readable `000N` files as the ledger:
 
-- **Recommended — baseline from the live DB.** Capture current reality as the new
-  starting point, then manage everything forward from the CLI:
-  ```bash
-  supabase db pull              # writes a baseline migration of the current remote schema
-  ```
-  Keep `0001`/`0002` in the folder as historical record; the pulled baseline is what
-  the CLI now considers "already applied."
+```bash
+supabase migration list                                  # local files vs remote (remote empty)
+supabase migration repair --status applied 0001 0002 0003
+supabase migration list                                  # all three now applied on both sides
+```
 
-- **Alternative — mark the existing files as applied.** If you keep the `000N` files
-  as the ledger, tell the CLI they're already live so it won't re-run them:
-  ```bash
-  supabase migration list                       # shows local vs remote
-  supabase migration repair --status applied 0001 0002
-  ```
-  (The CLI's native format is a 14-digit timestamp prefix; if it doesn't recognize the
-  `000N_` names you may need to rename them to `<YYYYMMDDHHMMSS>_name.sql` first. The
-  `db pull` baseline path above avoids this entirely.)
+Future migrations from `supabase migration new` use a 14-digit timestamp prefix; that's
+fine — `0001` sorts before `2026…`, so ordering holds. (Fallback if the CLI ever balks at
+the mixed naming: `supabase db pull` writes a single baseline of the current remote schema
+and marks it applied — then keep `0001`–`0003` purely as historical record.)
 
-> Linking and the reconcile step are **interactive and need your project ref + DB
-> password**, so run them yourself — they aren't scripted here.
+> Linking and the reconcile step are **interactive and need your DB password**, so run
+> them yourself — they aren't scripted here. Paste the final `migration list` output back
+> and I'll confirm it's reconciled.
 
 ## Day-to-day workflow (after setup)
 
