@@ -2,8 +2,8 @@
 
 The living record of **what** has been built and **when** — it grows with the app.
 Complements the other two docs (don't duplicate them):
-- **`ARCHITECTURE.md`** (`Downloads/ARCHITECTURE.md`) — the domain and the *why*.
-- **`CONVENTIONS.md`** (kept in `Downloads/Claude/`) — *how* the code is built.
+- **`ARCHITECTURE.md`** (repo root) — the domain and the *why*.
+- **`CONVENTIONS.md`** (repo root) — *how* the code is built.
 
 ## How to maintain this file
 On every feature or fix, add a dated entry under a `## YYYY-MM-DD` heading
@@ -39,6 +39,18 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-25
+- `docs`: **`CONVENTIONS.md` moved into the repo root** (was `…/ACTIVE/Claude/`), next to
+  `ARCHITECTURE.md` and `specification.md` — all three docs now co-locate and version with the
+  code. Dropped the "cross-project" framing in §10 (the file is in practice Giant-Program-specific):
+  to reuse the conventions, copy this file and strip the specifics rather than keeping it generic
+  in place. Re-pointed the cross-references in all three docs; removed the now-empty `Claude/` folder.
+- `docs`: **`ARCHITECTURE.md` moved into the repo and made the source of truth.** The
+  domain/why brief now lives at the repo root (was `Downloads/ARCHITECTURE.md`), travelling
+  with the code. Reframed from a "rebuild handoff brief" to a current-state domain reference
+  (the once-"planned" items are all shipped); preserved all program logic (§2–§7), data model
+  (§9, now incl. the `started_at`/`ended_at` timer columns), and decisions log. Re-pointed the
+  cross-references in this file and `CONVENTIONS.md` to the new location. The old
+  `Downloads/ARCHITECTURE.md` is superseded and can be deleted.
 - `feat(a11y)` + `perf`: **accessibility pass + code-splitting (final architecture-audit
   item)**. **a11y:** `SessionModal` is now a real dialog — `role="dialog"` / `aria-modal` /
   `aria-labelledby`, plus a reusable `useFocusTrap` hook (`src/ui/useFocusTrap.ts`) that
