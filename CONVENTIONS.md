@@ -40,7 +40,8 @@ src/
     theme.ts        design tokens + shared CSSProperties style objects
     global.css      base CSS (reset, body bg, fonts, .spin keyframes)
   main.tsx          mounts <App/> in React.StrictMode, imports global.css
-supabase/migrations/  SQL schema + RLS (0001_init.sql)
+supabase/migrations/  numbered SQL schema + RLS (0001_init.sql, …); see MIGRATIONS.md
+supabase/MIGRATIONS.md  how migrations are applied (Supabase CLI) + backup routine
 scripts/smoke-test.js data-layer round-trip test against live Supabase
 .github/workflows/deploy.yml  GitHub Pages deploy
 ```
@@ -71,7 +72,7 @@ it calls repository functions (always via handlers passed down from `App.tsx`).
   so each is an on-demand chunk. Keep boot-critical deps eager — `@supabase` is needed for
   the startup auth check, so it stays in the main chunk; only split what isn't needed for
   first paint. Sentry is already a lazy chunk (DSN-gated; see §6).
-- **Backend:** Supabase (`@supabase/supabase-js` v2) — Postgres + Auth + Row Level Security. Schema in `supabase/migrations/0001_init.sql`. See `ARCHITECTURE.md` §9.
+- **Backend:** Supabase (`@supabase/supabase-js` v2) — Postgres + Auth + Row Level Security. Schema in the numbered `supabase/migrations/` files (see `ARCHITECTURE.md` §9 for the model, `supabase/MIGRATIONS.md` for the apply/backup workflow).
 - **Node:** installed via nvm (Node 22+). Shells must source nvm first:
   `export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"`.
 
@@ -307,7 +308,10 @@ See `ARCHITECTURE.md` §2–§6 for the full domain. In code:
 ## 8. How to add a feature
 
 **Worked example — add a new logged field on sessions (e.g. `grip` notes):**
-1. **Schema:** add the column in a new `supabase/migrations/000N_*.sql` and apply it.
+1. **Schema:** add the column in a new numbered `supabase/migrations/000N_*.sql` and
+   apply it via the `MIGRATIONS.md` workflow (forward-only, idempotent). If it's an
+   enumerated field, add a `CHECK` constraint matching the UI's value set (as `0003`
+   does for the speed/RPE/skip-reason fields); leave free-text/number fields unconstrained.
 2. **Mapper:** add it to both `rowToSession` (snake→camel) and `sessionToRow`
    (camel→snake, with `blankToNull`/`toNum` as appropriate) in `mappers.ts`.
 3. **Repository:** usually nothing — `saveSession` upserts whole rows generically.
