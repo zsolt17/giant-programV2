@@ -98,6 +98,19 @@ async function main() {
     await repo.deleteSession(sid)
     ok('session deleted', !(await repo.getSessions(id)).find((s) => s.id === sid))
 
+    console.log('Testing results (idempotent on macro_id, lift, tested_on)')
+    const t1 = await repo.saveTestingResult({ macroId: id, lift: 'deadlift', weight: 180, reps: 2, notes: 'first', testedOn: '2099-01-08' })
+    ok('testing result saved, weight = 180', t1.weight === 180, t1.weight)
+    // Re-save the SAME (lift, date) — must UPDATE in place, not duplicate (0003 key).
+    await repo.saveTestingResult({ macroId: id, lift: 'deadlift', weight: 182.5, reps: 3, notes: 'redo', testedOn: '2099-01-08' })
+    let tr = await repo.getTestingResults(id)
+    ok('re-save updates same row -> 182.5', tr.find((t) => t.lift === 'deadlift')?.weight === 182.5)
+    ok('no duplicate testing result', tr.filter((t) => t.lift === 'deadlift' && t.testedOn === '2099-01-08').length === 1)
+    // A different date for the same lift is a distinct result.
+    await repo.saveTestingResult({ macroId: id, lift: 'deadlift', weight: 185, reps: 2, notes: '', testedOn: '2099-01-15' })
+    tr = await repo.getTestingResults(id)
+    ok('different date = separate row (2 deadlift results)', tr.filter((t) => t.lift === 'deadlift').length === 2)
+
     console.log('Deloads')
     await repo.setDeload(id, 'SMOKE-WEEK', true)
     ok('deload set', (await repo.getDeloads(id))['SMOKE-WEEK'] === true)

@@ -232,9 +232,13 @@ export async function getTestingResults(macroId: string): Promise<TestingResult[
 
 export async function saveTestingResult(result: TestingResult): Promise<TestingResult> {
   const row = M.testingToRow(result)
+  // Editing an existing row upserts by id; a brand-new row upserts on the natural
+  // key (macro_id, lift, tested_on) so a re-submit UPDATES the same result instead
+  // of inserting a duplicate — matches the 0003 unique index (NULLS NOT DISTINCT,
+  // so a date-less re-save also dedupes).
   const q = row.id
     ? supabase.from('testing_results').upsert(row, { onConflict: 'id' })
-    : supabase.from('testing_results').insert(row)
+    : supabase.from('testing_results').upsert(row, { onConflict: 'macro_id,lift,tested_on' })
   const { data, error } = await q.select().single()
   if (error) throw error
   return M.rowToTesting(data)

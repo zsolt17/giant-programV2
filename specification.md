@@ -39,6 +39,19 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-25
+- `fix(db)`: **testing results are now idempotent** — `saveTestingResult` upserts a brand-new
+  result on the natural key `(macro_id, lift, tested_on)` (was a plain `insert`), so a
+  double-submit/re-save UPDATES in place instead of duplicating; edits still upsert by `id`.
+  Pairs with the `0003` unique index (`NULLS NOT DISTINCT`, so a date-less re-save also dedupes).
+  Added `testing_results` coverage to the smoke test (save → re-save-updates → no-dup →
+  different-date-is-separate). typecheck + 38 unit tests + build + smoke (26/26, real data
+  untouched) all green — the smoke run also confirms `0003` is live (CHECKs accept valid writes,
+  the dedupe relies on the new index). `saveTestingResult` is also the first migration applied
+  through CLI tooling — see below.
+- `chore(db)`: **Supabase CLI adopted for migrations** — installed the CLI (`brew`, v2.108.0),
+  made `MIGRATIONS.md` concrete (real project ref + `migration repair --status applied 0001 0002
+  0003` to reconcile the hand-applied history), and gitignored the CLI's local `.branches`/`.temp`.
+  Forward migrations now go through `migration new` → `db push`.
 - `chore(db)`: **schema hardening migration `0003_hardening.sql` + migrations runbook**
   (applied 2026-06-25 by hand via the Supabase SQL editor, like 0001/0002; CLI adoption
   still the forward plan per `MIGRATIONS.md`). Adds CHECK constraints on the loose log
