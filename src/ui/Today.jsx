@@ -5,10 +5,10 @@ import { PositionHeader, fmtClock } from './controls.jsx'
 import { useWakeLock } from './useWakeLock.js'
 import { SessionForm, buildBlankSession } from './SessionForm.jsx'
 import { TestingResultForm } from './TestingResultForm.jsx'
-import { ROTATION, SCHEMES, LIFT_LABEL, SIGNALS } from '../engine/constants.js'
-import { deloadTop } from '../engine/loading.js'
-import { todayISO, mondayOf, parseLocalDate, isoLocal } from '../engine/date-engine.js'
-import { computeWeekSignals, shouldRecommendDeload, usedDeloadThisMeso, weekKeyFor } from '../engine/deload-rule.js'
+import { ROTATION, SCHEMES, LIFT_LABEL, SIGNALS } from '../engine/constants'
+import { deloadTop } from '../engine/loading'
+import { todayISO, mondayOf, parseLocalDate, isoLocal } from '../engine/date-engine'
+import { computeWeekSignals, shouldRecommendDeload, usedDeloadThisMeso, weekKeyFor } from '../engine/deload-rule'
 
 // Is any break day inside the program week containing weekIndex?
 function breakInWeek(startISO, weekIndex, breakDays) {

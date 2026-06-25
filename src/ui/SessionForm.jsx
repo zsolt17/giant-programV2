@@ -2,9 +2,9 @@ import React from 'react'
 import { C, cardStyle, inp, lbl } from './theme.js'
 import { Card } from './components.jsx'
 import { blockTitle, Row, SpeedPick, LogRpe, antagDesc } from './controls.jsx'
-import { SCHEMES, WU_PCT, WU_REPS, DAY_META, LIFT_LABEL, PULLUP } from '../engine/constants.js'
-import { round, fmt, giantSets, set1Weight, warmupSets, volumeWeight, deloadTop } from '../engine/loading.js'
-import { clusterTotal, isUnbroken, meetsTarget } from '../engine/pullups.js'
+import { SCHEMES, WU_PCT, WU_REPS, DAY_META, LIFT_LABEL, PULLUP } from '../engine/constants'
+import { round, fmt, giantSets, set1Weight, warmupSets, volumeWeight, deloadTop } from '../engine/loading'
+import { clusterTotal, isUnbroken, meetsTarget } from '../engine/pullups'
 
 // Build a blank session draft for a given slot. cleanDefault seeds the dips-day
 // clean load from the cycle's accessory weight.

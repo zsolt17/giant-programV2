@@ -3,9 +3,9 @@ import { C, HEADING, inp, lbl, pillColor } from './theme.js'
 import { SessionForm, buildBlankSession } from './SessionForm.jsx'
 import { TestingResultForm } from './TestingResultForm.jsx'
 import { fmtClock } from './controls.jsx'
-import { SCHEMES, LIFT_LABEL } from '../engine/constants.js'
-import { deloadTop } from '../engine/loading.js'
-import { parseLocalDate } from '../engine/date-engine.js'
+import { SCHEMES, LIFT_LABEL } from '../engine/constants'
+import { deloadTop } from '../engine/loading'
+import { parseLocalDate } from '../engine/date-engine'
 
 function shortDate(iso) {
   return parseLocalDate(iso).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })

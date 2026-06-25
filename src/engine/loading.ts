@@ -1,21 +1,21 @@
 // Loading math — rep schemes, percentages, rounding. Ported verbatim from
 // index.html. Round to nearest 2.5 kg always.
-import { SCHEMES, WU_PCT, WU_REPS } from './constants.js'
+import { SCHEMES, WU_PCT, WU_REPS } from './constants'
+import type { Difficulty, Scheme, GiantSet, WarmupSet } from './types'
 
-export const round = (w) => Math.round(w / 2.5) * 2.5
+export const round = (w: number): number => Math.round(w / 2.5) * 2.5
 
-export const fmt = (w) => {
+export const fmt = (w: number | null | undefined): string => {
   if (w == null || Number.isNaN(w)) return '—'
   return (w % 1 === 0 ? w.toFixed(0) : w.toFixed(1)) + ' kg'
 }
 
-export function schemeFor(difficulty) {
+export function schemeFor(difficulty: Difficulty): Scheme {
   return SCHEMES[difficulty]
 }
 
 // Giant Block: 4 sets. Set 4 = the top set (100%, exact). Others = round(top*pct).
-// Returns [{ set, reps, pct, weight, isTop }].
-export function giantSets(top, difficulty) {
+export function giantSets(top: number, difficulty: Difficulty): GiantSet[] {
   const scheme = SCHEMES[difficulty]
   return scheme.pct.map((pct, i) => {
     const isTop = i === 3
@@ -30,22 +30,22 @@ export function giantSets(top, difficulty) {
 }
 
 // Set 1 weight (build-up sets are percentages of this).
-export function set1Weight(top, difficulty) {
+export function set1Weight(top: number, difficulty: Difficulty): number {
   return round(top * SCHEMES[difficulty].pct[0])
 }
 
 // Barbell build-up sets, as percentages of Set 1.
-export function warmupSets(top, difficulty) {
+export function warmupSets(top: number, difficulty: Difficulty): WarmupSet[] {
   const s1 = set1Weight(top, difficulty)
   return WU_PCT.map((pct, i) => ({ reps: WU_REPS[i], pct, weight: round(s1 * pct) }))
 }
 
 // Volume block = 80% of the top set.
-export function volumeWeight(top) {
+export function volumeWeight(top: number): number {
   return round(top * 0.8)
 }
 
 // Deload top set = ~70% of the working load (reactive deload).
-export function deloadTop(top) {
+export function deloadTop(top: number): number {
   return round(top * 0.7)
 }

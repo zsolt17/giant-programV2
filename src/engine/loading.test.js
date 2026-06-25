@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { round, fmt, schemeFor, giantSets, set1Weight, warmupSets, volumeWeight, deloadTop } from './loading.js'
+import { round, fmt, schemeFor, giantSets, set1Weight, warmupSets, volumeWeight, deloadTop } from './loading'
 
 test('round: nearest 2.5 kg', () => {
   assert.equal(round(120), 120)

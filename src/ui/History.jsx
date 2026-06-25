@@ -3,9 +3,9 @@ import { C } from './theme.js'
 import { Card } from './components.jsx'
 import { blockTitle, Row, speedArrow } from './controls.jsx'
 import { pillColor } from './theme.js'
-import { LIFT_LABEL, PULLUP } from '../engine/constants.js'
-import { fmt } from '../engine/loading.js'
-import { clusterTotal, isUnbroken } from '../engine/pullups.js'
+import { LIFT_LABEL, PULLUP } from '../engine/constants'
+import { fmt } from '../engine/loading'
+import { clusterTotal, isUnbroken } from '../engine/pullups'
 
 const LIFTS = ['deadlift', 'ohp', 'squat', 'dips']
 const DIFFS = ['hard', 'medium', 'light']

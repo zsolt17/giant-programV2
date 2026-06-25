@@ -9,7 +9,7 @@ import { Today } from './Today.jsx'
 import { Calendar } from './Calendar.jsx'
 import { History } from './History.jsx'
 import { Deload } from './Deload.jsx'
-import { computePosition } from '../engine/date-engine.js'
+import { computePosition } from '../engine/date-engine'
 import { C } from './theme.js'
 
 export function App() {

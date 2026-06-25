@@ -5,16 +5,17 @@
 //   (S4 Set1>R7 is notebook-only — the logger captures only the top set.)
 // TRIGGER: 3+ total occurrences spanning at least 2 different sessions.
 // (3 occurrences = severity; 2 sessions = a pattern, not one bad day.)
+import type { Session, WeekSignals } from './types'
 
-export function rpeNum(r) {
+export function rpeNum(r: string | null | undefined): number {
   if (!r) return 0
   return parseFloat(String(r).replace('R', '')) || 0
 }
 
-export function computeWeekSignals(weekSessions) {
-  const types = new Set()
+export function computeWeekSignals(weekSessions: Session[]): WeekSignals {
+  const types = new Set<string>()
   let occurrences = 0
-  const sessionsWithSignal = new Set()
+  const sessionsWithSignal = new Set<string>()
   let downTopSets = 0
 
   for (const s of weekSessions) {
@@ -51,19 +52,29 @@ export function computeWeekSignals(weekSessions) {
   return { types, occurrences, sessionCount: sessionsWithSignal.size, fired }
 }
 
-export function weekKeyFor(macroNumber, meso, week) {
+export function weekKeyFor(macroNumber: number, meso: number, week: number): string {
   return `M${macroNumber}C${meso}W${week}`
 }
 
 // Max one reactive deload per mesocycle.
-export function usedDeloadThisMeso(deloads, macroNumber, meso) {
+export function usedDeloadThisMeso(deloads: Record<string, boolean>, macroNumber: number, meso: number): boolean {
   return Object.keys(deloads || {}).some((k) => k.startsWith(`M${macroNumber}C${meso}W`))
 }
 
 // Advise-and-confirm recommendation for the current week, based on the previous
 // week's signals. Never fires if already deloaded, the meso cap is used, or a
 // scheduled break is already covering this week (no deloading into a break).
-export function shouldRecommendDeload({ prevWeekSessions, alreadyDeloaded, usedThisMeso, breakComing }) {
+export function shouldRecommendDeload({
+  prevWeekSessions,
+  alreadyDeloaded,
+  usedThisMeso,
+  breakComing,
+}: {
+  prevWeekSessions?: Session[]
+  alreadyDeloaded?: boolean
+  usedThisMeso?: boolean
+  breakComing?: boolean
+}): boolean {
   if (alreadyDeloaded || usedThisMeso || breakComing) return false
   if (!prevWeekSessions || !prevWeekSessions.length) return false
   return computeWeekSignals(prevWeekSessions).fired

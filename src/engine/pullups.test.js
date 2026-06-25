@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { parseCluster, clusterTotal, isUnbroken, meetsTarget } from './pullups.js'
+import { parseCluster, clusterTotal, isUnbroken, meetsTarget } from './pullups'
 
 test('parseCluster: splits on +, tolerant of spaces, drops junk', () => {
   assert.deepEqual(parseCluster('6+4'), [6, 4])

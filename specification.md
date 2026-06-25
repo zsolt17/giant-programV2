@@ -36,6 +36,13 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-25
+- `chore(ts)`: **TypeScript migration — Stage 2 (engine)** (audit #8). New
+  `src/engine/types.ts` (domain types: `Difficulty`, `Lift`, `WeekType`, `Position`,
+  `Session`, `Scheme`, `MacroWeekRow`, etc.); converted `constants`, `date-engine`,
+  `loading`, `deload-rule`, `pullups` to typed `.ts`. Engine-module imports made
+  **extensionless** (Vite doesn't auto-remap `.js`→`.ts` at runtime the way `tsc`
+  does — extensionless resolves everywhere: Vite, tsc-bundler, tsx). typecheck +
+  38 tests + build all green; engine behavior unchanged. Stages 3–4 (data → UI) next.
 - `chore(ts)`: **TypeScript migration — Stage 1 (tooling)** (audit #8). Added
   TypeScript + React 18 types, strict `tsconfig.json` (`allowJs` for incremental
   conversion, `noEmit` — Vite builds), `typecheck` script. **Switched test runner to

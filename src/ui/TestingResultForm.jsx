@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { C, cardStyle, inp, lbl } from './theme.js'
 import { Card } from './components.jsx'
 import { blockTitle } from './controls.jsx'
-import { LIFT_LABEL } from '../engine/constants.js'
+import { LIFT_LABEL } from '../engine/constants'
 
 // Records a testing-week result (recorded, not prescribed): the discovered clean
 // 2–3RM with 1 rep in reserve. Saved to testing_results, one per lift per macro.

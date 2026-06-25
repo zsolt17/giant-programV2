@@ -2,8 +2,8 @@ import React from 'react'
 import { C } from './theme.js'
 import { Card } from './components.jsx'
 import { blockTitle, Row } from './controls.jsx'
-import { SIGNALS } from '../engine/constants.js'
-import { computeWeekSignals } from '../engine/deload-rule.js'
+import { SIGNALS } from '../engine/constants'
+import { computeWeekSignals } from '../engine/deload-rule'
 
 export function Deload({ sessions, deloads, macroNumber }) {
   const weeks = {}

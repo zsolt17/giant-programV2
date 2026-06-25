@@ -2,9 +2,9 @@ import React, { useState, useRef, useEffect } from 'react'
 import { C, cardStyle, HEADING, pillColor } from './theme.js'
 import { Card } from './components.jsx'
 import { SessionModal } from './SessionModal.jsx'
-import { enumerateMacro, parseLocalDate, isoLocal, mondayOf, todayISO } from '../engine/date-engine.js'
-import { LIFT_SHORT } from '../engine/constants.js'
-import { fmt } from '../engine/loading.js'
+import { enumerateMacro, parseLocalDate, isoLocal, mondayOf, todayISO } from '../engine/date-engine'
+import { LIFT_SHORT } from '../engine/constants'
+import { fmt } from '../engine/loading'
 
 function shortDate(iso) {
   return parseLocalDate(iso).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })

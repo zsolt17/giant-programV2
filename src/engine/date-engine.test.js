@@ -8,7 +8,7 @@ import {
   parseLocalDate,
   mondayOf,
   isoLocal,
-} from './date-engine.js'
+} from './date-engine'
 
 const START = '2026-04-13' // Macro 2 began Monday 13 Apr 2026
 const MACRO = 2

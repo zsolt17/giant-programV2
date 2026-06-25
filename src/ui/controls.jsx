@@ -1,6 +1,6 @@
 import React from 'react'
 import { C, HEADING, cardStyle, inp, lbl, pillColor } from './theme.js'
-import { ROTATION, LIFT_LABEL, PULLUP } from '../engine/constants.js'
+import { ROTATION, LIFT_LABEL, PULLUP } from '../engine/constants'
 
 export function speedArrow(s) {
   return s === 'up' ? '↑' : s === 'down' ? '↓' : '→'
