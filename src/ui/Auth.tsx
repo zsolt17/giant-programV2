@@ -29,16 +29,18 @@ export function Auth() {
         <div style={{ fontFamily: HEADING, fontSize: 22, letterSpacing: '0.05em', color: C.gold, marginBottom: 14 }}>
           SIGN IN
         </div>
-        <label style={lbl}>Email</label>
+        <label style={lbl} htmlFor="auth-email">Email</label>
         <input
+          id="auth-email"
           style={inp}
           type="email"
           value={email}
           autoComplete="username"
           onChange={(e) => setEmail(e.target.value)}
         />
-        <label style={{ ...lbl, marginTop: 12 }}>Password</label>
+        <label style={{ ...lbl, marginTop: 12 }} htmlFor="auth-password">Password</label>
         <input
+          id="auth-password"
           style={inp}
           type="password"
           value={password}

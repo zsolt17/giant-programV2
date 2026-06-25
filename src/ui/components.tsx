@@ -1,4 +1,5 @@
-import type { CSSProperties, ReactNode } from 'react'
+import { useRef } from 'react'
+import type { CSSProperties, ReactNode, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { C, HEADING, cardStyle } from './theme'
 
 export type TabKey = 'today' | 'calendar' | 'history' | 'deload' | 'setup'
@@ -120,6 +121,24 @@ const TABS: [TabKey, string][] = [
 ]
 
 export function Tabs({ tab, setTab }: { tab: TabKey; setTab: (t: TabKey) => void }) {
+  // ARIA tablist with roving focus: Left/Right/Home/End move between tabs (the
+  // selected tab is the only tab stop). Click + Enter/Space still work.
+  const btnRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  function onKeyDown(e: ReactKeyboardEvent<HTMLButtonElement>, i: number) {
+    const move: Record<string, number> = {
+      ArrowRight: (i + 1) % TABS.length,
+      ArrowLeft: (i - 1 + TABS.length) % TABS.length,
+      Home: 0,
+      End: TABS.length - 1,
+    }
+    const next = move[e.key]
+    if (next === undefined) return
+    e.preventDefault()
+    setTab(TABS[next][0])
+    btnRefs.current[next]?.focus()
+  }
+
   // Sticky: the nav pins to the top of the viewport on scroll so it's always
   // reachable. The wrapper carries the page background so content scrolls cleanly
   // underneath it.
@@ -135,11 +154,18 @@ export function Tabs({ tab, setTab }: { tab: TabKey; setTab: (t: TabKey) => void
         marginBottom: 14,
       }}
     >
-      <div style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: 2, overflow: 'hidden' }}>
-        {TABS.map(([k, label]) => (
+      <div role="tablist" aria-label="Sections" style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: 2, overflow: 'hidden' }}>
+        {TABS.map(([k, label], i) => (
           <button
             key={k}
+            ref={(el) => {
+              btnRefs.current[i] = el
+            }}
+            role="tab"
+            aria-selected={tab === k}
+            tabIndex={tab === k ? 0 : -1}
             onClick={() => setTab(k)}
+            onKeyDown={(e) => onKeyDown(e, i)}
             style={{
               flex: 1,
               background: tab === k ? C.gold : 'transparent',

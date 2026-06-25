@@ -29,6 +29,9 @@ user-facing capability.
 - **Pull-ups** — phase-1 bodyweight cluster logging (OHP day) + trend. *(Phase-2 weighted: deferred.)*
 - **Testing weeks** — record 2–3RM results per lift.
 - **Global loading states** — instant splash on reload + slim top progress bar on data loads.
+- **Accessibility** — keyboard-navigable tab bar (ARIA tablist + arrow keys), modal focus
+  trap with Esc-to-close and focus return, labelled custom/icon-only controls, and a visible
+  gold keyboard focus ring. Non-default tabs are code-split (lazy-loaded) to protect first load.
 - **Deployed** to GitHub Pages: https://zsolt17.github.io/giant-programV2/ (auto-deploy on push to `main`).
 
 ---
@@ -36,6 +39,24 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-25
+- `feat(a11y)` + `perf`: **accessibility pass + code-splitting (final architecture-audit
+  item)**. **a11y:** `SessionModal` is now a real dialog — `role="dialog"` / `aria-modal` /
+  `aria-labelledby`, plus a reusable `useFocusTrap` hook (`src/ui/useFocusTrap.ts`) that
+  moves focus in on open, traps Tab / Shift+Tab, closes on **Esc**, and **restores focus** to
+  the opener on close (`×` got `aria-label="Close"`). The tab bar is an ARIA **tablist** with
+  roving tabindex + Left/Right/Home/End keys + `aria-selected`. Icon-only / custom controls
+  labelled: `SpeedPick` arrows (`aria-label` Faster/Same/Slower + `aria-pressed`, glyph
+  `aria-hidden`), difficulty-peek + cycle pickers (`aria-pressed`), Setup weight & accessory
+  inputs (`aria-label`), Auth inputs wired via `htmlFor`/`id`. Restored a visible **keyboard
+  focus ring** (`global.css :focus-visible` gold outline; dropped the inline `outline:none`
+  on `inp`). Muted text on navy measured **~5.4:1** — passes WCAG AA, so no brand-colour
+  change. Verified live in-browser: dialog focus-in → Esc → focus-return, tablist roving,
+  labelled inputs, focus-ring rule shipped. **code-splitting:** the four non-default tabs
+  (Calendar/History/Deload/Setup) are now `React.lazy` behind one `<Suspense>` (Today stays
+  eager) — initial JS **121.9 → 116.1 KB gzip** (−4.8%), with tab screens split into
+  on-demand chunks (Calendar 3.9 / Setup 2.9 / History 1.8 / Deload 1.0 KB gzip).
+  `@supabase` deliberately left in the main chunk (needed at boot for the auth check); the
+  Sentry chunk was already lazy. typecheck + 38 tests + build all green.
 - `chore(ts)`: **TypeScript migration — Stage 4 (UI)** (audit #8). Converted all of
   `src/ui/*.jsx` → `.tsx` plus `main`, `monitoring`, `theme`, `useWakeLock` → `.ts`;
   `index.html` now loads `/src/main.tsx`. Typed every component's props (containers,

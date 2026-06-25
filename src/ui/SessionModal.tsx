@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import type { CSSProperties } from 'react'
+import { useFocusTrap } from './useFocusTrap'
 import { C, HEADING, inp, lbl, pillColor } from './theme'
 import { SessionForm, buildBlankSession } from './SessionForm'
 import { TestingResultForm } from './TestingResultForm'
@@ -74,6 +75,8 @@ export function SessionModal({
   )
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
+  const sheetRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(sheetRef, onClose) // Esc to close, trap Tab, restore focus on close
   const setField = <K extends keyof SessionDraft>(k: K, v: SessionDraft[K]) => setDraft((p) => ({ ...p, [k]: v }) as SessionDraft)
 
   // Manual duration edit for a timed session (editable-after-the-fact fallback).
@@ -137,14 +140,14 @@ export function SessionModal({
 
   return (
     <div style={overlay} onClick={onClose}>
-      <div style={sheet} onClick={(e) => e.stopPropagation()}>
+      <div ref={sheetRef} role="dialog" aria-modal="true" aria-labelledby="session-modal-title" tabIndex={-1} style={sheet} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: 11, color: C.muted }}>
               {shortDate(cell.date)}
               {cell.meso ? ` · C${cell.meso} W${cell.week}` : ''}
             </div>
-            <div style={{ fontFamily: HEADING, fontSize: 22, letterSpacing: '0.04em' }}>
+            <div id="session-modal-title" style={{ fontFamily: HEADING, fontSize: 22, letterSpacing: '0.04em' }}>
               {isSpecial ? (
                 cell.weekType === 'testing' ? (
                   cell.testRole === 'light' ? 'Light Session' : `Test: ${cell.testLift ? LIFT_LABEL[cell.testLift] : '—'}`
@@ -158,7 +161,7 @@ export function SessionModal({
               )}
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: C.muted, fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>
+          <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 'none', color: C.muted, fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>
             ×
           </button>
         </div>

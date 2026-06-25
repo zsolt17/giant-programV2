@@ -52,7 +52,8 @@ export const inp: CSSProperties = {
   // intrinsic width) shrink to their grid/flex track instead of overflowing.
   minWidth: 0,
   maxWidth: '100%',
-  outline: 'none',
+  // No inline `outline: none` — a global :focus-visible rule (global.css) draws a
+  // gold keyboard-focus ring; inline none would override it for keyboard users.
   boxSizing: 'border-box',
 }
 

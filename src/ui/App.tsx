@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { onAuthChange, getUser, signOut } from '../data/supabase'
 import * as repo from '../data/repository'
@@ -7,11 +7,13 @@ import type { TabKey } from './components'
 import { saveSnapshot, readSnapshot } from '../data/cache'
 import type { Snapshot } from '../data/cache'
 import { Auth } from './Auth'
-import { Setup } from './Setup'
 import { Today } from './Today'
-import { Calendar } from './Calendar'
-import { History } from './History'
-import { Deload } from './Deload'
+// Non-default tabs are lazy-loaded so they stay out of the initial bundle and
+// load on first visit (Today is the default view, so it stays eager).
+const Setup = lazy(() => import('./Setup').then((m) => ({ default: m.Setup })))
+const Calendar = lazy(() => import('./Calendar').then((m) => ({ default: m.Calendar })))
+const History = lazy(() => import('./History').then((m) => ({ default: m.History })))
+const Deload = lazy(() => import('./Deload').then((m) => ({ default: m.Deload })))
 import { errMsg } from './controls'
 import { computePosition } from '../engine/date-engine'
 import { C } from './theme'
@@ -246,6 +248,7 @@ export function App() {
       <Tabs tab={tab} setTab={setTab} />
       <SyncStatus online={online} pending={pending} />
 
+      <Suspense fallback={<Center><Spinner /> Loading…</Center>}>
       {needsMacro && tab !== 'setup' && (
         <Card style={{ textAlign: 'center', color: C.muted }}>No active macro yet — create one in the Setup tab.</Card>
       )}
@@ -303,6 +306,7 @@ export function App() {
       )}
 
       {tab === 'deload' && macro && <Deload sessions={sessions} deloads={deloads} macroNumber={macro.number} />}
+      </Suspense>
     </Shell>
   )
 }

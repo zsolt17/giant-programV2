@@ -72,17 +72,21 @@ export function Row({ a, b, c, cls }: { a?: ReactNode; b?: ReactNode; c?: ReactN
 }
 
 export function SpeedPick({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const opts: [string, string][] = [
-    ['up', '↑'],
-    ['normal', '→'],
-    ['down', '↓'],
+  // [value, glyph, accessible name] — the arrow glyph alone is icon-only.
+  const opts: [string, string, string][] = [
+    ['up', '↑', 'Faster'],
+    ['normal', '→', 'Same speed'],
+    ['down', '↓', 'Slower'],
   ]
   return (
-    <div style={{ display: 'flex', gap: 4 }}>
-      {opts.map(([k, s]) => (
+    <div role="group" aria-label="Bar speed" style={{ display: 'flex', gap: 4 }}>
+      {opts.map(([k, s, name]) => (
         <button
           key={k}
           onClick={() => onChange(k)}
+          aria-label={name}
+          aria-pressed={value === k}
+          title={name}
           style={{
             flex: 1,
             background: value === k ? C.gold : 'rgba(255,255,255,0.06)',
@@ -94,7 +98,7 @@ export function SpeedPick({ value, onChange }: { value: string; onChange: (v: st
             cursor: 'pointer',
           }}
         >
-          {s}
+          <span aria-hidden="true">{s}</span>
         </button>
       ))}
     </div>
@@ -171,11 +175,13 @@ export function PositionHeader({
         </div>
       </div>
       {computed.weekType === 'training' && computed.isSessionDay && setViewDiff && (
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        <div role="group" aria-label="Preview difficulty" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {(['hard', 'medium', 'light'] as Difficulty[]).map((d) => (
             <button
               key={d}
               onClick={() => setViewDiff(d === computed.difficulty ? null : d)}
+              aria-label={`Preview ${d} prescription`}
+              aria-pressed={shownDiff === d}
               style={{
                 background: shownDiff === d ? pillColor(d) : 'transparent',
                 color: shownDiff === d ? C.dark : C.muted,

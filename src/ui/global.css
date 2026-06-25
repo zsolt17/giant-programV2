@@ -17,6 +17,18 @@ textarea,
 button {
   font-family: inherit;
 }
+/* Visible keyboard focus indicator (gold ring). :focus-visible keeps it to
+   keyboard/AT users — mouse clicks don't get a ring. The `inp` style no longer
+   sets inline outline:none, so this rule can apply to inputs too. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #c9a84c;
+  outline-offset: 2px;
+}
 #root {
   min-height: 100vh;
 }

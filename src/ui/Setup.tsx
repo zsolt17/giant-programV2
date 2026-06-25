@@ -130,6 +130,7 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
     <button
       key={c}
       onClick={() => setCycle(c)}
+      aria-pressed={cycle === c}
       style={{
         flex: 1,
         background: cycle === c ? C.gold : 'transparent',
@@ -223,6 +224,7 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
                   key={d}
                   data-lift={lift}
                   data-diff={d}
+                  aria-label={`${LIFT_LABEL[lift]} ${d}, cycle ${cycle} (kg)`}
                   style={{ ...inp, padding: '6px', textAlign: 'center' }}
                   type="number"
                   step="2.5"
@@ -256,6 +258,7 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
             <span style={{ fontSize: 13, color: C.off }}>{ACC_LABEL[it]}</span>
             <input
               data-item={it}
+              aria-label={`${ACC_LABEL[it]}, cycle ${cycle} (kg)`}
               style={{ ...inp, padding: '6px', textAlign: 'center' }}
               type="number"
               step="2.5"
