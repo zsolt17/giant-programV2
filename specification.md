@@ -39,6 +39,16 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-25
+- `feat`: **running-session timer consolidated into a fixed bottom control bar** (Today).
+  Replaced the split top-timer-display + bottom-End-button with one always-visible
+  `SessionControlBar` (`position: fixed`, bottom): gold live `mm:ss` (still `now − started_at`)
+  left, **End** right with a quick **Confirm/✕** so a stray tap can't end the session. Rendered
+  **only** in the running state — not-started keeps the Start button, completed keeps the
+  duration+edit card and Update button, both in their normal places. iPhone-Safari handling:
+  `env(safe-area-inset-bottom)` so it floats above the home indicator, and matching
+  `padding-bottom` on the scroll content so the last fields clear the bar. No data-model change
+  (`started_at`/`ended_at`, 90-min auto-end, persist-on-Start, wake-lock all unchanged).
+  Device-verified on iPhone Safari; typecheck + 38 tests + build green.
 - `feat`: **History surfaces the new logging fields** (display-only follow-up). The
   Recent-Sessions feed line now appends, where logged: `clean N rds` (dips), `cardio
   15/14/–/15 = 44` (per-round cals + total), and `carry R × D m`. New **Carry Distance**

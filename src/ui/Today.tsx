@@ -39,6 +39,9 @@ function breakInWeek(startISO: string, weekIndex: number, breakDays: BreakDayMap
 // --- session timer helpers --------------------------------------------------
 const CAP_MS = 90 * 60 * 1000 // 90-minute auto-end safeguard
 const AUTO_END_NOTE = 'auto-ended at 90 min'
+// Bottom padding reserved for the fixed SessionControlBar (+ iOS safe-area inset)
+// while running, so the last form fields scroll clear of the always-visible bar.
+const RUNNING_BAR_PAD = 'calc(96px + env(safe-area-inset-bottom))'
 
 function appendNote(notes: string, addition: string): string {
   const n = (notes || '').trim()
@@ -374,45 +377,47 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
   const autoEnded = (draft.notes || '').includes(AUTO_END_NOTE)
 
   return (
-    <div>
+    <div style={running ? { paddingBottom: RUNNING_BAR_PAD } : undefined}>
       {headerSlot}
 
-      <TimerBar
-        notStarted={notStarted}
-        running={running}
-        elapsedMs={elapsedMs}
-        durationMs={durationMs}
-        hasTimer={startedMs != null}
-        autoEnded={autoEnded}
-        saving={saving}
-        onStart={handleStart}
-        durationMin={durationMs != null ? Math.round(durationMs / 60000) : ''}
-        onDurationMin={setDurationMin}
-      />
+      {/* Start (not started) / duration + edit (completed). When running, controls
+          live entirely in the fixed SessionControlBar below — nothing up here. */}
+      {!running && (
+        <TimerBar
+          notStarted={notStarted}
+          durationMs={durationMs}
+          hasTimer={startedMs != null}
+          autoEnded={autoEnded}
+          saving={saving}
+          onStart={handleStart}
+          durationMin={durationMs != null ? Math.round(durationMs / 60000) : ''}
+          onDurationMin={setDurationMin}
+        />
+      )}
 
       <SessionForm dayType={dayType} difficulty={difficulty} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} locked={notStarted} />
 
-      {!notStarted && (
+      {completed && (
         <button
-          onClick={running ? handleEnd : handleSave}
+          onClick={handleSave}
           disabled={saving}
           style={{ width: '100%', background: saved ? C.green : C.gold, color: C.dark, border: 'none', borderRadius: 2, padding: 14, fontSize: 14, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}
         >
-          {saving ? 'Saving…' : saved ? 'Saved ✓' : running ? 'End session' : 'Update session'}
+          {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Update session'}
         </button>
       )}
       {err && (
         <div style={{ marginTop: 10, fontSize: 12, color: C.red }}>Couldn't save — {err}. Check your connection and try again.</div>
       )}
       <SignalBanner currentWeekSessions={currentWeekSessions} draft={draft} />
+
+      {running && <SessionControlBar elapsedMs={elapsedMs} saving={saving} onEnd={handleEnd} />}
     </div>
   )
 }
 
 interface TimerBarProps {
   notStarted: boolean
-  running: boolean
-  elapsedMs: number
   durationMs: number | null
   hasTimer: boolean
   autoEnded: boolean
@@ -422,9 +427,10 @@ interface TimerBarProps {
   onDurationMin: (val: string) => void
 }
 
-// Top of the session: Start button (not started) / live mm:ss (running) /
-// duration + manual edit (completed).
-function TimerBar({ notStarted, running, elapsedMs, durationMs, hasTimer, autoEnded, saving, onStart, durationMin, onDurationMin }: TimerBarProps) {
+// Top of the session in the non-running states: Start button (not started) /
+// duration + manual edit (completed). The running state has no top element —
+// its controls live in the fixed SessionControlBar.
+function TimerBar({ notStarted, durationMs, hasTimer, autoEnded, saving, onStart, durationMin, onDurationMin }: TimerBarProps) {
   if (notStarted) {
     return (
       <Card style={{ textAlign: 'center' }}>
@@ -436,15 +442,6 @@ function TimerBar({ notStarted, running, elapsedMs, durationMs, hasTimer, autoEn
           {saving ? 'Starting…' : 'Start session'}
         </button>
         <div style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>Fields unlock once you start. (Logging via the Calendar skips the timer.)</div>
-      </Card>
-    )
-  }
-  if (running) {
-    return (
-      <Card style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 10, letterSpacing: '0.16em', color: C.gold, textTransform: 'uppercase', marginBottom: 4 }}>Session running</div>
-        <div style={{ fontFamily: HEADING, fontSize: 44, color: C.gold, letterSpacing: '0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{fmtClock(elapsedMs)}</div>
-        <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>Auto-ends at 90 min.</div>
       </Card>
     )
   }
@@ -467,6 +464,67 @@ function TimerBar({ notStarted, running, elapsedMs, durationMs, hasTimer, autoEn
         )}
       </div>
     </Card>
+  )
+}
+
+// Fixed, always-visible control for a RUNNING session: live mm:ss (left, computed
+// from started_at) + End with a quick confirm (right). Pinned to the viewport bottom
+// for one-handed gym use; floats above the iOS home indicator via the safe-area inset.
+function SessionControlBar({ elapsedMs, saving, onEnd }: { elapsedMs: number; saving: boolean; onEnd: () => void }) {
+  const [confirm, setConfirm] = useState(false)
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 50,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        background: C.navy,
+        borderTop: '1px solid rgba(201,168,76,0.35)',
+        boxShadow: '0 -4px 16px rgba(0,0,0,0.35)',
+        padding: '10px 16px',
+        paddingBottom: 'calc(10px + env(safe-area-inset-bottom))',
+      }}
+    >
+      <div aria-label="Session time" style={{ lineHeight: 1.1 }}>
+        <div style={{ fontSize: 9, letterSpacing: '0.16em', color: C.gold, textTransform: 'uppercase' }}>Session running</div>
+        <div style={{ fontFamily: HEADING, fontSize: 30, color: C.gold, letterSpacing: '0.04em', fontVariantNumeric: 'tabular-nums' }}>{fmtClock(elapsedMs)}</div>
+        <div style={{ fontSize: 10, color: C.muted }}>Auto-ends at 90 min</div>
+      </div>
+
+      {confirm ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: C.off }}>End?</span>
+          <button
+            onClick={onEnd}
+            disabled={saving}
+            style={{ background: C.gold, color: C.dark, border: 'none', borderRadius: 2, padding: '11px 18px', fontSize: 13, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}
+          >
+            {saving ? 'Saving…' : 'Confirm'}
+          </button>
+          <button
+            onClick={() => setConfirm(false)}
+            disabled={saving}
+            aria-label="Cancel ending session"
+            style={{ background: 'transparent', color: C.muted, border: `1px solid ${C.muted}`, borderRadius: 2, padding: '11px 13px', fontSize: 13, cursor: 'pointer' }}
+          >
+            <span aria-hidden="true">✕</span>
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => setConfirm(true)}
+          style={{ background: C.gold, color: C.dark, border: 'none', borderRadius: 2, padding: '13px 22px', fontSize: 14, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}
+        >
+          End session
+        </button>
+      )}
+    </div>
   )
 }
 
