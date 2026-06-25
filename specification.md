@@ -40,7 +40,8 @@ user-facing capability.
 
 ## 2026-06-25
 - `chore(db)`: **schema hardening migration `0003_hardening.sql` + migrations runbook**
-  (not yet applied — pending the CLI workflow). Adds CHECK constraints on the loose log
+  (applied 2026-06-25 by hand via the Supabase SQL editor, like 0001/0002; CLI adoption
+  still the forward plan per `MIGRATIONS.md`). Adds CHECK constraints on the loose log
   fields now that the mappers normalize unset → NULL (the `*_speed` ∈ up/normal/down,
   `rpe`/`vol_rpe`/`carry_rpe` ∈ R6..R10, `carry_skip_reason` ∈ fatigue/schedule — all
   `NOT VALID` so legacy rows can't fail the run), a `nulls not distinct` unique index on
