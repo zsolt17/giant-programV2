@@ -39,6 +39,15 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-25
+- `feat`: **History surfaces the new logging fields** (display-only follow-up). The
+  Recent-Sessions feed line now appends, where logged: `clean N rds` (dips), `cardio
+  15/14/–/15 = 44` (per-round cals + total), and `carry R × D m`. New **Carry Distance**
+  trend card shows distance/round oldest→newest, **grouped by day type** (the carry implement
+  differs per day, so cross-day distances aren't comparable) — serving the "distance before
+  weight" rule. All null-safe/data-gated (renders unchanged until such sessions exist).
+  Calendar cells left as-is (the tap-to-open modal already shows the full form). typecheck +
+  38 tests + build green. `chore(dev)`: `?today=YYYY-MM-DD` override (dev-only, tree-shaken
+  from prod) to exercise date-driven views off a real session day.
 - `feat`: **three new session logging fields** (Today + SessionModal, via the shared
   `SessionForm`). **Clean rounds** — a "rounds completed" count in the dips-day clean block
   (UI default 5). **Per-round cardio calories** — four cells in the Giant Block capturing each

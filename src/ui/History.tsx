@@ -2,13 +2,34 @@ import { Fragment, useState } from 'react'
 import { C, pillColor } from './theme'
 import { Card } from './components'
 import { blockTitle, Row, speedArrow } from './controls'
-import { LIFT_LABEL, PULLUP } from '../engine/constants'
+import { LIFT_LABEL, PULLUP, DAY_META } from '../engine/constants'
 import { fmt } from '../engine/loading'
 import { clusterTotal, isUnbroken } from '../engine/pullups'
 import type { Session, TestingResult, Lift, Difficulty } from '../engine/types'
 
 const LIFTS: Lift[] = ['deadlift', 'ohp', 'squat', 'dips']
 const DIFFS: Difficulty[] = ['hard', 'medium', 'light']
+
+// Compact ` · …` suffixes for the recent-sessions feed line (empty = nothing logged).
+function cardioSuffix(cals: (number | null)[]): string {
+  if (!cals || !cals.some((c) => c != null)) return ''
+  const str = cals.map((c) => (c == null ? '–' : c)).join('/')
+  const total = cals.reduce<number>((a, c) => a + (c ?? 0), 0)
+  return ` · cardio ${str} = ${total}`
+}
+function carrySuffix(s: Session): string {
+  if (s.carrySkipped) return '' // 'carry skipped' is shown separately
+  const r = s.carryRounds
+  const d = s.carryDistance
+  if (r == null && d == null) return ''
+  if (r != null && d != null) return ` · carry ${r} × ${d} m`
+  if (d != null) return ` · carry ${d} m`
+  return ` · carry ${r} rds`
+}
+function cleanSuffix(s: Session): string {
+  if (s.dayType !== 'dips' || s.cleanRounds == null) return ''
+  return ` · clean ${s.cleanRounds} rds`
+}
 
 interface HistoryProps {
   sessions: Session[]
@@ -69,6 +90,7 @@ export function History({ sessions, testingResults = [], macroNumber, onDeleteSe
       )}
 
       <PullupTrend sessions={sessions} />
+      <CarryDistanceTrend sessions={sessions} />
 
       <Card>
         {blockTitle('Recent Sessions', `${sessions.length} logged`)}
@@ -87,6 +109,9 @@ export function History({ sessions, testingResults = [], macroNumber, onDeleteSe
             </div>
             <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
               Top {fmt(s.topWeight)} × {s.topReps} {s.rpe && `| ${s.rpe}`} {s.barSpeed && `| ${speedArrow(s.barSpeed)}`}
+              {cleanSuffix(s)}
+              {cardioSuffix(s.cardioCals)}
+              {carrySuffix(s)}
               {s.carrySkipped && ' · carry skipped'}
               {s.volDone === false && ' · volume incomplete'}
             </div>
@@ -118,6 +143,47 @@ export function History({ sessions, testingResults = [], macroNumber, onDeleteSe
         ))}
       </Card>
     </div>
+  )
+}
+
+// Carry distance per round over time — grouped by day type, because the carry
+// implement differs per day (farmer/suitcase/sandbag/overhead), so distances
+// across days aren't comparable. Serves the "distance before weight" rule.
+function CarryDistanceTrend({ sessions }: { sessions: Session[] }) {
+  const withDist = sessions.filter((s) => s.dayType && !s.carrySkipped && s.carryDistance != null)
+  if (!withDist.length) return null
+  const days = LIFTS.filter((lift) => withDist.some((s) => s.dayType === lift))
+  return (
+    <Card>
+      {blockTitle('Carry Distance', 'distance before weight')}
+      {days.map((lift) => {
+        const items = withDist.filter((s) => s.dayType === lift).slice().sort((a, b) => (a.date < b.date ? -1 : 1))
+        return (
+          <div key={lift} style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>
+              {LIFT_LABEL[lift]} · {DAY_META[lift].carry.name}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+              {items.map((s, i) => (
+                <Fragment key={s.id}>
+                  {i > 0 && <span style={{ color: C.muted }}>→</span>}
+                  <span
+                    title={`${s.date}${s.carryRounds != null ? ` · ${s.carryRounds} rounds` : ''}`}
+                    style={{ border: `1px solid ${C.border}`, borderRadius: 2, padding: '4px 8px', fontSize: 13, color: C.off, fontVariantNumeric: 'tabular-nums' }}
+                  >
+                    {s.carryDistance} m
+                    {s.carryRounds != null && <span style={{ color: C.muted, fontSize: 11 }}> ×{s.carryRounds}</span>}
+                  </span>
+                </Fragment>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+      <div style={{ fontSize: 11, color: C.muted, marginTop: 10, lineHeight: 1.5 }}>
+        Progress distance per round first (per carry implement); add load only once the distance target holds.
+      </div>
+    </Card>
   )
 }
 
