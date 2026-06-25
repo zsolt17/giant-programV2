@@ -15,8 +15,19 @@ const Calendar = lazy(() => import('./Calendar').then((m) => ({ default: m.Calen
 const History = lazy(() => import('./History').then((m) => ({ default: m.History })))
 const Deload = lazy(() => import('./Deload').then((m) => ({ default: m.Deload })))
 import { errMsg } from './controls'
-import { computePosition } from '../engine/date-engine'
+import { computePosition, parseLocalDate } from '../engine/date-engine'
 import { C } from './theme'
+
+// Dev-only date override: `?today=YYYY-MM-DD` makes the app treat that date as "now"
+// so date-driven views (Today's prescription) can be exercised off a real session day.
+// Gated on import.meta.env.DEV → false in production builds, so it's tree-shaken out.
+function devNow(): Date {
+  if (import.meta.env.DEV) {
+    const o = new URLSearchParams(window.location.search).get('today')
+    if (o && /^\d{4}-\d{2}-\d{2}$/.test(o)) return parseLocalDate(o)
+  }
+  return new Date()
+}
 import type {
   Macro,
   Session,
@@ -237,7 +248,7 @@ export function App() {
       </Shell>
     )
 
-  const computed = macro ? computePosition(macro.startISO, macro.number, new Date()) : null
+  const computed = macro ? computePosition(macro.startISO, macro.number, devNow()) : null
   if (computed && macro) computed.startISO = macro.startISO
 
   const needsMacro = !macro
