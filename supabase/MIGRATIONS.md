@@ -28,6 +28,11 @@ from these files and can never silently drift from them.
 
 ## One-time CLI setup (do this once)
 
+> **Run every `supabase` command from the repo root** (the folder that contains
+> `supabase/migrations/`). The CLI resolves migrations relative to the current
+> directory — running from elsewhere gives `glob supabase/migrations/0001_*.sql: file
+> does not exist` and an empty migration list.
+
 ```bash
 # 1. Install the CLI
 brew install supabase/tap/supabase
