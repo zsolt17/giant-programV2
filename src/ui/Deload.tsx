@@ -1,12 +1,12 @@
-import React from 'react'
-import { C } from './theme.js'
-import { Card } from './components.jsx'
-import { blockTitle, Row } from './controls.jsx'
+import { C } from './theme'
+import { Card } from './components'
+import { blockTitle, Row } from './controls'
 import { SIGNALS } from '../engine/constants'
 import { computeWeekSignals } from '../engine/deload-rule'
+import type { Session, DeloadMap } from '../engine/types'
 
-export function Deload({ sessions, deloads, macroNumber }) {
-  const weeks = {}
+export function Deload({ sessions, deloads, macroNumber }: { sessions: Session[]; deloads: DeloadMap; macroNumber: number }) {
+  const weeks: Record<string, Session[]> = {}
   sessions.forEach((s) => {
     if (!s.cycle || !s.week) return // skip testing/deload-week sessions
     const k = `M${macroNumber}C${s.cycle}W${s.week}`

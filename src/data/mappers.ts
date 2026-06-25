@@ -9,8 +9,9 @@ import type {
   WeekType,
   Lift,
   Difficulty,
+  SessionDraft,
   WeightsByCycle,
-  LiftWeights,
+  LiftWeightsInput,
   AccessoryByCycle,
   DeloadMap,
   BreakDayMap,
@@ -93,8 +94,9 @@ export function rowsToWeights(rows: WorkingWeightRow[]): WeightsByCycle {
   })
   return out
 }
-// { [lift]: { hard, medium, light } } for one cycle -> rows[]
-export function weightsToRows(macroId: string, cycle: number, byLift: Record<string, LiftWeights>): WorkingWeightRow[] {
+// { [lift]: { hard, medium, light } } for one cycle -> rows[]. Accepts the loose
+// Setup-form cell (LiftWeightsInput); toNum coerces the string inputs.
+export function weightsToRows(macroId: string, cycle: number, byLift: Record<string, LiftWeightsInput>): WorkingWeightRow[] {
   return Object.keys(byLift).map((lift) => ({
     macro_id: macroId,
     cycle: Number(cycle),
@@ -153,7 +155,7 @@ export function rowToSession(r: SessionRow): Session {
     updatedAt: r.updated_at,
   }
 }
-export function sessionToRow(s: Session): SessionRow {
+export function sessionToRow(s: SessionDraft): SessionRow {
   return {
     id: s.id,
     macro_id: s.macroId,

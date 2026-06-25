@@ -1,14 +1,38 @@
-import React from 'react'
-import { C, cardStyle, inp, lbl } from './theme.js'
-import { Card } from './components.jsx'
-import { blockTitle, Row, SpeedPick, LogRpe, antagDesc } from './controls.jsx'
+import { C, inp, lbl } from './theme'
+import { Card } from './components'
+import { blockTitle, Row, SpeedPick, LogRpe, antagDesc } from './controls'
 import { SCHEMES, WU_PCT, WU_REPS, DAY_META, LIFT_LABEL, PULLUP } from '../engine/constants'
-import { round, fmt, giantSets, set1Weight, warmupSets, volumeWeight, deloadTop } from '../engine/loading'
+import { fmt, giantSets, warmupSets, volumeWeight, deloadTop } from '../engine/loading'
 import { clusterTotal, isUnbroken, meetsTarget } from '../engine/pullups'
+import type { Difficulty, Lift, WeekType, SessionDraft } from '../engine/types'
+
+interface BlankSessionArgs {
+  date: string
+  macroId: string
+  cycle?: number | null
+  week?: number | null
+  weekType: WeekType
+  dayType?: Lift | null
+  difficulty?: Difficulty | null
+  baseTop?: number | null
+  isDeload?: boolean
+  cleanDefault?: number | string | null
+}
 
 // Build a blank session draft for a given slot. cleanDefault seeds the dips-day
 // clean load from the cycle's accessory weight.
-export function buildBlankSession({ date, macroId, cycle, week, weekType, dayType, difficulty, baseTop, isDeload, cleanDefault }) {
+export function buildBlankSession({
+  date,
+  macroId,
+  cycle,
+  week,
+  weekType,
+  dayType,
+  difficulty,
+  baseTop,
+  isDeload,
+  cleanDefault,
+}: BlankSessionArgs): SessionDraft {
   const scheme = difficulty ? SCHEMES[difficulty] : null
   const top = baseTop != null && isDeload ? deloadTop(baseTop) : baseTop ?? null
   return {
@@ -39,16 +63,26 @@ export function buildBlankSession({ date, macroId, cycle, week, weekType, dayTyp
   }
 }
 
+interface SessionFormProps {
+  dayType: Lift
+  difficulty: Difficulty
+  top: number | null
+  hasWeight: boolean
+  isDeload: boolean
+  draft: SessionDraft
+  setField: <K extends keyof SessionDraft>(k: K, v: SessionDraft[K]) => void
+  locked?: boolean
+}
+
 // The prescription + log fields for a training-week session. Reused by Today
 // (inline) and SessionModal (overlay). The parent owns the draft + Save button;
 // it stamps the prescribed top weight/reps on save.
-export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, draft, setField, locked = false }) {
+export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, draft, setField, locked = false }: SessionFormProps) {
   const scheme = SCHEMES[difficulty]
   const meta = DAY_META[dayType]
-  const w = (v) => (hasWeight ? fmt(v) : '—')
-  const s1 = hasWeight ? set1Weight(top, difficulty) : null
-  const wu = hasWeight ? warmupSets(top, difficulty) : null
-  const gsets = hasWeight ? giantSets(top, difficulty) : null
+  const hasTop = hasWeight && top != null
+  const wu = hasTop ? warmupSets(top, difficulty) : null
+  const gsets = hasTop ? giantSets(top, difficulty) : null
   const giantLetter = dayType === 'dips' ? 'C' : 'B'
   const volLetter = dayType === 'dips' ? 'D' : 'C'
   const carryLetter = dayType === 'dips' ? 'E' : 'D'
@@ -89,7 +123,7 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
                 style={inp}
                 type="number"
                 step="2.5"
-                value={draft.cleanLoad}
+                value={draft.cleanLoad ?? ''}
                 onChange={(e) => setField('cleanLoad', e.target.value)}
               />
             </div>
@@ -130,7 +164,7 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
           {dayType === 'dips' ? (
             <Row a="Push-ups" b={`2 × ${scheme.vol} (BW — elbow protocol)`} c="BW" cls={C.blue} />
           ) : (
-            <Row a={LIFT_LABEL[dayType]} b={`2 × ${scheme.vol} @ 80%`} c={hasWeight ? fmt(volumeWeight(top)) : '—'} cls={C.blue} />
+            <Row a={LIFT_LABEL[dayType]} b={`2 × ${scheme.vol} @ 80%`} c={hasTop ? fmt(volumeWeight(top)) : '—'} cls={C.blue} />
           )}
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.off, marginTop: 10 }}>
             <input type="checkbox" checked={draft.volDone} onChange={(e) => setField('volDone', e.target.checked)} /> Both sets
@@ -179,7 +213,7 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
 
 // Phase-1 pull-up cluster input (OHP-day antagonist). Logs the final Giant Block
 // round's cluster, e.g. "6+4"; shows live total + unbroken/target feedback.
-function PullupCluster({ difficulty, value, onChange }) {
+function PullupCluster({ difficulty, value, onChange }: { difficulty: Difficulty; value: string; onChange: (v: string) => void }) {
   const target = PULLUP[difficulty]
   const total = clusterTotal(value)
   const unbroken = isUnbroken(value)

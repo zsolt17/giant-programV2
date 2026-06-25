@@ -1,19 +1,26 @@
-import React from 'react'
-import { C, HEADING, cardStyle, inp, lbl, pillColor } from './theme.js'
+import type { ReactNode } from 'react'
+import { C, HEADING, cardStyle, inp, lbl, pillColor } from './theme'
 import { ROTATION, LIFT_LABEL, PULLUP } from '../engine/constants'
+import type { Difficulty, DayMeta, Position } from '../engine/types'
 
-export function speedArrow(s) {
+export function speedArrow(s: string): string {
   return s === 'up' ? '↑' : s === 'down' ? '↓' : '→'
 }
 
+// Extract a human-readable message from an unknown thrown value (mirrors the
+// previous `String(e?.message || e)` shape used at every save call site).
+export function errMsg(e: unknown): string {
+  return String((e as { message?: unknown } | null)?.message || e)
+}
+
 // ms -> "m:ss" (minutes uncapped, e.g. 73:20). Shared by the session timer (Today)
-// and the calendar modal's duration editor.
-export function fmtClock(ms) {
-  const total = Math.max(0, Math.floor(ms / 1000))
+// and the calendar modal's duration editor. Null/undefined renders as 0:00.
+export function fmtClock(ms: number | null | undefined): string {
+  const total = Math.max(0, Math.floor((ms ?? 0) / 1000))
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
 }
 
-export function antagDesc(type, diff) {
+export function antagDesc(type: DayMeta['antagType'], diff: Difficulty): string {
   if (type === 'hold') return 'max hold, sub-maximal'
   if (type === 'hold20') return '20 sec'
   if (type === 'pullup') return `${PULLUP[diff]} reps/round (clusters ok)`
@@ -21,7 +28,7 @@ export function antagDesc(type, diff) {
   return ''
 }
 
-export function blockTitle(title, tag) {
+export function blockTitle(title: ReactNode, tag?: string) {
   return (
     <div
       style={{
@@ -43,7 +50,7 @@ export function blockTitle(title, tag) {
   )
 }
 
-export function Row({ a, b, c, cls }) {
+export function Row({ a, b, c, cls }: { a?: ReactNode; b?: ReactNode; c?: ReactNode; cls?: string }) {
   return (
     <div
       style={{
@@ -64,8 +71,8 @@ export function Row({ a, b, c, cls }) {
   )
 }
 
-export function SpeedPick({ value, onChange }) {
-  const opts = [
+export function SpeedPick({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const opts: [string, string][] = [
     ['up', '↑'],
     ['normal', '→'],
     ['down', '↓'],
@@ -94,7 +101,19 @@ export function SpeedPick({ value, onChange }) {
   )
 }
 
-export function LogRpe({ label, rpe, speed, onRpe, onSpeed }) {
+export function LogRpe({
+  label,
+  rpe,
+  speed,
+  onRpe,
+  onSpeed,
+}: {
+  label: string
+  rpe: string
+  speed?: string | null
+  onRpe: (v: string) => void
+  onSpeed?: (v: string) => void
+}) {
   return (
     <div style={{ display: 'flex', gap: 10, marginTop: 10, alignItems: 'flex-end' }}>
       <div style={{ flex: 1 }}>
@@ -111,7 +130,7 @@ export function LogRpe({ label, rpe, speed, onRpe, onSpeed }) {
       {onSpeed && (
         <div style={{ flex: 1 }}>
           <label style={lbl}>Bar speed</label>
-          <SpeedPick value={speed} onChange={onSpeed} />
+          <SpeedPick value={speed ?? ''} onChange={onSpeed} />
         </div>
       )}
     </div>
@@ -120,10 +139,21 @@ export function LogRpe({ label, rpe, speed, onRpe, onSpeed }) {
 
 // Position header for Today. Optional difficulty "peek" lets you preview another
 // difficulty's prescription on a session day without changing your real position.
-export function PositionHeader({ computed, viewDiff, setViewDiff, label }) {
+export function PositionHeader({
+  computed,
+  viewDiff,
+  setViewDiff,
+  label,
+}: {
+  computed: Position
+  viewDiff?: Difficulty | null
+  setViewDiff?: (d: Difficulty | null) => void
+  label?: string
+}) {
   const shownDiff = viewDiff || computed.difficulty
   const isPeeking = viewDiff && viewDiff !== computed.difficulty
-  const shownLift = computed.weekType === 'training' && computed.week ? ROTATION[computed.week - 1][shownDiff] : null
+  const shownLift =
+    computed.weekType === 'training' && computed.week && shownDiff ? ROTATION[computed.week - 1][shownDiff] : null
   return (
     <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <div>
@@ -134,7 +164,7 @@ export function PositionHeader({ computed, viewDiff, setViewDiff, label }) {
         </div>
         <div style={{ fontFamily: HEADING, fontSize: 26, letterSpacing: '0.05em' }}>
           {label ? label : shownLift ? LIFT_LABEL[shownLift] : '—'}
-          {shownLift && <span style={{ color: pillColor(shownDiff) }}> · {shownDiff.toUpperCase()}</span>}
+          {shownLift && <span style={{ color: pillColor(shownDiff) }}> · {shownDiff?.toUpperCase()}</span>}
           {isPeeking && (
             <span style={{ fontSize: 11, color: C.muted, marginLeft: 8, fontFamily: 'inherit', letterSpacing: 0 }}>(preview)</span>
           )}
@@ -142,7 +172,7 @@ export function PositionHeader({ computed, viewDiff, setViewDiff, label }) {
       </div>
       {computed.weekType === 'training' && computed.isSessionDay && setViewDiff && (
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          {['hard', 'medium', 'light'].map((d) => (
+          {(['hard', 'medium', 'light'] as Difficulty[]).map((d) => (
             <button
               key={d}
               onClick={() => setViewDiff(d === computed.difficulty ? null : d)}

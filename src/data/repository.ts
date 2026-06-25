@@ -9,8 +9,9 @@ import type {
   Macro,
   MacroStatus,
   Session,
+  SessionDraft,
   WeightsByCycle,
-  LiftWeights,
+  LiftWeightsInput,
   AccessoryByCycle,
   DeloadMap,
   BreakDayMap,
@@ -100,7 +101,7 @@ export async function getWorkingWeights(macroId: string): Promise<WeightsByCycle
 }
 
 // byLift = { deadlift: {hard,medium,light}, ... } for a single cycle.
-export async function saveWorkingWeights(macroId: string, cycle: number, byLift: Record<string, LiftWeights>): Promise<void> {
+export async function saveWorkingWeights(macroId: string, cycle: number, byLift: Record<string, LiftWeightsInput>): Promise<void> {
   const rows = M.weightsToRows(macroId, cycle, byLift)
   const { error } = await supabase.from('working_weights').upsert(rows, { onConflict: 'macro_id,cycle,lift' })
   if (error) throw error
@@ -134,7 +135,7 @@ export async function getSessions(macroId: string): Promise<Session[]> {
 // Idempotent: upsert on the human-readable id (date-lift-difficulty).
 // Offline (or on a network failure), the write is queued and the call resolves
 // optimistically so the UI updates; it replays on reconnect via flushQueue().
-export async function saveSession(session: Session): Promise<Session> {
+export async function saveSession(session: SessionDraft): Promise<Session> {
   const row = M.sessionToRow(session)
   if (isOffline()) {
     queue.enqueue({ kind: 'saveSession', payload: row })

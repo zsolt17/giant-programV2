@@ -1,17 +1,31 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { C, cardStyle, HEADING, pillColor, inp, lbl } from './theme.js'
-import { Card } from './components.jsx'
-import { PositionHeader, fmtClock } from './controls.jsx'
-import { useWakeLock } from './useWakeLock.js'
-import { SessionForm, buildBlankSession } from './SessionForm.jsx'
-import { TestingResultForm } from './TestingResultForm.jsx'
+import { useState, useEffect, useRef } from 'react'
+import type { ReactNode } from 'react'
+import { C, HEADING, pillColor, inp, lbl } from './theme'
+import { Card } from './components'
+import { PositionHeader, fmtClock, errMsg } from './controls'
+import { useWakeLock } from './useWakeLock'
+import { SessionForm, buildBlankSession } from './SessionForm'
+import { TestingResultForm } from './TestingResultForm'
 import { ROTATION, SCHEMES, LIFT_LABEL, SIGNALS } from '../engine/constants'
 import { deloadTop } from '../engine/loading'
 import { todayISO, mondayOf, parseLocalDate, isoLocal } from '../engine/date-engine'
 import { computeWeekSignals, shouldRecommendDeload, usedDeloadThisMeso, weekKeyFor } from '../engine/deload-rule'
+import type {
+  Position,
+  Session,
+  SessionDraft,
+  WeightsByCycle,
+  AccessoryByCycle,
+  DeloadMap,
+  BreakDayMap,
+  TestingResult,
+  WeekType,
+  Lift,
+  Difficulty,
+} from '../engine/types'
 
 // Is any break day inside the program week containing weekIndex?
-function breakInWeek(startISO, weekIndex, breakDays) {
+function breakInWeek(startISO: string, weekIndex: number, breakDays: BreakDayMap): boolean {
   const monday = mondayOf(parseLocalDate(startISO))
   monday.setDate(monday.getDate() + weekIndex * 7)
   for (let i = 0; i < 7; i++) {
@@ -26,14 +40,56 @@ function breakInWeek(startISO, weekIndex, breakDays) {
 const CAP_MS = 90 * 60 * 1000 // 90-minute auto-end safeguard
 const AUTO_END_NOTE = 'auto-ended at 90 min'
 
-function appendNote(notes, addition) {
+function appendNote(notes: string, addition: string): string {
   const n = (notes || '').trim()
   if (n.includes(addition)) return notes
   return n ? `${n} · ${addition}` : addition
 }
 
-export function Today({ computed, macroId, weights, accessory, sessions, deloads, breakDays = {}, testingResults = [], onSaveSession, onApplyDeload, onSaveTestingResult, onDeleteTestingResult }) {
-  const [viewDiff, setViewDiff] = useState(null)
+// The prescribed-position stamp applied to a session record on every save.
+interface Stamp {
+  macroId: string
+  cycle: number | null
+  week: number | null
+  weekType: WeekType
+  dayType: Lift
+  difficulty: Difficulty
+  topReps: number | null
+  topWeight: number | null
+  date: string
+  id: string
+}
+
+interface TodayProps {
+  computed: Position
+  macroId: string
+  weights: WeightsByCycle
+  accessory: AccessoryByCycle
+  sessions: Session[]
+  deloads: DeloadMap
+  breakDays?: BreakDayMap
+  testingResults?: TestingResult[]
+  onSaveSession: (record: SessionDraft) => Promise<Session>
+  onApplyDeload: (weekKey: string, on: boolean) => Promise<void>
+  onSaveTestingResult: (r: TestingResult) => Promise<TestingResult>
+  onDeleteTestingResult: (id: string) => void
+}
+
+export function Today({
+  computed,
+  macroId,
+  weights,
+  accessory,
+  sessions,
+  deloads,
+  breakDays = {},
+  testingResults = [],
+  onSaveSession,
+  onApplyDeload,
+  onSaveTestingResult,
+  onDeleteTestingResult,
+}: TodayProps) {
+  const [viewDiff, setViewDiff] = useState<Difficulty | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -109,7 +165,7 @@ export function Today({ computed, macroId, weights, accessory, sessions, deloads
           <div style={{ fontSize: 12, color: C.muted, marginTop: 6 }}>No strength session scheduled today.</div>
           {ns && ns.dayType && (
             <div style={{ fontSize: 13, color: C.off, marginTop: 12 }}>
-              Next: {LIFT_LABEL[ns.dayType]} <span style={{ color: pillColor(ns.difficulty) }}>· {ns.difficulty.toUpperCase()}</span> ({ns.date})
+              Next: {LIFT_LABEL[ns.dayType]} <span style={{ color: pillColor(ns.difficulty) }}>· {ns.difficulty?.toUpperCase()}</span> ({ns.date})
             </div>
           )}
         </Card>
@@ -118,16 +174,16 @@ export function Today({ computed, macroId, weights, accessory, sessions, deloads
   }
 
   // --- normal training session ---------------------------------------------
-  const difficulty = viewDiff || computed.difficulty
-  const cycle = computed.meso
-  const week = computed.week
-  const macro = computed.macro
+  // On a training session day the date engine guarantees these are all set.
+  const { meso: cycle, week, macro, difficulty: posDiff, weekIndex } = computed
+  if (cycle == null || week == null || posDiff == null || weekIndex == null) return null
+  const difficulty = viewDiff || posDiff
   const dayType = ROTATION[week - 1][difficulty]
   const base = weights?.[cycle]?.[dayType]?.[difficulty]
   const hasWeight = base != null
   const weekKey = weekKeyFor(macro, cycle, week)
   const isDeload = !!deloads[weekKey]
-  const top = hasWeight ? (isDeload ? deloadTop(base) : base) : null
+  const top = base != null ? (isDeload ? deloadTop(base) : base) : null
   const cleanDefault = accessory?.[cycle]?.clean ?? ''
   const sessionId = `${todayISO()}-${dayType}-${difficulty[0].toUpperCase()}`
   const existing = sessions.find((s) => s.id === sessionId)
@@ -139,7 +195,7 @@ export function Today({ computed, macroId, weights, accessory, sessions, deloads
     prevWeekSessions,
     alreadyDeloaded: isDeload,
     usedThisMeso: usedDeloadThisMeso(deloads, macro, cycle),
-    breakComing: breakInWeek(computed.startISO, computed.weekIndex, breakDays),
+    breakComing: breakInWeek(computed.startISO ?? '', weekIndex, breakDays),
   })
 
   return (
@@ -200,8 +256,27 @@ export function Today({ computed, macroId, weights, accessory, sessions, deloads
   )
 }
 
-function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, currentWeekSessions, stamp, onSaveSession, saving, setSaving, saved, setSaved }) {
-  const [draft, setDraft] = useState(() => existing || blank())
+interface SessionEditorProps {
+  sessionId: string
+  existing?: Session
+  blank: () => SessionDraft
+  headerSlot: ReactNode
+  dayType: Lift
+  difficulty: Difficulty
+  top: number | null
+  hasWeight: boolean
+  isDeload: boolean
+  currentWeekSessions: Session[]
+  stamp: Stamp
+  onSaveSession: (record: SessionDraft) => Promise<Session>
+  saving: boolean
+  setSaving: (b: boolean) => void
+  saved: boolean
+  setSaved: (b: boolean) => void
+}
+
+function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, currentWeekSessions, stamp, onSaveSession, saving, setSaving, saved, setSaved }: SessionEditorProps) {
+  const [draft, setDraft] = useState<SessionDraft>(() => existing || blank())
   const [err, setErr] = useState('')
   const [nowTs, setNowTs] = useState(() => Date.now())
   const autoEndingRef = useRef(false)
@@ -214,7 +289,7 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
 
-  const setField = (k, v) => setDraft((p) => ({ ...p, [k]: v }))
+  const setField = <K extends keyof SessionDraft>(k: K, v: SessionDraft[K]) => setDraft((p) => ({ ...p, [k]: v }) as SessionDraft)
 
   // Three states derived from the timestamps (no phase column).
   const running = !!draft.startedAt && !draft.endedAt
@@ -241,14 +316,14 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
   useEffect(() => {
     if (running && startedMs != null && nowTs - startedMs >= CAP_MS && !autoEndingRef.current) {
       autoEndingRef.current = true
-      const record = {
+      const record: SessionDraft = {
         ...draft,
         ...stamp,
         endedAt: new Date(startedMs + CAP_MS).toISOString(),
         notes: appendNote(draft.notes, AUTO_END_NOTE),
       }
       setDraft(record)
-      onSaveSession(record).catch((e) => setErr(String(e?.message || e)))
+      onSaveSession(record).catch((e) => setErr(errMsg(e)))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, nowTs, startedMs])
@@ -258,18 +333,18 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
   async function handleStart() {
     setSaving(true)
     setErr('')
-    const record = { ...draft, ...stamp, startedAt: new Date().toISOString(), endedAt: null }
+    const record: SessionDraft = { ...draft, ...stamp, startedAt: new Date().toISOString(), endedAt: null }
     try {
       await onSaveSession(record)
       setDraft(record)
     } catch (e) {
-      setErr(String(e?.message || e))
+      setErr(errMsg(e))
     } finally {
       setSaving(false)
     }
   }
 
-  async function persist(record, flashSaved) {
+  async function persist(record: SessionDraft, flashSaved: boolean) {
     setSaving(true)
     setErr('')
     try {
@@ -280,7 +355,7 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
         setTimeout(() => setSaved(false), 1800)
       }
     } catch (e) {
-      setErr(String(e?.message || e))
+      setErr(errMsg(e))
     } finally {
       setSaving(false)
     }
@@ -290,7 +365,7 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
   const handleSave = () => persist({ ...draft, ...stamp }, true)
 
   // Manual duration edit (completed/auto-ended): recompute ended_at from started_at.
-  function setDurationMin(val) {
+  function setDurationMin(val: string) {
     const n = parseFloat(val)
     if (startedMs == null || !Number.isFinite(n) || n < 0) return
     setField('endedAt', new Date(startedMs + n * 60000).toISOString())
@@ -334,9 +409,22 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
   )
 }
 
+interface TimerBarProps {
+  notStarted: boolean
+  running: boolean
+  elapsedMs: number
+  durationMs: number | null
+  hasTimer: boolean
+  autoEnded: boolean
+  saving: boolean
+  onStart: () => void
+  durationMin: number | string
+  onDurationMin: (val: string) => void
+}
+
 // Top of the session: Start button (not started) / live mm:ss (running) /
 // duration + manual edit (completed).
-function TimerBar({ notStarted, running, elapsedMs, durationMs, hasTimer, autoEnded, saving, onStart, durationMin, onDurationMin }) {
+function TimerBar({ notStarted, running, elapsedMs, durationMs, hasTimer, autoEnded, saving, onStart, durationMin, onDurationMin }: TimerBarProps) {
   if (notStarted) {
     return (
       <Card style={{ textAlign: 'center' }}>
@@ -383,8 +471,9 @@ function TimerBar({ notStarted, running, elapsedMs, durationMs, hasTimer, autoEn
 }
 
 // Live fatigue-signal feedback for the current week, including the draft.
-function SignalBanner({ currentWeekSessions, draft }) {
-  const merged = currentWeekSessions.filter((s) => s.id !== draft.id).concat(draft)
+function SignalBanner({ currentWeekSessions, draft }: { currentWeekSessions: Session[]; draft: SessionDraft }) {
+  // computeWeekSignals ignores cleanLoad (the only field that differs in a draft).
+  const merged = currentWeekSessions.filter((s) => s.id !== draft.id).concat(draft as Session)
   const sig = computeWeekSignals(merged)
   if (sig.occurrences === 0) return null
   const fired = sig.fired

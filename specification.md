@@ -36,6 +36,19 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-25
+- `chore(ts)`: **TypeScript migration — Stage 4 (UI)** (audit #8). Converted all of
+  `src/ui/*.jsx` → `.tsx` plus `main`, `monitoring`, `theme`, `useWakeLock` → `.ts`;
+  `index.html` now loads `/src/main.tsx`. Typed every component's props (containers,
+  forms, shared chrome) against the engine/data domain types. Added two **form-draft
+  types** to `engine/types.ts` — `SessionDraft` (numeric inputs hold raw strings until
+  the mappers coerce them) and `LiftWeightsInput` (Setup's loose H/M/L cell) — and
+  widened the persistence inputs (`sessionToRow`/`saveSession`,
+  `weightsToRows`/`saveWorkingWeights`) to accept them, documenting that the data layer
+  coerces form input. Style objects typed `CSSProperties`; shared `errMsg(unknown)` +
+  `TabKey` helpers. Dropped dead code surfaced by `noUnusedLocals` (`SessionForm`'s
+  unused `w`/`s1`/`round`/`set1Weight`). Minor honesty fix: testing-result `reps` now
+  coerces `'' → null` like `weight`. typecheck + 38 tests + build all green; dev-server
+  smoke renders the branded auth screen with no console errors. **Migration complete.**
 - `chore(ts)`: **TypeScript migration — Stage 3 (data layer)** (audit #8). Converted
   `mappers`, `supabase`, `repository`, `offline-queue`, `cache` to `.ts`. Typed the
   **row↔app boundary** (`SessionRow`/`MacroRow`/… ↔ `Session`/`Macro`/…) — the

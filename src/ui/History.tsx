@@ -1,30 +1,37 @@
-import React, { useState } from 'react'
-import { C } from './theme.js'
-import { Card } from './components.jsx'
-import { blockTitle, Row, speedArrow } from './controls.jsx'
-import { pillColor } from './theme.js'
+import { Fragment, useState } from 'react'
+import { C, pillColor } from './theme'
+import { Card } from './components'
+import { blockTitle, Row, speedArrow } from './controls'
 import { LIFT_LABEL, PULLUP } from '../engine/constants'
 import { fmt } from '../engine/loading'
 import { clusterTotal, isUnbroken } from '../engine/pullups'
+import type { Session, TestingResult, Lift, Difficulty } from '../engine/types'
 
-const LIFTS = ['deadlift', 'ohp', 'squat', 'dips']
-const DIFFS = ['hard', 'medium', 'light']
+const LIFTS: Lift[] = ['deadlift', 'ohp', 'squat', 'dips']
+const DIFFS: Difficulty[] = ['hard', 'medium', 'light']
 
-export function History({ sessions, testingResults = [], macroNumber, onDeleteSession }) {
-  const [confirmId, setConfirmId] = useState(null)
+interface HistoryProps {
+  sessions: Session[]
+  testingResults?: TestingResult[]
+  macroNumber: number
+  onDeleteSession: (id: string) => void
+}
+
+export function History({ sessions, testingResults = [], macroNumber, onDeleteSession }: HistoryProps) {
+  const [confirmId, setConfirmId] = useState<string | null>(null)
 
   if (!sessions.length && !testingResults.length)
     return <Card style={{ textAlign: 'center', color: C.muted, padding: 40 }}>No sessions logged yet.</Card>
 
   // Latest logged top set per lift × difficulty.
-  const latest = {}
+  const latest: Record<string, Record<string, { w: number | null }>> = {}
   sessions
     .slice()
     .sort((a, b) => (a.date < b.date ? -1 : 1))
     .forEach((s) => {
-      if (!s.dayType) return
-      latest[s.dayType] = latest[s.dayType] || {}
-      if (s.rpe || s.topWeight) latest[s.dayType][s.difficulty] = { w: s.topWeight }
+      if (!s.dayType || !s.difficulty) return
+      const byDiff = latest[s.dayType] || (latest[s.dayType] = {})
+      if (s.rpe || s.topWeight) byDiff[s.difficulty] = { w: s.topWeight }
     })
 
   return (
@@ -37,14 +44,14 @@ export function History({ sessions, testingResults = [], macroNumber, onDeleteSe
           <span style={{ color: C.gold, textAlign: 'center', fontWeight: 600 }}>M</span>
           <span style={{ color: C.green, textAlign: 'center', fontWeight: 600 }}>L</span>
           {LIFTS.map((lift) => (
-            <React.Fragment key={lift}>
+            <Fragment key={lift}>
               <span style={{ color: C.off }}>{LIFT_LABEL[lift]}</span>
               {DIFFS.map((d) => (
                 <span key={d} style={{ textAlign: 'center', color: C.off, fontVariantNumeric: 'tabular-nums' }}>
-                  {latest[lift]?.[d] ? latest[lift][d].w : '—'}
+                  {latest[lift]?.[d] ? latest[lift]![d].w : '—'}
                 </span>
               ))}
-            </React.Fragment>
+            </Fragment>
           ))}
         </div>
       </Card>
@@ -54,9 +61,9 @@ export function History({ sessions, testingResults = [], macroNumber, onDeleteSe
           {blockTitle('Testing Results', 'recorded 2–3RM')}
           {['deadlift', 'squat', 'ohp', 'dips']
             .map((lift) => testingResults.find((r) => r.lift === lift))
-            .filter(Boolean)
+            .filter((r): r is TestingResult => Boolean(r))
             .map((r) => (
-              <Row key={r.id} a={LIFT_LABEL[r.lift]} b={r.testedOn || ''} c={`${r.weight != null ? r.weight + ' kg' : '—'} × ${r.reps ?? '—'}`} />
+              <Row key={r.id} a={LIFT_LABEL[r.lift as Lift]} b={r.testedOn || ''} c={`${r.weight != null ? r.weight + ' kg' : '—'} × ${r.reps ?? '—'}`} />
             ))}
         </Card>
       )}
@@ -69,7 +76,7 @@ export function History({ sessions, testingResults = [], macroNumber, onDeleteSe
           <div key={s.id} style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
               <span style={{ fontSize: 13, color: C.off, fontWeight: 600 }}>
-                {LIFT_LABEL[s.dayType] || s.weekType}{' '}
+                {s.dayType ? LIFT_LABEL[s.dayType] : s.weekType}{' '}
                 {s.difficulty && <span style={{ color: pillColor(s.difficulty), fontSize: 11 }}>{s.difficulty.toUpperCase()}</span>}
               </span>
               <span style={{ fontSize: 11, color: C.muted }}>
@@ -115,7 +122,7 @@ export function History({ sessions, testingResults = [], macroNumber, onDeleteSe
 }
 
 // Phase-1 pull-up cluster trend (OHP-day final-round clusters, oldest -> newest).
-function PullupTrend({ sessions }) {
+function PullupTrend({ sessions }: { sessions: Session[] }) {
   const items = sessions
     .filter((s) => s.dayType === 'ohp' && s.pullupCluster)
     .slice()
@@ -129,10 +136,10 @@ function PullupTrend({ sessions }) {
           const total = clusterTotal(s.pullupCluster)
           const unbroken = isUnbroken(s.pullupCluster)
           return (
-            <React.Fragment key={s.id}>
+            <Fragment key={s.id}>
               {i > 0 && <span style={{ color: C.muted }}>→</span>}
               <span
-                title={`${s.date} · ${s.difficulty} (target ${PULLUP[s.difficulty]})`}
+                title={`${s.date} · ${s.difficulty} (target ${PULLUP[s.difficulty as Difficulty]})`}
                 style={{
                   border: `1px solid ${unbroken ? C.green : C.border}`,
                   borderRadius: 2,
@@ -145,7 +152,7 @@ function PullupTrend({ sessions }) {
                 {s.pullupCluster}
                 <span style={{ color: C.muted, fontSize: 11 }}> ={total}</span>
               </span>
-            </React.Fragment>
+            </Fragment>
           )
         })}
       </div>

@@ -1,21 +1,26 @@
 import React from 'react'
-import { C, HEADING, BODY } from './theme.js'
-import { captureError } from '../monitoring.js'
+import type { ErrorInfo, ReactNode } from 'react'
+import { C, HEADING, BODY } from './theme'
+import { captureError } from '../monitoring'
+
+interface ErrorBoundaryState {
+  error: Error | null
+}
 
 // Catches render errors anywhere below it so a single bad render shows a branded
 // recovery screen instead of a blank page. (Does not catch async/event-handler
 // errors — those are handled with try/catch at the call site.)
-export class ErrorBoundary extends React.Component {
-  constructor(props) {
+export class ErrorBoundary extends React.Component<{ children?: ReactNode }, ErrorBoundaryState> {
+  constructor(props: { children?: ReactNode }) {
     super(props)
     this.state = { error: null }
   }
 
-  static getDerivedStateFromError(error) {
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { error }
   }
 
-  componentDidCatch(error, info) {
+  componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('App error boundary caught:', error, info)
     captureError(error, info) // -> Sentry when a DSN is configured; no-op otherwise
   }

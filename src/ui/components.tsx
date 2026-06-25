@@ -1,12 +1,14 @@
-import React from 'react'
-import { C, HEADING, cardStyle } from './theme.js'
+import type { CSSProperties, ReactNode } from 'react'
+import { C, HEADING, cardStyle } from './theme'
+
+export type TabKey = 'today' | 'calendar' | 'history' | 'deload' | 'setup'
 
 export function Spinner() {
   return <span className="spin" />
 }
 
 // Connectivity / offline-sync strip. Hidden when online with nothing pending.
-export function SyncStatus({ online, pending }) {
+export function SyncStatus({ online, pending }: { online: boolean; pending: number }) {
   if (online && !pending) return null
   const offline = !online
   const msg = offline
@@ -38,15 +40,15 @@ export function TopLoadingBar() {
   return <div className="gp-loadbar" aria-hidden="true" />
 }
 
-export function Center({ children, style }) {
+export function Center({ children, style }: { children?: ReactNode; style?: CSSProperties }) {
   return <div style={{ padding: 40, textAlign: 'center', color: C.muted, ...style }}>{children}</div>
 }
 
-export function Card({ children, style }) {
+export function Card({ children, style }: { children?: ReactNode; style?: CSSProperties }) {
   return <div style={{ ...cardStyle, ...style }}>{children}</div>
 }
 
-export function BlockTitle({ children, tag }) {
+export function BlockTitle({ children, tag }: { children?: ReactNode; tag?: string }) {
   return (
     <div
       style={{
@@ -68,7 +70,7 @@ export function BlockTitle({ children, tag }) {
   )
 }
 
-export function Shell({ children, onSignOut }) {
+export function Shell({ children, onSignOut }: { children?: ReactNode; onSignOut?: () => void }) {
   return (
     <div style={{ minHeight: '100vh', background: C.dark, color: C.white }}>
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '28px 18px 80px' }}>
@@ -109,7 +111,7 @@ export function Shell({ children, onSignOut }) {
   )
 }
 
-const TABS = [
+const TABS: [TabKey, string][] = [
   ['today', 'Today'],
   ['calendar', 'Calendar'],
   ['history', 'History'],
@@ -117,7 +119,7 @@ const TABS = [
   ['setup', 'Setup'],
 ]
 
-export function Tabs({ tab, setTab }) {
+export function Tabs({ tab, setTab }: { tab: TabKey; setTab: (t: TabKey) => void }) {
   // Sticky: the nav pins to the top of the viewport on scroll so it's always
   // reachable. The wrapper carries the page background so content scrolls cleanly
   // underneath it.

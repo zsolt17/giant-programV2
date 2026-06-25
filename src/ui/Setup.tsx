@@ -1,14 +1,17 @@
-import React, { useState } from 'react'
-import { C, cardStyle, btnPrimary, inp, lbl, pillColor } from './theme.js'
-import { Card, BlockTitle } from './components.jsx'
+import { Fragment, useState } from 'react'
+import type { CSSProperties } from 'react'
+import { C, cardStyle, inp, lbl, pillColor } from './theme'
+import { Card, BlockTitle } from './components'
 import * as repo from '../data/repository'
 import { computePosition, parseLocalDate, mondayOf, isoLocal } from '../engine/date-engine'
 import { LIFT_LABEL } from '../engine/constants'
+import { errMsg } from './controls'
+import type { Macro, WeightsByCycle, AccessoryByCycle, Lift, Difficulty } from '../engine/types'
 
-const LIFTS = ['deadlift', 'ohp', 'squat', 'dips']
-const DIFFS = ['hard', 'medium', 'light']
-const CYCLES = [1, 2, 3]
-const ACC_LABEL = {
+const LIFTS: Lift[] = ['deadlift', 'ohp', 'squat', 'dips']
+const DIFFS: Difficulty[] = ['hard', 'medium', 'light']
+const CYCLES: number[] = [1, 2, 3]
+const ACC_LABEL: Record<string, string> = {
   clean: 'Power Clean (5×3)',
   carry_deadlift: 'Farmer Carry — DL day',
   carry_ohp: 'Suitcase Carry — OHP day',
@@ -19,35 +22,49 @@ const ACC_ITEMS = Object.keys(ACC_LABEL)
 
 // Native <input type="date"> on iOS keeps an intrinsic width and overflows its
 // container; -webkit-appearance:none strips that so it respects width:100%.
-const DATE_INPUT = { ...inp, WebkitAppearance: 'none', appearance: 'none', display: 'block' }
+const DATE_INPUT: CSSProperties = { ...inp, WebkitAppearance: 'none', appearance: 'none', display: 'block' }
+
+// Editable Setup-form shapes: every cell holds a string (or number) until saved.
+type WeightCell = { hard: number | string; medium: number | string; light: number | string }
+type EditWeights = Record<number, Record<string, WeightCell>>
+type EditAcc = Record<number, Record<string, number | string>>
 
 // Build editable state: every cycle/lift/difficulty present, blank if unset.
-function initWeights(loaded) {
-  const w = {}
+function initWeights(loaded?: WeightsByCycle): EditWeights {
+  const w: EditWeights = {}
   for (const c of CYCLES) {
     w[c] = {}
     for (const l of LIFTS) {
-      const s = (loaded && loaded[c] && loaded[c][l]) || {}
-      w[c][l] = { hard: s.hard ?? '', medium: s.medium ?? '', light: s.light ?? '' }
+      const s = loaded?.[c]?.[l]
+      w[c][l] = { hard: s?.hard ?? '', medium: s?.medium ?? '', light: s?.light ?? '' }
     }
   }
   return w
 }
-function initAcc(loaded) {
-  const a = {}
+function initAcc(loaded?: AccessoryByCycle): EditAcc {
+  const a: EditAcc = {}
   for (const c of CYCLES) {
     a[c] = {}
-    for (const it of ACC_ITEMS) a[c][it] = (loaded && loaded[c] && loaded[c][it]) ?? ''
+    for (const it of ACC_ITEMS) a[c][it] = loaded?.[c]?.[it] ?? ''
   }
   return a
 }
 
-export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onRollMacro }) {
+interface SetupProps {
+  macro: Macro | null
+  bundle: { weights: WeightsByCycle; accessory: AccessoryByCycle }
+  macros?: Macro[]
+  onReload: () => Promise<void>
+  onSelectMacro: (id: string) => void
+  onRollMacro: (newStartISO: string) => Promise<void>
+}
+
+export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onRollMacro }: SetupProps) {
   const [startISO, setStartISO] = useState(macro?.startISO || '2026-04-13')
   const [number, setNumber] = useState(macro?.number || 1)
   const [cycle, setCycle] = useState(1)
-  const [weights, setWeights] = useState(() => initWeights(bundle?.weights))
-  const [acc, setAcc] = useState(() => initAcc(bundle?.accessory))
+  const [weights, setWeights] = useState<EditWeights>(() => initWeights(bundle?.weights))
+  const [acc, setAcc] = useState<EditAcc>(() => initAcc(bundle?.accessory))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [err, setErr] = useState('')
@@ -67,15 +84,15 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
       await onRollMacro(nextStart)
       setRollConfirm(false)
     } catch (e) {
-      setErr(String(e?.message || e))
+      setErr(errMsg(e))
     } finally {
       setRolling(false)
     }
   }
 
-  const setW = (c, l, d, v) =>
-    setWeights((p) => ({ ...p, [c]: { ...p[c], [l]: { ...p[c][l], [d]: v } } }))
-  const setA = (c, it, v) => setAcc((p) => ({ ...p, [c]: { ...p[c], [it]: v } }))
+  const setW = (c: number, l: string, d: Difficulty, v: string) =>
+    setWeights((p) => ({ ...p, [c]: { ...p[c], [l]: { ...p[c][l], [d]: v } } }) as EditWeights)
+  const setA = (c: number, it: string, v: string) => setAcc((p) => ({ ...p, [c]: { ...p[c], [it]: v } }) as EditAcc)
 
   const pos = computePosition(startISO, number, new Date())
   const posText = pos.beforeStart
@@ -103,13 +120,13 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
       setTimeout(() => setSaved(false), 1600)
       await onReload()
     } catch (e) {
-      setErr(String(e?.message || e))
+      setErr(errMsg(e))
     } finally {
       setSaving(false)
     }
   }
 
-  const cycleBtn = (c) => (
+  const cycleBtn = (c: number) => (
     <button
       key={c}
       onClick={() => setCycle(c)}
@@ -131,7 +148,7 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
     </button>
   )
 
-  const diffHeader = (d) => (
+  const diffHeader = (d: Difficulty) => (
     <span key={d} style={{ color: pillColor(d), textAlign: 'center', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' }}>
       {d === 'medium' ? 'Med' : d}
     </span>
@@ -199,7 +216,7 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
           </span>
           {DIFFS.map(diffHeader)}
           {LIFTS.map((lift) => (
-            <React.Fragment key={lift}>
+            <Fragment key={lift}>
               <span style={{ fontSize: 12, color: C.off }}>{LIFT_LABEL[lift]}</span>
               {DIFFS.map((d) => (
                 <input
@@ -213,7 +230,7 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
                   onChange={(e) => setW(cycle, lift, d, e.target.value)}
                 />
               ))}
-            </React.Fragment>
+            </Fragment>
           ))}
         </div>
       </Card>
@@ -274,7 +291,7 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
         {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save setup (all 3 cycles)'}
       </button>
 
-      {macro && macro.status === 'active' && onRollMacro && (
+      {macro && macro.status === 'active' && (
         <Card style={{ marginTop: 16, border: `1px solid ${C.border}` }}>
           <BlockTitle tag="archive">Start Next Macro</BlockTitle>
           <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 10 }}>

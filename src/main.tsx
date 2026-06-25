@@ -1,15 +1,22 @@
-import React from 'react'
+import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './ui/global.css'
-import { App } from './ui/App.jsx'
-import { ErrorBoundary } from './ui/ErrorBoundary.jsx'
-import { initMonitoring } from './monitoring.js'
+import { App } from './ui/App'
+import { ErrorBoundary } from './ui/ErrorBoundary'
+import { initMonitoring } from './monitoring'
 
 initMonitoring() // no-op unless VITE_SENTRY_DSN is set
 
-createRoot(document.getElementById('root')).render(
-  React.createElement(React.StrictMode, null, React.createElement(ErrorBoundary, null, React.createElement(App)))
-)
+const rootEl = document.getElementById('root')
+if (rootEl) {
+  createRoot(rootEl).render(
+    <StrictMode>
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    </StrictMode>
+  )
+}
 
 // Fade out the instant splash now that React has mounted.
 const splash = document.getElementById('splash')

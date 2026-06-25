@@ -4,8 +4,8 @@ import { useEffect, useRef } from 'react'
 // Screen Wake Lock API (iOS 16.4+, Chrome, etc.); no-ops where unsupported or
 // denied (e.g. Low Power Mode). The OS releases the lock when the app is
 // backgrounded / the phone locks, so we re-acquire on visibility regain.
-export function useWakeLock(active) {
-  const lockRef = useRef(null)
+export function useWakeLock(active: boolean): void {
+  const lockRef = useRef<WakeLockSentinel | null>(null)
 
   useEffect(() => {
     if (!active || typeof navigator === 'undefined' || !('wakeLock' in navigator)) return

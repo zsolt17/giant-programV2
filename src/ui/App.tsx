@@ -1,30 +1,47 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import type { User } from '@supabase/supabase-js'
 import { onAuthChange, getUser, signOut } from '../data/supabase'
 import * as repo from '../data/repository'
-import { Shell, Center, Spinner, Tabs, Card, TopLoadingBar, SyncStatus } from './components.jsx'
+import { Shell, Center, Spinner, Tabs, Card, TopLoadingBar, SyncStatus } from './components'
+import type { TabKey } from './components'
 import { saveSnapshot, readSnapshot } from '../data/cache'
-import { Auth } from './Auth.jsx'
-import { Setup } from './Setup.jsx'
-import { Today } from './Today.jsx'
-import { Calendar } from './Calendar.jsx'
-import { History } from './History.jsx'
-import { Deload } from './Deload.jsx'
+import type { Snapshot } from '../data/cache'
+import { Auth } from './Auth'
+import { Setup } from './Setup'
+import { Today } from './Today'
+import { Calendar } from './Calendar'
+import { History } from './History'
+import { Deload } from './Deload'
+import { errMsg } from './controls'
 import { computePosition } from '../engine/date-engine'
-import { C } from './theme.js'
+import { C } from './theme'
+import type {
+  Macro,
+  Session,
+  SessionDraft,
+  WeightsByCycle,
+  AccessoryByCycle,
+  DeloadMap,
+  BreakDayMap,
+  TestingResult,
+  MacroBundle,
+} from '../engine/types'
+
+type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 export function App() {
-  const [user, setUser] = useState(undefined) // undefined = checking, null = logged out
-  const [tab, setTab] = useState('today')
-  const [macros, setMacros] = useState([])
-  const [viewedMacroId, setViewedMacroId] = useState(null)
-  const [macro, setMacro] = useState(null)
-  const [weights, setWeights] = useState({})
-  const [accessory, setAccessory] = useState({})
-  const [sessions, setSessions] = useState([])
-  const [deloads, setDeloads] = useState({})
-  const [breakDays, setBreakDays] = useState({})
-  const [testing, setTesting] = useState([])
-  const [status, setStatus] = useState('idle')
+  const [user, setUser] = useState<User | null | undefined>(undefined) // undefined = checking, null = logged out
+  const [tab, setTab] = useState<TabKey>('today')
+  const [macros, setMacros] = useState<Macro[]>([])
+  const [viewedMacroId, setViewedMacroId] = useState<string | null>(null)
+  const [macro, setMacro] = useState<Macro | null>(null)
+  const [weights, setWeights] = useState<WeightsByCycle>({})
+  const [accessory, setAccessory] = useState<AccessoryByCycle>({})
+  const [sessions, setSessions] = useState<Session[]>([])
+  const [deloads, setDeloads] = useState<DeloadMap>({})
+  const [breakDays, setBreakDays] = useState<BreakDayMap>({})
+  const [testing, setTesting] = useState<TestingResult[]>([])
+  const [status, setStatus] = useState<LoadStatus>('idle')
   const [err, setErr] = useState('')
   const [online, setOnline] = useState(typeof navigator === 'undefined' || navigator.onLine !== false)
   const [pending, setPending] = useState(repo.pendingCount())
@@ -39,7 +56,7 @@ export function App() {
     return () => subscription.unsubscribe()
   }, [])
 
-  function applySnapshot(snap) {
+  function applySnapshot(snap: Snapshot) {
     setMacros(snap.macros || [])
     setViewedMacroId(snap.viewedMacroId ?? null)
     setMacro(snap.macro || null)
@@ -63,7 +80,7 @@ export function App() {
         all.find((m) => m.status === 'active') ||
         all[all.length - 1] ||
         null
-      const b = target
+      const b: MacroBundle = target
         ? await repo.loadMacroBundle(target.id)
         : { weights: {}, accessory: {}, sessions: [], deloads: {}, breakDays: {}, testing: [] }
       setMacros(all)
@@ -83,7 +100,7 @@ export function App() {
         applySnapshot(snap)
         setStatus('ready')
       } else {
-        setErr(String(e?.message || e))
+        setErr(errMsg(e))
         setStatus('error')
       }
     }
@@ -121,7 +138,7 @@ export function App() {
     }
   }, [status, user, macro, macros, viewedMacroId, weights, accessory, sessions, deloads, breakDays, testing])
 
-  const onSaveSession = useCallback(async (record) => {
+  const onSaveSession = useCallback(async (record: SessionDraft): Promise<Session> => {
     const saved = await repo.saveSession(record)
     setSessions((prev) => {
       const next = prev.filter((s) => s.id !== saved.id).concat(saved)
@@ -131,12 +148,12 @@ export function App() {
     return saved
   }, [])
 
-  const onDeleteSession = useCallback(async (id) => {
+  const onDeleteSession = useCallback(async (id: string) => {
     await repo.deleteSession(id)
     setSessions((prev) => prev.filter((s) => s.id !== id))
   }, [])
 
-  const onToggleBreak = useCallback(async (iso, on) => {
+  const onToggleBreak = useCallback(async (iso: string, on: boolean) => {
     await repo.setBreakDay(iso, on)
     setBreakDays((prev) => {
       const next = { ...prev }
@@ -147,7 +164,7 @@ export function App() {
   }, [])
 
   const onApplyDeload = useCallback(
-    async (weekKey, on) => {
+    async (weekKey: string, on: boolean) => {
       if (!macro) return
       await repo.setDeload(macro.id, weekKey, on)
       setDeloads((prev) => {
@@ -161,23 +178,23 @@ export function App() {
   )
 
   const onSaveTestingResult = useCallback(
-    async (result) => {
-      const saved = await repo.saveTestingResult({ ...result, macroId: macro.id })
+    async (result: TestingResult): Promise<TestingResult> => {
+      const saved = await repo.saveTestingResult({ ...result, macroId: macro!.id })
       setTesting((prev) => prev.filter((r) => r.id !== saved.id).concat(saved))
       return saved
     },
     [macro]
   )
 
-  const onDeleteTestingResult = useCallback(async (id) => {
+  const onDeleteTestingResult = useCallback(async (id: string) => {
     await repo.deleteTestingResult(id)
     setTesting((prev) => prev.filter((r) => r.id !== id))
   }, [])
 
-  const onSelectMacro = useCallback((id) => setViewedMacroId(id), [])
+  const onSelectMacro = useCallback((id: string) => setViewedMacroId(id), [])
 
   const onRollMacro = useCallback(
-    async (newStartISO) => {
+    async (newStartISO: string) => {
       if (!macro) return
       const next = await repo.rollToNextMacro({ currentMacroId: macro.id, currentMacroNumber: macro.number, newStartISO })
       setViewedMacroId(next.id) // triggers reload via load()'s dependency
@@ -219,7 +236,7 @@ export function App() {
     )
 
   const computed = macro ? computePosition(macro.startISO, macro.number, new Date()) : null
-  if (computed) computed.startISO = macro.startISO
+  if (computed && macro) computed.startISO = macro.startISO
 
   const needsMacro = !macro
 
@@ -233,7 +250,7 @@ export function App() {
         <Card style={{ textAlign: 'center', color: C.muted }}>No active macro yet — create one in the Setup tab.</Card>
       )}
 
-      {tab === 'today' && macro && (
+      {tab === 'today' && macro && computed && (
         <Today
           computed={computed}
           macroId={macro.id}

@@ -121,6 +121,13 @@ export interface Session {
   updatedAt?: string
 }
 
+// A session as held in the UI form state and handed to the persistence layer.
+// Numeric inputs hold raw strings until the mappers coerce them (toNum/blankToNull),
+// so the form-bound fields are looser than the canonical persisted Session.
+export interface SessionDraft extends Omit<Session, 'cleanLoad'> {
+  cleanLoad: number | string | null
+}
+
 export interface WeekSignals {
   types: Set<string>
   occurrences: number
@@ -142,6 +149,13 @@ export interface LiftWeights {
   hard: number | null
   medium: number | null
   light: number | null
+}
+// Loose H/M/L cell as held in the Setup form — inputs hold strings until the
+// mappers coerce them. LiftWeights is assignable to this (number|null ⊆ here).
+export interface LiftWeightsInput {
+  hard: number | string | null
+  medium: number | string | null
+  light: number | string | null
 }
 // cycle (1|2|3) -> lift -> H/M/L grid
 export type WeightsByCycle = Record<number, Record<string, LiftWeights>>

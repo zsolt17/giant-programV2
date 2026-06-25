@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
+import type { FormEvent } from 'react'
 import { signIn } from '../data/supabase'
-import { C, HEADING, cardStyle, btnPrimary, inp, lbl } from './theme.js'
-import { Shell } from './components.jsx'
+import { C, HEADING, cardStyle, btnPrimary, inp, lbl } from './theme'
+import { Shell } from './components'
 
 export function Auth() {
   const [email, setEmail] = useState('')
@@ -9,7 +10,7 @@ export function Auth() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
-  async function submit(e) {
+  async function submit(e: FormEvent) {
     e.preventDefault()
     setBusy(true)
     setErr('')
@@ -17,7 +18,7 @@ export function Auth() {
       await signIn(email.trim(), password)
       // onAuthChange in App will swap us out of this screen.
     } catch (ex) {
-      setErr(ex?.message || 'Sign-in failed')
+      setErr((ex as { message?: string })?.message || 'Sign-in failed')
       setBusy(false)
     }
   }

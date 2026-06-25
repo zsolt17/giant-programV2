@@ -1,3 +1,6 @@
+import type { CSSProperties } from 'react'
+import type { Difficulty } from '../engine/types'
+
 // Design tokens — the established navy/gold brand. Keep consistent.
 export const C = {
   navy: '#2E4057',
@@ -16,7 +19,7 @@ export const C = {
 export const HEADING = "'Bebas Neue', sans-serif"
 export const BODY = "'DM Sans', system-ui, sans-serif"
 
-export const cardStyle = {
+export const cardStyle: CSSProperties = {
   background: C.card,
   border: `1px solid ${C.border}`,
   borderRadius: 2,
@@ -24,7 +27,7 @@ export const cardStyle = {
   marginBottom: 14,
 }
 
-export const btnPrimary = {
+export const btnPrimary: CSSProperties = {
   background: C.gold,
   color: C.dark,
   border: 'none',
@@ -37,7 +40,7 @@ export const btnPrimary = {
   cursor: 'pointer',
 }
 
-export const inp = {
+export const inp: CSSProperties = {
   background: 'rgba(255,255,255,0.06)',
   border: '1px solid rgba(255,255,255,0.14)',
   borderRadius: 2,
@@ -53,7 +56,7 @@ export const inp = {
   boxSizing: 'border-box',
 }
 
-export const lbl = {
+export const lbl: CSSProperties = {
   fontSize: 10,
   fontWeight: 500,
   letterSpacing: '0.16em',
@@ -63,6 +66,6 @@ export const lbl = {
   marginBottom: 6,
 }
 
-export function pillColor(d) {
+export function pillColor(d: Difficulty | null | undefined): string {
   return d === 'hard' ? C.red : d === 'medium' ? C.gold : C.green
 }

@@ -1,24 +1,52 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { C, cardStyle, HEADING, pillColor } from './theme.js'
-import { Card } from './components.jsx'
-import { SessionModal } from './SessionModal.jsx'
+import { useState, useRef, useEffect } from 'react'
+import { C, cardStyle, HEADING, pillColor } from './theme'
+import { Card } from './components'
+import { SessionModal } from './SessionModal'
 import { enumerateMacro, parseLocalDate, isoLocal, mondayOf, todayISO } from '../engine/date-engine'
 import { LIFT_SHORT } from '../engine/constants'
 import { fmt } from '../engine/loading'
+import type {
+  MacroCell,
+  Session,
+  SessionDraft,
+  WeightsByCycle,
+  AccessoryByCycle,
+  DeloadMap,
+  BreakDayMap,
+  TestingResult,
+} from '../engine/types'
 
-function shortDate(iso) {
+function shortDate(iso: string): string {
   return parseLocalDate(iso).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })
 }
 
-const STATE_COLOR = { logged: C.green, missed: C.red, today: C.gold, upcoming: C.muted, break: C.blue }
+type CellState = 'logged' | 'missed' | 'today' | 'upcoming' | 'break'
+const STATE_COLOR: Record<CellState, string> = { logged: C.green, missed: C.red, today: C.gold, upcoming: C.muted, break: C.blue }
 
-export function Calendar({ startISO, macroNumber, macroId, weights, accessory, sessions, deloads, breakDays, testingResults, onToggleBreak, onSaveSession, onDeleteSession, onSaveTestingResult, onDeleteTestingResult }) {
+interface CalendarProps {
+  startISO: string
+  macroNumber: number
+  macroId: string
+  weights: WeightsByCycle
+  accessory: AccessoryByCycle
+  sessions: Session[]
+  deloads: DeloadMap
+  breakDays: BreakDayMap
+  testingResults: TestingResult[]
+  onToggleBreak: (iso: string, on: boolean) => void
+  onSaveSession: (record: SessionDraft) => Promise<Session>
+  onDeleteSession: (id: string) => Promise<void>
+  onSaveTestingResult: (r: TestingResult) => Promise<TestingResult>
+  onDeleteTestingResult: (id: string) => void
+}
+
+export function Calendar({ startISO, macroNumber, macroId, weights, accessory, sessions, deloads, breakDays, testingResults, onToggleBreak, onSaveSession, onDeleteSession, onSaveTestingResult, onDeleteTestingResult }: CalendarProps) {
   const rows = enumerateMacro(startISO, macroNumber)
   const todayStr = todayISO()
-  const [modal, setModal] = useState(null)
-  const currentRowRef = useRef(null)
+  const [modal, setModal] = useState<{ cell: MacroCell } | null>(null)
+  const currentRowRef = useRef<HTMLDivElement | null>(null)
 
-  const loggedOnDate = {}
+  const loggedOnDate: Record<string, Session> = {}
   sessions.forEach((s) => {
     loggedOnDate[s.date] = s
   })
@@ -38,7 +66,7 @@ export function Calendar({ startISO, macroNumber, macroId, weights, accessory, s
     if (currentRowRef.current) currentRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [])
 
-  function cellState(cell) {
+  function cellState(cell: MacroCell): CellState {
     if (breakDays[cell.date]) return 'break'
     if (loggedOnDate[cell.date]) return 'logged'
     if (cell.date === todayStr) return 'today'
@@ -54,13 +82,13 @@ export function Calendar({ startISO, macroNumber, macroId, weights, accessory, s
           edit, or mark a break.
         </div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8 }}>
-          {[
+          {([
             ['logged', 'Logged'],
             ['missed', 'Missed'],
             ['today', 'Today'],
             ['upcoming', 'Upcoming'],
             ['break', 'Break'],
-          ].map(([k, label]) => (
+          ] as [CellState, string][]).map(([k, label]) => (
             <span key={k} style={{ fontSize: 10, color: C.muted, display: 'flex', alignItems: 'center', gap: 4 }}>
               <span style={{ width: 8, height: 8, borderRadius: 8, background: STATE_COLOR[k], display: 'inline-block' }} />
               {label}
@@ -116,7 +144,7 @@ export function Calendar({ startISO, macroNumber, macroId, weights, accessory, s
                       ) : (
                         <div>
                           <div style={{ fontSize: 11, color: C.gold, fontWeight: 600 }}>Test</div>
-                          <div style={{ fontSize: 9, color: C.muted }}>{LIFT_SHORT[cell.testLift] || ''}</div>
+                          <div style={{ fontSize: 9, color: C.muted }}>{cell.testLift ? LIFT_SHORT[cell.testLift] : ''}</div>
                         </div>
                       )
                     ) : isDeload ? (
@@ -124,7 +152,7 @@ export function Calendar({ startISO, macroNumber, macroId, weights, accessory, s
                     ) : (
                       <div>
                         <div style={{ fontSize: 11, fontWeight: 600, color: STATE_COLOR[st] === C.muted ? C.off : STATE_COLOR[st] }}>
-                          {LIFT_SHORT[cell.dayType] || '—'}
+                          {cell.dayType ? LIFT_SHORT[cell.dayType] : '—'}
                         </div>
                         <div style={{ fontSize: 9, color: pillColor(cell.difficulty), textTransform: 'uppercase' }}>{cell.difficulty}</div>
                       </div>
