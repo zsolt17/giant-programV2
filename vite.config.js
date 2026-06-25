@@ -7,6 +7,12 @@ import { VitePWA } from 'vite-plugin-pwa'
 // build uses that path; dev server stays at '/'.
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/giant-programV2/' : '/',
+  // Vitest: pure unit tests (engine + data mappers). globals so tests need no imports.
+  test: {
+    globals: true,
+    environment: 'node',
+    include: ['src/**/*.test.{js,ts}'],
+  },
   plugins: [
     react(),
     VitePWA({

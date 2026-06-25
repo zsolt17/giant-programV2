@@ -35,6 +35,15 @@ user-facing capability.
 
 ## Change log
 
+## 2026-06-25
+- `chore(ts)`: **TypeScript migration — Stage 1 (tooling)** (audit #8). Added
+  TypeScript + React 18 types, strict `tsconfig.json` (`allowJs` for incremental
+  conversion, `noEmit` — Vite builds), `typecheck` script. **Switched test runner to
+  Vitest** (resolves `.js`→`.ts` imports as modules convert; `node:assert` kept, so
+  assertions are unchanged); smoke test now runs via the `tsx` loader. CI runs
+  `typecheck` + tests before build. All code still JS; 38 tests + typecheck + build +
+  smoke all green. Stages 2–4 (engine → data → UI) to follow.
+
 ## 2026-06-24
 - `feat`: **PWA — offline logging (audit #7, stage B)** — durable write queue
   (`src/data/offline-queue.js`, localStorage) for session save/delete: while offline
