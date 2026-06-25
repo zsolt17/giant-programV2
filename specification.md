@@ -36,6 +36,14 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-25
+- `chore(ts)`: **TypeScript migration — Stage 3 (data layer)** (audit #8). Converted
+  `mappers`, `supabase`, `repository`, `offline-queue`, `cache` to `.ts`. Typed the
+  **row↔app boundary** (`SessionRow`/`MacroRow`/… ↔ `Session`/`Macro`/…) — the
+  highest-value step for catching field/null bugs. Added domain types (`Macro`,
+  `WeightsByCycle`, `AccessoryByCycle`, `TestingResult`, `MacroBundle`) to
+  `engine/types.ts`, and `@types/node`. Data-module imports made extensionless.
+  typecheck + 38 tests + build + smoke (22/22, real data untouched) all green.
+  Stage 4 (UI `.jsx`→`.tsx`) next.
 - `chore(ts)`: **TypeScript migration — Stage 2 (engine)** (audit #8). New
   `src/engine/types.ts` (domain types: `Difficulty`, `Lift`, `WeekType`, `Position`,
   `Session`, `Scheme`, `MacroWeekRow`, etc.); converted `constants`, `date-engine`,

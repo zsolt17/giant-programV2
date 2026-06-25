@@ -127,3 +127,45 @@ export interface WeekSignals {
   sessionCount: number
   fired: boolean
 }
+
+// ---- data-layer domain types ----------------------------------------------
+export type MacroStatus = 'active' | 'completed'
+export interface Macro {
+  id: string
+  number: number
+  startISO: string
+  weeks: number
+  status: MacroStatus
+}
+
+export interface LiftWeights {
+  hard: number | null
+  medium: number | null
+  light: number | null
+}
+// cycle (1|2|3) -> lift -> H/M/L grid
+export type WeightsByCycle = Record<number, Record<string, LiftWeights>>
+// cycle -> item ('clean' | 'carry_*') -> weight
+export type AccessoryByCycle = Record<number, Record<string, number | null>>
+
+export type DeloadMap = Record<string, boolean> // weekKey -> true
+export type BreakDayMap = Record<string, boolean> // dateISO -> true
+
+export interface TestingResult {
+  id?: string
+  macroId: string
+  lift: string
+  weight: number | null
+  reps: number | null
+  notes: string
+  testedOn: string | null
+}
+
+export interface MacroBundle {
+  weights: WeightsByCycle
+  accessory: AccessoryByCycle
+  sessions: Session[]
+  deloads: DeloadMap
+  breakDays: BreakDayMap
+  testing: TestingResult[]
+}

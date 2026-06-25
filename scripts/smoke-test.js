@@ -10,8 +10,8 @@
 //
 //   1) put your Supabase user's password in .env.local (SMOKE_PASSWORD)
 //   2) `npm run smoke`
-import { supabase, signIn, signOut } from '../src/data/supabase.js'
-import * as repo from '../src/data/repository.js'
+import { supabase, signIn, signOut } from '../src/data/supabase'
+import * as repo from '../src/data/repository'
 
 const email = process.env.SMOKE_EMAIL
 const password = process.env.SMOKE_PASSWORD

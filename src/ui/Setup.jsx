@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { C, cardStyle, btnPrimary, inp, lbl, pillColor } from './theme.js'
 import { Card, BlockTitle } from './components.jsx'
-import * as repo from '../data/repository.js'
+import * as repo from '../data/repository'
 import { computePosition, parseLocalDate, mondayOf, isoLocal } from '../engine/date-engine'
 import { LIFT_LABEL } from '../engine/constants'
 

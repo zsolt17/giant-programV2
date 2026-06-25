@@ -2,19 +2,91 @@
 // App objects use camelCase; DB rows use snake_case. Unset form selects come
 // through as "" — we normalize "" -> NULL on the way to the DB so the columns
 // stay clean (the schema deliberately has no CHECK on those loose text fields).
+import type {
+  Macro,
+  MacroStatus,
+  Session,
+  WeekType,
+  Lift,
+  Difficulty,
+  WeightsByCycle,
+  LiftWeights,
+  AccessoryByCycle,
+  DeloadMap,
+  BreakDayMap,
+  TestingResult,
+} from '../engine/types'
 
-const blankToNull = (v) => (v === '' || v === undefined ? null : v)
-const toNum = (v) => (v === '' || v === null || v === undefined ? null : Number(v))
+const blankToNull = (v: string | null | undefined): string | null => (v === '' || v === undefined ? null : v)
+const toNum = (v: unknown): number | null => (v === '' || v === null || v === undefined ? null : Number(v))
+
+// ---- DB row shapes (snake_case) -------------------------------------------
+export interface MacroRow {
+  id: string
+  number: number
+  start_date: string
+  weeks: number
+  status: MacroStatus
+}
+export interface WorkingWeightRow {
+  macro_id: string
+  cycle: number
+  lift: string
+  hard: number | null
+  medium: number | null
+  light: number | null
+}
+export interface AccessoryRow {
+  macro_id: string
+  cycle: number
+  item: string
+  weight: number | null
+}
+export interface SessionRow {
+  id: string
+  macro_id: string
+  date: string
+  cycle: number | null
+  week: number | null
+  week_type: WeekType
+  day_type: string | null
+  difficulty: string | null
+  top_reps: number | null
+  top_weight: number | null
+  rpe: string | null
+  bar_speed: string | null
+  clean_load: number | null
+  clean_speed: string | null
+  vol_done: boolean | null
+  vol_rpe: string | null
+  vol_speed: string | null
+  pullup_cluster: string | null
+  carry_skipped: boolean | null
+  carry_skip_reason: string | null
+  carry_rpe: string | null
+  notes: string | null
+  started_at: string | null
+  ended_at: string | null
+  updated_at?: string
+}
+export interface TestingRow {
+  id?: string
+  macro_id: string
+  lift: string
+  weight: number | null
+  reps: number | null
+  notes: string | null
+  tested_on: string | null
+}
 
 // ---- macro -----------------------------------------------------------------
-export function rowToMacro(r) {
+export function rowToMacro(r: MacroRow): Macro {
   return { id: r.id, number: r.number, startISO: r.start_date, weeks: r.weeks, status: r.status }
 }
 
 // ---- working weights -------------------------------------------------------
-// rows[] -> { [cycle]: { [lift]: { hard, medium, light } } }
-export function rowsToWeights(rows) {
-  const out = {}
+export function rowsToWeights(rows: WorkingWeightRow[]): WeightsByCycle {
+  const out: WeightsByCycle = {}
   ;(rows || []).forEach((r) => {
     out[r.cycle] = out[r.cycle] || {}
     out[r.cycle][r.lift] = { hard: toNum(r.hard), medium: toNum(r.medium), light: toNum(r.light) }
@@ -22,7 +94,7 @@ export function rowsToWeights(rows) {
   return out
 }
 // { [lift]: { hard, medium, light } } for one cycle -> rows[]
-export function weightsToRows(macroId, cycle, byLift) {
+export function weightsToRows(macroId: string, cycle: number, byLift: Record<string, LiftWeights>): WorkingWeightRow[] {
   return Object.keys(byLift).map((lift) => ({
     macro_id: macroId,
     cycle: Number(cycle),
@@ -34,16 +106,15 @@ export function weightsToRows(macroId, cycle, byLift) {
 }
 
 // ---- accessory weights -----------------------------------------------------
-// rows[] -> { [cycle]: { [item]: weight } }
-export function rowsToAccessory(rows) {
-  const out = {}
+export function rowsToAccessory(rows: AccessoryRow[]): AccessoryByCycle {
+  const out: AccessoryByCycle = {}
   ;(rows || []).forEach((r) => {
     out[r.cycle] = out[r.cycle] || {}
     out[r.cycle][r.item] = toNum(r.weight)
   })
   return out
 }
-export function accessoryToRows(macroId, cycle, byItem) {
+export function accessoryToRows(macroId: string, cycle: number, byItem: Record<string, unknown>): AccessoryRow[] {
   return Object.keys(byItem).map((item) => ({
     macro_id: macroId,
     cycle: Number(cycle),
@@ -53,7 +124,7 @@ export function accessoryToRows(macroId, cycle, byItem) {
 }
 
 // ---- session ---------------------------------------------------------------
-export function rowToSession(r) {
+export function rowToSession(r: SessionRow): Session {
   return {
     id: r.id,
     macroId: r.macro_id,
@@ -61,15 +132,15 @@ export function rowToSession(r) {
     cycle: r.cycle,
     week: r.week,
     weekType: r.week_type,
-    dayType: r.day_type,
-    difficulty: r.difficulty,
+    dayType: r.day_type as Lift | null,
+    difficulty: r.difficulty as Difficulty | null,
     topReps: r.top_reps,
     topWeight: toNum(r.top_weight),
     rpe: r.rpe || '',
     barSpeed: r.bar_speed || '',
     cleanLoad: toNum(r.clean_load),
     cleanSpeed: r.clean_speed || '',
-    volDone: r.vol_done,
+    volDone: r.vol_done ?? true,
     volRpe: r.vol_rpe || '',
     volSpeed: r.vol_speed || '',
     pullupCluster: r.pullup_cluster || '',
@@ -82,7 +153,7 @@ export function rowToSession(r) {
     updatedAt: r.updated_at,
   }
 }
-export function sessionToRow(s) {
+export function sessionToRow(s: Session): SessionRow {
   return {
     id: s.id,
     macro_id: s.macroId,
@@ -112,15 +183,15 @@ export function sessionToRow(s) {
 }
 
 // ---- deloads / break days --------------------------------------------------
-export function rowsToDeloads(rows) {
-  const o = {}
+export function rowsToDeloads(rows: { week_key: string }[]): DeloadMap {
+  const o: DeloadMap = {}
   ;(rows || []).forEach((r) => {
     o[r.week_key] = true
   })
   return o
 }
-export function rowsToBreakDays(rows) {
-  const o = {}
+export function rowsToBreakDays(rows: { date: string }[]): BreakDayMap {
+  const o: BreakDayMap = {}
   ;(rows || []).forEach((r) => {
     o[r.date] = true
   })
@@ -128,7 +199,7 @@ export function rowsToBreakDays(rows) {
 }
 
 // ---- testing results -------------------------------------------------------
-export function rowToTesting(r) {
+export function rowToTesting(r: TestingRow): TestingResult {
   return {
     id: r.id,
     macroId: r.macro_id,
@@ -139,8 +210,8 @@ export function rowToTesting(r) {
     testedOn: r.tested_on,
   }
 }
-export function testingToRow(t) {
-  const row = {
+export function testingToRow(t: TestingResult): TestingRow {
+  const row: TestingRow = {
     macro_id: t.macroId,
     lift: t.lift,
     weight: toNum(t.weight),

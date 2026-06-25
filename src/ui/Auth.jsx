@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { signIn } from '../data/supabase.js'
+import { signIn } from '../data/supabase'
 import { C, HEADING, cardStyle, btnPrimary, inp, lbl } from './theme.js'
 import { Shell } from './components.jsx'
 
