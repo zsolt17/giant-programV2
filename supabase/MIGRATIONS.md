@@ -10,7 +10,10 @@ history. Read this before touching the database.
 - `0001_init.sql` and `0002_session_timer.sql` were applied **by hand** (pasted into
   the Supabase SQL editor). No CLI, no migration-history tracking yet — so the live
   DB currently matches these files only because nothing else was changed by hand.
-- `0003_hardening.sql` is the first one we want applied through a tracked workflow.
+- `0003_hardening.sql` was applied by hand too, then the CLI was adopted: the project is
+  **linked** (`supabase link`), the hand-applied history was **reconciled**
+  (`migration repair --status applied 0001 0002 0003`), and `supabase init` generated the
+  committed `config.toml`. From here, all schema changes go through the CLI (below).
 
 The goal of this runbook: stop hand-pasting, so the database can always be rebuilt
 from these files and can never silently drift from them.

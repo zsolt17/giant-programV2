@@ -5,7 +5,3 @@ dist
 .env*.local
 *.log
 .claude/
-
-# Supabase CLI local artifacts (config.toml IS committed; these are not)
-supabase/.branches
-supabase/.temp

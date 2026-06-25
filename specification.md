@@ -49,9 +49,12 @@ user-facing capability.
   the dedupe relies on the new index). `saveTestingResult` is also the first migration applied
   through CLI tooling — see below.
 - `chore(db)`: **Supabase CLI adopted for migrations** — installed the CLI (`brew`, v2.108.0),
-  made `MIGRATIONS.md` concrete (real project ref + `migration repair --status applied 0001 0002
-  0003` to reconcile the hand-applied history), and gitignored the CLI's local `.branches`/`.temp`.
-  Forward migrations now go through `migration new` → `db push`.
+  **linked** the project and **reconciled** the hand-applied history
+  (`migration repair --status applied 0001 0002 0003` → all three show applied on Local+Remote).
+  Ran `supabase init` for a committed `config.toml` (`project_id = giant-programv2`; the CLI's
+  own `supabase/.gitignore` covers `.branches`/`.temp`/local env). Made `MIGRATIONS.md` concrete
+  (real ref, run-from-repo-root guard). Forward migrations now go through `migration new` →
+  `db push`; no local-dev stack started yet.
 - `chore(db)`: **schema hardening migration `0003_hardening.sql` + migrations runbook**
   (applied 2026-06-25 by hand via the Supabase SQL editor, like 0001/0002; CLI adoption
   still the forward plan per `MIGRATIONS.md`). Adds CHECK constraints on the loose log
