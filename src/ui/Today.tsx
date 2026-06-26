@@ -39,9 +39,6 @@ function breakInWeek(startISO: string, weekIndex: number, breakDays: BreakDayMap
 // --- session timer helpers --------------------------------------------------
 const CAP_MS = 90 * 60 * 1000 // 90-minute auto-end safeguard
 const AUTO_END_NOTE = 'auto-ended at 90 min'
-// Bottom padding reserved for the fixed SessionControlBar (+ iOS safe-area inset)
-// while running, so the last form fields scroll clear of the always-visible bar.
-const RUNNING_BAR_PAD = 'calc(96px + env(safe-area-inset-bottom))'
 
 function appendNote(notes: string, addition: string): string {
   const n = (notes || '').trim()
@@ -76,6 +73,7 @@ interface TodayProps {
   onApplyDeload: (weekKey: string, on: boolean) => Promise<void>
   onSaveTestingResult: (r: TestingResult) => Promise<TestingResult>
   onDeleteTestingResult: (id: string) => void
+  onRunningChange?: (running: boolean) => void
 }
 
 export function Today({
@@ -91,6 +89,7 @@ export function Today({
   onApplyDeload,
   onSaveTestingResult,
   onDeleteTestingResult,
+  onRunningChange,
 }: TodayProps) {
   const [viewDiff, setViewDiff] = useState<Difficulty | null>(null)
   const [saving, setSaving] = useState(false)
@@ -250,6 +249,7 @@ export function Today({
         currentWeekSessions={currentWeekSessions}
         stamp={{ macroId, cycle, week, weekType: 'training', dayType, difficulty, topReps: SCHEMES[difficulty].sets[3], topWeight: top, date: todayISO(), id: sessionId }}
         onSaveSession={onSaveSession}
+        onRunningChange={onRunningChange}
         saving={saving}
         setSaving={setSaving}
         saved={saved}
@@ -272,13 +272,14 @@ interface SessionEditorProps {
   currentWeekSessions: Session[]
   stamp: Stamp
   onSaveSession: (record: SessionDraft) => Promise<Session>
+  onRunningChange?: (running: boolean) => void
   saving: boolean
   setSaving: (b: boolean) => void
   saved: boolean
   setSaved: (b: boolean) => void
 }
 
-function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, currentWeekSessions, stamp, onSaveSession, saving, setSaving, saved, setSaved }: SessionEditorProps) {
+function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, currentWeekSessions, stamp, onSaveSession, onRunningChange, saving, setSaving, saved, setSaved }: SessionEditorProps) {
   const [draft, setDraft] = useState<SessionDraft>(() => existing || blank())
   const [err, setErr] = useState('')
   const [nowTs, setNowTs] = useState(() => Date.now())
@@ -301,6 +302,13 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
 
   // Keep the screen awake while a session is running (battery-friendly: only then).
   useWakeLock(running)
+
+  // Report running up so the Shell reserves top space for the fixed session bar;
+  // always clear it when this editor unmounts (e.g. switching tabs).
+  useEffect(() => {
+    onRunningChange?.(running)
+  }, [running, onRunningChange])
+  useEffect(() => () => onRunningChange?.(false), [onRunningChange])
 
   // Tick only to re-render while running; the shown time is always recomputed from
   // started_at, so sleep / backgrounding / reopen read correctly.
@@ -377,7 +385,7 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
   const autoEnded = (draft.notes || '').includes(AUTO_END_NOTE)
 
   return (
-    <div style={running ? { paddingBottom: RUNNING_BAR_PAD } : undefined}>
+    <div>
       {headerSlot}
 
       {/* Start (not started) / duration + edit (completed). When running, controls
@@ -468,8 +476,9 @@ function TimerBar({ notStarted, durationMs, hasTimer, autoEnded, saving, onStart
 }
 
 // Fixed, always-visible control for a RUNNING session: live mm:ss (left, computed
-// from started_at) + End with a quick confirm (right). Pinned to the viewport bottom
-// for one-handed gym use; floats above the iOS home indicator via the safe-area inset.
+// from started_at) + End with a quick confirm (right). Pinned to the viewport top
+// (the bottom is owned by the nav); floats below the iOS status bar / notch via the
+// top safe-area inset. The Shell reserves matching top space while running.
 function SessionControlBar({ elapsedMs, saving, onEnd }: { elapsedMs: number; saving: boolean; onEnd: () => void }) {
   const [confirm, setConfirm] = useState(false)
   return (
@@ -478,17 +487,17 @@ function SessionControlBar({ elapsedMs, saving, onEnd }: { elapsedMs: number; sa
         position: 'fixed',
         left: 0,
         right: 0,
-        bottom: 0,
-        zIndex: 50,
+        top: 0,
+        zIndex: 40,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: 12,
         background: C.navy,
-        borderTop: '1px solid rgba(201,168,76,0.35)',
-        boxShadow: '0 -4px 16px rgba(0,0,0,0.35)',
+        borderBottom: '1px solid rgba(201,168,76,0.35)',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
         padding: '10px 16px',
-        paddingBottom: 'calc(10px + env(safe-area-inset-bottom))',
+        paddingTop: 'calc(10px + env(safe-area-inset-top))',
       }}
     >
       <div aria-label="Session time" style={{ lineHeight: 1.1 }}>

@@ -205,26 +205,36 @@ missed → red, today → gold, upcoming → muted, break → blue.
 (everything else); loaded via `<link>` in `index.html`.
 
 **Shared UI — reuse these, don't re-roll:**
-- `components.tsx`: `Shell` (page chrome + sign-out), `Tabs` (sticky ARIA tablist — see
-  below), `Card`, `BlockTitle`, `Center`, `Spinner`, `TopLoadingBar`, `SyncStatus`.
+- `components.tsx`: `Shell` (page chrome; reserves the fixed-bar zones — see Navigation),
+  `Card`, `BlockTitle`, `Center`, `Spinner`, `TopLoadingBar`, `SyncStatus`.
+- `nav.tsx`: `BottomNav` (fixed bottom icon nav) + `MenuDrawer` (right slide-in) + the
+  inline SVG icon set.
 - `controls.tsx`: `Row` (label/desc/value line), `SpeedPick` (↑→↓), `LogRpe`
   (RPE + bar-speed), `PositionHeader` (M·C·W header with difficulty peek),
   `blockTitle`, `speedArrow`, `antagDesc`, `fmtClock`, `errMsg` (unknown→message).
 - `theme.ts`: `cardStyle`, `btnPrimary`, `inp`, `lbl`, `pillColor` (all `CSSProperties`).
 - `useFocusTrap.ts` / `useWakeLock.ts`: dialog focus-trap + screen wake-lock hooks.
 
-**Navigation:** `Tabs` is the single top-level nav, kept **`position: sticky; top: 0`**
-so it stays reachable on long/scrolling pages (e.g. the Calendar). Its wrapper carries
-the page background (`C.dark`) so content scrolls cleanly underneath; keep new
-top-level chrome consistent with this rather than re-introducing a scroll-away menu.
+**Navigation (`nav.tsx`):** a **fixed bottom icon bar** (`BottomNav`) is the primary nav —
+Today / Calendar / History / **Menu** (burger), thumb-reachable, `position: fixed; bottom: 0`,
+active item in gold. **Menu** opens `MenuDrawer`, a right slide-in dialog holding the secondary
+destinations (Deload, Setup) + Sign out; add entries via its `MENU_ITEMS` array (no
+placeholders for things that don't exist). **Two fixed bars, two zones:** the bottom is owned by
+nav (always); the **top** is owned by the running-session bar (`Today`'s `SessionControlBar`,
+only while running). They must never both sit at the bottom. **`Shell` reserves both zones** —
+`padding-bottom` for the nav always, `padding-top` while `sessionRunning` — using
+`env(safe-area-inset-*)`, so content is never hidden behind either bar. Don't pad for these
+bars in feature components; let `Shell` own it (lift a `running`-style flag up if a new fixed
+bar needs space).
 
 **Accessibility (apply to all interactive UI):**
 - **Modals are dialogs.** Use `useFocusTrap(ref, onClose)` (`src/ui/useFocusTrap.ts`): it
   moves focus into the dialog on open, traps Tab / Shift+Tab, closes on **Esc**, and
   **restores focus to the opener** on close. Give the container `role="dialog"
   aria-modal="true" aria-labelledby={titleId}` + `tabIndex={-1}` (see `SessionModal`).
-- **Tab bar = ARIA tablist** (`Tabs`): `role="tablist"` + `role="tab"` + `aria-selected`,
-  with **roving tabindex** (selected tab `0`, the rest `-1`) and Left/Right/Home/End to move.
+- **Bottom nav = `<nav aria-label="Primary">`** of buttons; the active destination carries
+  `aria-current="page"` (gold). The Menu button is `aria-haspopup="dialog"` + `aria-expanded`;
+  its drawer is a focus-trapped `role="dialog" aria-modal` (per the Modals rule above).
 - **Icon-only / toggle controls need a name + state.** Icon-only buttons (e.g. `SpeedPick`
   arrows) get an `aria-label` and mark the glyph `aria-hidden`; mutually-exclusive toggle
   groups (`SpeedPick`, difficulty/cycle pickers) carry `aria-pressed` inside a

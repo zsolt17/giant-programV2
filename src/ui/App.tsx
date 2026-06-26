@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { onAuthChange, getUser, signOut } from '../data/supabase'
 import * as repo from '../data/repository'
-import { Shell, Center, Spinner, Tabs, Card, TopLoadingBar, SyncStatus } from './components'
+import { Shell, Center, Spinner, Card, TopLoadingBar, SyncStatus } from './components'
 import type { TabKey } from './components'
+import { BottomNav, MenuDrawer } from './nav'
 import { saveSnapshot, readSnapshot } from '../data/cache'
 import type { Snapshot } from '../data/cache'
 import { Auth } from './Auth'
@@ -45,6 +46,8 @@ type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 export function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined) // undefined = checking, null = logged out
   const [tab, setTab] = useState<TabKey>('today')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [sessionRunning, setSessionRunning] = useState(false) // drives the Shell top inset for the fixed session bar
   const [macros, setMacros] = useState<Macro[]>([])
   const [viewedMacroId, setViewedMacroId] = useState<string | null>(null)
   const [macro, setMacro] = useState<Macro | null>(null)
@@ -254,9 +257,9 @@ export function App() {
   const needsMacro = !macro
 
   return (
-    <Shell onSignOut={signOut}>
+    <>
+    <Shell sessionRunning={sessionRunning}>
       {status === 'loading' && <TopLoadingBar />}
-      <Tabs tab={tab} setTab={setTab} />
       <SyncStatus online={online} pending={pending} />
 
       <Suspense fallback={<Center><Spinner /> Loading…</Center>}>
@@ -278,6 +281,7 @@ export function App() {
           onApplyDeload={onApplyDeload}
           onSaveTestingResult={onSaveTestingResult}
           onDeleteTestingResult={onDeleteTestingResult}
+          onRunningChange={setSessionRunning}
         />
       )}
 
@@ -319,5 +323,9 @@ export function App() {
       {tab === 'deload' && macro && <Deload sessions={sessions} deloads={deloads} macroNumber={macro.number} />}
       </Suspense>
     </Shell>
+
+    <BottomNav tab={tab} setTab={setTab} onOpenMenu={() => setMenuOpen(true)} menuOpen={menuOpen} />
+    {menuOpen && <MenuDrawer tab={tab} onSelect={setTab} onSignOut={signOut} onClose={() => setMenuOpen(false)} />}
+    </>
   )
 }

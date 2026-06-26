@@ -38,6 +38,21 @@ user-facing capability.
 
 ## Change log
 
+## 2026-06-26
+- `feat`: **navigation redesigned — fixed bottom icon bar + slide-in menu drawer; session
+  timer moved to the top.** Replaced the sticky top `Tabs` tablist with `BottomNav` (new
+  `nav.tsx`): a fixed bottom bar of icon+label items — Today / Calendar / History / **Menu**
+  (burger), active in gold, `aria-current`. **Menu** opens `MenuDrawer`, a right slide-in
+  focus-trapped dialog with the secondary destinations (Deload, Setup) + **Sign out** (moved
+  out of the `Shell` header), extensible via a `MENU_ITEMS` array. The running-session
+  `SessionControlBar` moved from the bottom to a **fixed top** bar (top safe-area), since the
+  bottom is now nav — all timer behaviour unchanged (running-only, `now − started_at`,
+  End-confirm, 90-min auto-end, wake-lock). **Zone separation:** `Shell` reserves both — bottom
+  inset for the nav always, top inset while `sessionRunning` — via `env(safe-area-inset-*)`, so
+  content never hides behind either bar and they never collide. Inline SVG icons (no new dep).
+  Fatigue-signal banner unchanged. Device-verified on iPhone Safari; typecheck + 38 tests +
+  build green. Docs: `CONVENTIONS.md` §6 navigation + a11y notes rewritten.
+
 ## 2026-06-25
 - `feat`: **running-session timer consolidated into a fixed bottom control bar** (Today).
   Replaced the split top-timer-display + bottom-End-button with one always-visible

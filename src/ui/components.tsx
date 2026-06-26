@@ -1,8 +1,12 @@
-import { useRef } from 'react'
-import type { CSSProperties, ReactNode, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { C, HEADING, cardStyle } from './theme'
 
 export type TabKey = 'today' | 'calendar' | 'history' | 'deload' | 'setup'
+
+// Heights reserved on the scroll content for the two fixed bars (see Shell):
+// the always-present bottom nav, and the top session bar (only while running).
+export const NAV_H = 56
+export const SESSION_BAR_H = 84
 
 export function Spinner() {
   return <span className="spin" />
@@ -71,14 +75,27 @@ export function BlockTitle({ children, tag }: { children?: ReactNode; tag?: stri
   )
 }
 
-export function Shell({ children, onSignOut }: { children?: ReactNode; onSignOut?: () => void }) {
+// Page chrome. The scroll content is padded clear of the two fixed bars: always
+// the bottom nav, and — only while a session is running — the top session bar.
+// `onSignOut` renders a header button for the transient (loading/error) screens;
+// the main app moves sign-out into the menu drawer instead.
+export function Shell({ children, onSignOut, sessionRunning }: { children?: ReactNode; onSignOut?: () => void; sessionRunning?: boolean }) {
   return (
     <div style={{ minHeight: '100vh', background: C.dark, color: C.white }}>
-      <div style={{ maxWidth: 760, margin: '0 auto', padding: '28px 18px 80px' }}>
+      <div
+        style={{
+          maxWidth: 760,
+          margin: '0 auto',
+          paddingLeft: 18,
+          paddingRight: 18,
+          paddingTop: sessionRunning ? `calc(${SESSION_BAR_H}px + env(safe-area-inset-top))` : 28,
+          paddingBottom: `calc(${NAV_H}px + env(safe-area-inset-bottom))`,
+        }}
+      >
         <header style={{ marginBottom: 22 }}>
           {/* Sign out sits in its own right-aligned row so it never overlaps the title. */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', minHeight: 26, marginBottom: 6 }}>
-            {onSignOut && (
+          {onSignOut && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', minHeight: 26, marginBottom: 6 }}>
               <button
                 onClick={onSignOut}
                 title="Sign out"
@@ -94,8 +111,8 @@ export function Shell({ children, onSignOut }: { children?: ReactNode; onSignOut
               >
                 Sign out
               </button>
-            )}
-          </div>
+            </div>
+          )}
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 10, letterSpacing: '0.28em', color: C.gold, textTransform: 'uppercase', marginBottom: 6 }}>
               Training Log
@@ -112,77 +129,4 @@ export function Shell({ children, onSignOut }: { children?: ReactNode; onSignOut
   )
 }
 
-const TABS: [TabKey, string][] = [
-  ['today', 'Today'],
-  ['calendar', 'Calendar'],
-  ['history', 'History'],
-  ['deload', 'Deload'],
-  ['setup', 'Setup'],
-]
-
-export function Tabs({ tab, setTab }: { tab: TabKey; setTab: (t: TabKey) => void }) {
-  // ARIA tablist with roving focus: Left/Right/Home/End move between tabs (the
-  // selected tab is the only tab stop). Click + Enter/Space still work.
-  const btnRefs = useRef<(HTMLButtonElement | null)[]>([])
-
-  function onKeyDown(e: ReactKeyboardEvent<HTMLButtonElement>, i: number) {
-    const move: Record<string, number> = {
-      ArrowRight: (i + 1) % TABS.length,
-      ArrowLeft: (i - 1 + TABS.length) % TABS.length,
-      Home: 0,
-      End: TABS.length - 1,
-    }
-    const next = move[e.key]
-    if (next === undefined) return
-    e.preventDefault()
-    setTab(TABS[next][0])
-    btnRefs.current[next]?.focus()
-  }
-
-  // Sticky: the nav pins to the top of the viewport on scroll so it's always
-  // reachable. The wrapper carries the page background so content scrolls cleanly
-  // underneath it.
-  return (
-    <div
-      style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 20,
-        background: C.dark,
-        paddingTop: 10,
-        paddingBottom: 10,
-        marginBottom: 14,
-      }}
-    >
-      <div role="tablist" aria-label="Sections" style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: 2, overflow: 'hidden' }}>
-        {TABS.map(([k, label], i) => (
-          <button
-            key={k}
-            ref={(el) => {
-              btnRefs.current[i] = el
-            }}
-            role="tab"
-            aria-selected={tab === k}
-            tabIndex={tab === k ? 0 : -1}
-            onClick={() => setTab(k)}
-            onKeyDown={(e) => onKeyDown(e, i)}
-            style={{
-              flex: 1,
-              background: tab === k ? C.gold : 'transparent',
-              border: 'none',
-              color: tab === k ? C.dark : C.muted,
-              fontSize: 12,
-              fontWeight: 600,
-              padding: '12px 4px',
-              cursor: 'pointer',
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
+// Navigation moved to the bottom icon nav + menu drawer (see nav.tsx).
