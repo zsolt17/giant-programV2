@@ -7,6 +7,7 @@ import type { TabKey } from './components'
 import { BottomNav, MenuDrawer } from './nav'
 import { saveSnapshot, readSnapshot } from '../data/cache'
 import type { Snapshot } from '../data/cache'
+import type { TrendsData } from '../engine/types'
 import { Auth } from './Auth'
 import { Today } from './Today'
 // Non-default tabs are lazy-loaded so they stay out of the initial bundle and
@@ -15,6 +16,8 @@ const Setup = lazy(() => import('./Setup').then((m) => ({ default: m.Setup })))
 const Calendar = lazy(() => import('./Calendar').then((m) => ({ default: m.Calendar })))
 const History = lazy(() => import('./History').then((m) => ({ default: m.History })))
 const Deload = lazy(() => import('./Deload').then((m) => ({ default: m.Deload })))
+// Trends pulls in recharts — keep it in its own lazy chunk, off the main bundle.
+const Trends = lazy(() => import('./Trends').then((m) => ({ default: m.Trends })))
 import { errMsg } from './controls'
 import { computePosition, parseLocalDate } from '../engine/date-engine'
 import { C } from './theme'
@@ -48,6 +51,8 @@ export function App() {
   const [tab, setTab] = useState<TabKey>('today')
   const [menuOpen, setMenuOpen] = useState(false)
   const [sessionRunning, setSessionRunning] = useState(false) // drives the Shell top inset for the fixed session bar
+  const [trends, setTrends] = useState<TrendsData | null>(null) // all-macro data, loaded on first Trends open
+  const [trendsErr, setTrendsErr] = useState('')
   const [macros, setMacros] = useState<Macro[]>([])
   const [viewedMacroId, setViewedMacroId] = useState<string | null>(null)
   const [macro, setMacro] = useState<Macro | null>(null)
@@ -145,6 +150,20 @@ export function App() {
 
   // Keep the pending-writes count in sync for the status strip.
   useEffect(() => repo.onPendingChange(setPending), [])
+
+  // Load the all-macro Trends dataset once, on first open of the Trends tab.
+  useEffect(() => {
+    if (tab !== 'trends' || !user || trends) return
+    let cancelled = false
+    setTrendsErr('')
+    repo
+      .loadTrends()
+      .then((d) => !cancelled && setTrends(d))
+      .catch((e) => !cancelled && setTrendsErr(errMsg(e)))
+    return () => {
+      cancelled = true
+    }
+  }, [tab, user, trends])
 
   // Cache the loaded bundle so reopening offline shows last-known data (incl.
   // optimistic offline writes, since those flow through state).
@@ -321,6 +340,17 @@ export function App() {
       )}
 
       {tab === 'deload' && macro && <Deload sessions={sessions} deloads={deloads} macroNumber={macro.number} />}
+
+      {tab === 'trends' &&
+        (trendsErr ? (
+          <Card style={{ textAlign: 'center', color: C.red }}>Couldn't load trends — {trendsErr}.</Card>
+        ) : trends ? (
+          <Trends data={trends} />
+        ) : (
+          <Center>
+            <Spinner /> Loading trends…
+          </Center>
+        ))}
       </Suspense>
     </Shell>
 

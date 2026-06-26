@@ -43,6 +43,12 @@ const ICONS: Record<string, ReactNode> = {
       <polyline points="6 13 12 19 18 13" />
     </>
   ),
+  trends: (
+    <>
+      <polyline points="3 17 9 11 13 15 21 6" />
+      <polyline points="15 6 21 6 21 12" />
+    </>
+  ),
   setup: (
     <>
       <line x1="4" y1="6" x2="20" y2="6" />
@@ -98,7 +104,7 @@ function navItemStyle(active: boolean) {
 export function BottomNav({ tab, setTab, onOpenMenu, menuOpen }: { tab: TabKey; setTab: (t: TabKey) => void; onOpenMenu: () => void; menuOpen: boolean }) {
   // Menu reads as active while a drawer destination (deload/setup) is showing, or
   // while the drawer is open.
-  const menuActive = menuOpen || tab === 'deload' || tab === 'setup'
+  const menuActive = menuOpen || tab === 'deload' || tab === 'trends' || tab === 'setup'
   return (
     <nav
       aria-label="Primary"
@@ -136,6 +142,7 @@ export function BottomNav({ tab, setTab, onOpenMenu, menuOpen }: { tab: TabKey; 
 // Add future entries here (e.g. Progress, Account) — they appear automatically.
 const MENU_ITEMS: { key: TabKey; label: string; icon: string }[] = [
   { key: 'deload', label: 'Deload', icon: 'deload' },
+  { key: 'trends', label: 'Trends', icon: 'trends' },
   { key: 'setup', label: 'Setup', icon: 'setup' },
 ]
 

@@ -39,6 +39,21 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-26
+- `feat`: **Trends tab** — a charts/analytics view in the menu (Deload → **Trends** → Setup),
+  ported from a provided mockup onto our Supabase data and navy/gold system. Four views:
+  **Lifts** (weight + RPE trends with the 9.5 S1 line, bar-speed distribution), **Cleans**
+  (load step-line with speed-coded dots), **Carries** (2×2 summary + per-type dual-axis
+  weight/distance charts), **Session** (attendance grid, deload-signal accumulation, duration,
+  cardio calories). Sticky filter bar + a multi-macro **range picker** (bottom sheet).
+  Data: new `repository.loadTrends()` (all macros via RLS-scoped reads, loaded once on tab open)
+  + pure derivations in `engine/trends.ts` (our `Session`/accessory/deload data → the chart
+  view-models; signal flags mirror `deload-rule.ts`). Deviations from the mockup's (stale)
+  prompt: reads Supabase not Google Sheets; **attendance grid adapted to our Mon/Wed/Fri
+  rotation** (the mockup's fixed DL/OHP/Squat columns don't fit our 4-lift rotation); our fonts
+  (DM Sans/Bebas) not monospace; calories chart relabeled "Giant Block · 30s Cardio" (it's our
+  per-round `cardio_cals`, not assault-bike carries). New dep **recharts** (lazy-loaded — Trends
+  is a code-split chunk, ~122 KB gzip, off the main bundle). 7 new engine tests for the
+  derivations. typecheck + 45 tests + build green; device-verified on iPhone Safari + browser.
 - `feat`: **navigation redesigned — fixed bottom icon bar + slide-in menu drawer; session
   timer moved to the top.** Replaced the sticky top `Tabs` tablist with `BottomNav` (new
   `nav.tsx`): a fixed bottom bar of icon+label items — Today / Calendar / History / **Menu**

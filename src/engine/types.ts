@@ -192,3 +192,91 @@ export interface MacroBundle {
   breakDays: BreakDayMap
   testing: TestingResult[]
 }
+
+// ---- Trends tab ------------------------------------------------------------
+// All of the user's data across every macro (RLS-scoped), loaded once when the
+// Trends tab opens. Per-macro maps are keyed by macro id.
+export interface TrendsData {
+  macros: Macro[]
+  sessions: Session[]
+  weights: Record<string, WeightsByCycle>
+  accessory: Record<string, AccessoryByCycle>
+  testing: TestingResult[]
+  deloads: DeloadMap // weekKey ("M2C3W4") is globally unique, so one map spans macros
+  breakDays: BreakDayMap
+}
+
+// A training session flattened to the shape the Trends charts consume (mirrors the
+// mockup's row model). Derived from Session via engine/trends.ts — not persisted.
+export type TrendDay = 'DL' | 'OHP' | 'Squat' | 'Dips'
+export interface TrendSession {
+  macro: string // "M2"
+  macroNumber: number
+  cycle: string // "C1"
+  week: string // "W1"
+  day: TrendDay
+  date: string
+  weight: number | null
+  rpe: number | null
+  spd: 0 | 1 | 2 | null // 0 slow · 1 normal · 2 fast (from bar_speed)
+  dur: number | null // minutes, derived from started/ended
+  S1: 0 | 1
+  S2: 0 | 1
+  S3: 0 | 1
+  S5: 0 | 1
+  volOk: boolean
+  status: 'done' | 'deload'
+  sets: number[] // per-round cardio kcal (cardio_cals)
+}
+
+// Power-clean session (dips day) flattened for the Cleans view.
+export interface TrendClean {
+  macro: string
+  cycle: string
+  week: string
+  date: string
+  weight: number | null
+  spd: 0 | 1 | 2 | null
+}
+
+// Attendance grid (Session view). Columns are the Mon/Wed/Fri slots; each cell's
+// status is derived from the schedule + what was logged.
+export type AttStatus = 'done' | 'deload' | 'test' | 'missed' | 'holiday' | 'upcoming' | null
+export interface AttWeek {
+  week: string
+  cells: AttStatus[]
+}
+export interface AttCycle {
+  cycle: string
+  weeks: AttWeek[]
+  done: number
+  deload: number
+  missed: number
+  holiday: number
+  total: number
+}
+export interface AttEndRow {
+  row: string // "T1" | "T2" | "W15"
+  cells: AttStatus[]
+}
+export interface AttMacro {
+  macro: string
+  cycles: AttCycle[]
+  endRows: AttEndRow[]
+  epDone: number
+  epMissed: number
+  epHoliday: number
+  epTotal: number
+}
+
+// One carry per training session, typed by the day's lift, for the Carries view.
+export type CarryType = 'Farmer' | 'Suitcase' | 'Sandbag' | 'Overhead'
+export interface TrendCarry {
+  macro: string
+  cycle: string
+  week: string
+  date: string
+  type: CarryType
+  weight: number | null // per-cycle carry load (from accessory_weights)
+  distance: number | null // metres per round (from carry_distance)
+}

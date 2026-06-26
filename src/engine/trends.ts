@@ -1,0 +1,197 @@
+// Pure derivation: our persisted Session/Macro/deload data -> the flat row shape
+// the Trends charts consume (TrendSession). No DB calls, no React. The deload
+// signal flags mirror deload-rule.ts exactly so Trends never disagrees with Deload.
+import type { Session, Macro, DeloadMap, BreakDayMap, AccessoryByCycle, TrendSession, TrendDay, TrendClean, TrendCarry, CarryType, AttStatus, AttMacro, AttCycle } from './types'
+import { weekKeyFor } from './deload-rule'
+import { enumerateMacro, todayISO } from './date-engine'
+
+const DAY_LABEL: Record<string, TrendDay> = { deadlift: 'DL', ohp: 'OHP', squat: 'Squat', dips: 'Dips' }
+const SPD: Record<string, 0 | 1 | 2> = { down: 0, normal: 1, up: 2 }
+
+// "R9.5" -> 9.5 ; "" / unparseable -> null.
+export function parseRpe(rpe: string): number | null {
+  if (!rpe) return null
+  const n = parseFloat(rpe.replace(/^R/i, ''))
+  return Number.isFinite(n) ? n : null
+}
+
+// Flatten training-week sessions to chart rows, oldest -> newest.
+export function toTrendSessions(sessions: Session[], macros: Macro[], deloads: DeloadMap): TrendSession[] {
+  const numById: Record<string, number> = {}
+  macros.forEach((m) => {
+    numById[m.id] = m.number
+  })
+
+  return sessions
+    .filter((s) => s.weekType === 'training' && s.dayType && s.cycle != null && s.week != null)
+    .map((s) => {
+      const num = numById[s.macroId] ?? 0
+      const rpe = parseRpe(s.rpe)
+      const durMs = s.startedAt && s.endedAt ? new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime() : null
+      const isDeload = !!deloads[weekKeyFor(num, s.cycle as number, s.week as number)]
+      const spd = s.barSpeed in SPD ? SPD[s.barSpeed] : null
+      return {
+        macro: `M${num}`,
+        macroNumber: num,
+        cycle: `C${s.cycle}`,
+        week: `W${s.week}`,
+        day: DAY_LABEL[s.dayType as string],
+        date: s.date,
+        weight: s.topWeight,
+        rpe,
+        spd,
+        dur: durMs != null ? Math.round(durMs / 60000) : null,
+        // Signal definitions match deload-rule.ts (S4 is notebook-only, omitted).
+        S1: rpe != null && rpe >= 9.5 ? 1 : 0,
+        S2: s.volDone === false ? 1 : 0,
+        S3: s.carrySkipped && s.carrySkipReason === 'fatigue' ? 1 : 0,
+        S5: s.barSpeed === 'down' ? 1 : 0,
+        volOk: s.volDone !== false,
+        status: isDeload ? 'deload' : 'done',
+        sets: (s.cardioCals || []).filter((c): c is number => c != null),
+      } satisfies TrendSession
+    })
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+}
+
+// Power cleans live on dips-day sessions (clean_load + clean_speed). One row per
+// logged clean, oldest -> newest.
+export function toCleanSessions(sessions: Session[], macros: Macro[]): TrendClean[] {
+  const numById: Record<string, number> = {}
+  macros.forEach((m) => {
+    numById[m.id] = m.number
+  })
+  return sessions
+    .filter((s) => s.dayType === 'dips' && s.cycle != null && s.week != null && s.cleanLoad != null)
+    .map((s) => ({
+      macro: `M${numById[s.macroId] ?? 0}`,
+      cycle: `C${s.cycle}`,
+      week: `W${s.week}`,
+      date: s.date,
+      weight: typeof s.cleanLoad === 'number' ? s.cleanLoad : Number(s.cleanLoad),
+      spd: s.cleanSpeed in SPD ? SPD[s.cleanSpeed] : null,
+    }))
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+}
+
+// Each training session has one carry, typed by the day's lift. Weight is the
+// per-cycle accessory load; distance is the session's logged metres/round.
+const CARRY_OF: Record<string, { type: CarryType; item: string }> = {
+  deadlift: { type: 'Farmer', item: 'carry_deadlift' },
+  ohp: { type: 'Suitcase', item: 'carry_ohp' },
+  squat: { type: 'Sandbag', item: 'carry_squat' },
+  dips: { type: 'Overhead', item: 'carry_dips' },
+}
+export function toCarrySessions(sessions: Session[], macros: Macro[], accessory: Record<string, AccessoryByCycle>): TrendCarry[] {
+  const numById: Record<string, number> = {}
+  macros.forEach((m) => {
+    numById[m.id] = m.number
+  })
+  return sessions
+    .filter((s) => s.dayType && s.cycle != null && s.week != null && !s.carrySkipped && s.carryDistance != null)
+    .map((s) => {
+      const c = CARRY_OF[s.dayType as string]
+      const weight = accessory[s.macroId]?.[s.cycle as number]?.[c.item] ?? null
+      return {
+        macro: `M${numById[s.macroId] ?? 0}`,
+        cycle: `C${s.cycle}`,
+        week: `W${s.week}`,
+        date: s.date,
+        type: c.type,
+        weight,
+        distance: s.carryDistance,
+      }
+    })
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+}
+
+// Attendance, derived from the real schedule (enumerateMacro) — columns are the
+// Mon/Wed/Fri slots, so the lift rotation isn't forced into fixed lift-columns.
+// Each cell's status comes from breaks / deload weeks / what was logged / whether
+// the date has passed.
+export function toAttendance(macros: Macro[], sessions: Session[], deloads: DeloadMap, breakDays: BreakDayMap): AttMacro[] {
+  const logged = new Set(sessions.map((s) => s.date))
+  const today = todayISO()
+
+  return macros
+    .slice()
+    .sort((a, b) => a.number - b.number)
+    .map((m) => {
+      const rows = enumerateMacro(m.startISO, m.number)
+      const cycleMap: Record<number, AttCycle> = {}
+      const endRows: AttMacro['endRows'] = []
+      let epDone = 0
+      let epMissed = 0
+      let epHoliday = 0
+      let epTotal = 0
+
+      for (const row of rows) {
+        if (row.weekType === 'training' && row.meso != null && row.week != null) {
+          const meso = row.meso
+          const cyc = (cycleMap[meso] ||= { cycle: `C${meso}`, weeks: [], done: 0, deload: 0, missed: 0, holiday: 0, total: 0 })
+          const cells: AttStatus[] = row.cells.map((cell) => {
+            if (breakDays[cell.date]) return 'holiday'
+            if (deloads[weekKeyFor(m.number, meso, row.week as number)]) return 'deload'
+            if (logged.has(cell.date)) return 'done'
+            return cell.date < today ? 'missed' : 'upcoming'
+          })
+          cyc.weeks.push({ week: `W${row.week}`, cells })
+          cells.forEach((c) => {
+            cyc.total++
+            if (c === 'done') cyc.done++
+            else if (c === 'deload') cyc.deload++
+            else if (c === 'missed') cyc.missed++
+            else if (c === 'holiday') cyc.holiday++
+          })
+        } else if (row.weekType === 'testing' || row.weekType === 'deload') {
+          const isDeloadRow = row.weekType === 'deload'
+          const label = isDeloadRow ? 'W15' : `T${endRows.filter((r) => r.row.startsWith('T')).length + 1}`
+          const cells: AttStatus[] = row.cells.map((cell) => {
+            const planned = isDeloadRow || cell.testRole === 'test' // a counted slot
+            if (breakDays[cell.date]) {
+              if (planned) {
+                epTotal++
+                epHoliday++
+              }
+              return 'holiday'
+            }
+            if (logged.has(cell.date)) {
+              if (planned) {
+                epTotal++
+                epDone++
+              }
+              return isDeloadRow ? 'deload' : 'test'
+            }
+            if (planned) {
+              epTotal++
+              if (cell.date < today) {
+                epMissed++
+                return 'missed'
+              }
+              return 'upcoming'
+            }
+            return null // optional Wed light day — not counted
+          })
+          endRows.push({ row: label, cells })
+        }
+      }
+
+      return {
+        macro: `M${m.number}`,
+        cycles: [1, 2, 3].map((n) => cycleMap[n]).filter((c): c is AttCycle => !!c),
+        endRows,
+        epDone,
+        epMissed,
+        epHoliday,
+        epTotal,
+      }
+    })
+}
+
+// Distinct macro labels present in the data, ordered M1..Mn.
+export function macroLabels(macros: Macro[]): string[] {
+  return macros
+    .slice()
+    .sort((a, b) => a.number - b.number)
+    .map((m) => `M${m.number}`)
+}

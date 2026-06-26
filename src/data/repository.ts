@@ -17,6 +17,7 @@ import type {
   BreakDayMap,
   TestingResult,
   MacroBundle,
+  TrendsData,
 } from '../engine/types'
 
 // Browser-only offline handling (Node smoke test has no navigator/window).
@@ -268,6 +269,47 @@ export async function rollToNextMacro({
   if (w[3]) await saveWorkingWeights(next.id, 1, w[3])
   if (acc[3]) await saveAccessoryWeights(next.id, 1, acc[3])
   return next
+}
+
+// ---- trends (all macros, for the Trends tab) ------------------------------
+// One round-trip of RLS-scoped reads (every table is owned by the user, so an
+// unfiltered select returns only their rows across all macros). Per-macro weight
+// grids are grouped by macro_id; deload week_keys are globally unique.
+export async function loadTrends(): Promise<TrendsData> {
+  const [macros, sess, wRows, aRows, tRows, dRows, breakDays] = await Promise.all([
+    getMacros(),
+    supabase.from('sessions').select('*'),
+    supabase.from('working_weights').select('*'),
+    supabase.from('accessory_weights').select('*'),
+    supabase.from('testing_results').select('*'),
+    supabase.from('deloads').select('*'),
+    getBreakDays(),
+  ])
+  for (const r of [sess, wRows, aRows, tRows, dRows]) if (r.error) throw r.error
+
+  const byMacro = <T extends { macro_id: string }>(rows: T[]) => {
+    const out: Record<string, T[]> = {}
+    rows.forEach((r) => (out[r.macro_id] ||= []).push(r))
+    return out
+  }
+  const wByMacro = byMacro((wRows.data || []) as { macro_id: string }[])
+  const aByMacro = byMacro((aRows.data || []) as { macro_id: string }[])
+  const weights: TrendsData['weights'] = {}
+  const accessory: TrendsData['accessory'] = {}
+  for (const m of macros) {
+    weights[m.id] = M.rowsToWeights((wByMacro[m.id] || []) as Parameters<typeof M.rowsToWeights>[0])
+    accessory[m.id] = M.rowsToAccessory((aByMacro[m.id] || []) as Parameters<typeof M.rowsToAccessory>[0])
+  }
+
+  return {
+    macros,
+    sessions: (sess.data || []).map(M.rowToSession),
+    weights,
+    accessory,
+    testing: (tRows.data || []).map(M.rowToTesting),
+    deloads: M.rowsToDeloads(dRows.data || []),
+    breakDays,
+  }
 }
 
 // ---- bundle (one round-trip for app boot) ---------------------------------

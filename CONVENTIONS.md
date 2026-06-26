@@ -27,15 +27,18 @@ src/
     date-engine.ts position math from the macro start date (see §7)
     loading.ts     rep schemes, percentages, 2.5 kg rounding, fmt
     deload-rule.ts reactive-deload signals + trigger
+    trends.ts      pure derivations: Session/accessory/deload -> Trends chart view-models
     pullups.ts     phase-1 cluster parsing/totals
     *.test.js      Vitest unit tests (node:assert), colocated with each module
   ui/              React components (presentational + container)
     App.tsx        shell: auth gate, top-level state, tab routing, all handlers
-    Today.tsx, Calendar.tsx, History.tsx, Deload.tsx, Setup.tsx, Auth.tsx
+    Today.tsx, Calendar.tsx, History.tsx, Deload.tsx, Setup.tsx, Trends.tsx, Auth.tsx
     SessionForm.tsx     shared prescription + log fields (Today + SessionModal)
     SessionModal.tsx    calendar-cell overlay wrapping SessionForm / TestingResultForm
     TestingResultForm.tsx
-    components.tsx  shared shell bits (Shell, Tabs, Card, BlockTitle, Center, Spinner)
+    Trends.tsx      charts/analytics tab (recharts); renders engine/trends.ts view-models
+    nav.tsx         BottomNav + MenuDrawer + inline SVG icon set
+    components.tsx  shared shell bits (Shell, Card, BlockTitle, Center, Spinner)
     controls.tsx    shared log controls (Row, SpeedPick, LogRpe, PositionHeader, errMsg)
     theme.ts        design tokens + shared CSSProperties style objects
     global.css      base CSS (reset, body bg, fonts, .spin keyframes)
@@ -71,7 +74,9 @@ it calls repository functions (always via handlers passed down from `App.tsx`).
   `React.lazy` behind a single `<Suspense>` in `App` (fallback = the standard `Spinner`),
   so each is an on-demand chunk. Keep boot-critical deps eager — `@supabase` is needed for
   the startup auth check, so it stays in the main chunk; only split what isn't needed for
-  first paint. Sentry is already a lazy chunk (DSN-gated; see §6).
+  first paint. Sentry is already a lazy chunk (DSN-gated; see §6). **recharts** (the only
+  charting lib, used by `Trends.tsx`) is heavy (~120 KB gzip) and lives entirely in the
+  lazy Trends chunk — keep it that way; never import recharts from an eager module.
 - **Backend:** Supabase (`@supabase/supabase-js` v2) — Postgres + Auth + Row Level Security. Schema in the numbered `supabase/migrations/` files (see `ARCHITECTURE.md` §9 for the model, `supabase/MIGRATIONS.md` for the apply/backup workflow).
 - **Node:** installed via nvm (Node 22+). Shells must source nvm first:
   `export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"`.

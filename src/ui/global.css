@@ -84,3 +84,8 @@ textarea:focus-visible,
   from { transform: translateX(100%); }
   to { transform: translateX(0); }
 }
+/* Bottom-sheet slide-up (Trends macro range picker). */
+@keyframes gp-drawer-up {
+  from { transform: translate(-50%, 100%); }
+  to { transform: translate(-50%, 0); }
+}
