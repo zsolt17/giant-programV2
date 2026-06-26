@@ -21,7 +21,6 @@ export function SplashScreen() {
     <div className="gp-splash">
       <img className="mark" src={`${import.meta.env.BASE_URL}icon-192.png`} alt="" />
       <div className="name">THE GIANT PROGRAM</div>
-      <div className="ver">v7</div>
       <div className="bar" />
     </div>
   )

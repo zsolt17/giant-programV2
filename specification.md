@@ -79,7 +79,7 @@ GitHub Actions (Pages build + deploy — `.github/workflows/deploy.yml`), Homebr
   Retry screen). typecheck + 45 tests + build green; React splash verified pixel-identical.
 - `feat`: **polished launch flow** — splash + held first-login. (1) Redesigned the pre-React
   `#splash` (index.html): the actual home-screen icon mark (`icon-192.png`, gold-bordered
-  rounded tile) + "THE GIANT PROGRAM" + "v7" + a gold shimmer bar; `main.tsx` fade trigger
+  rounded tile) + "THE GIANT PROGRAM" + a gold shimmer bar; `main.tsx` fade trigger
   unchanged (still tied to React mount, not data). (2) `Auth.tsx` gains a held loading state —
   button spinner + dimmed/disabled inputs + "Loading your program…" — driven by a `dataLoading`
   prop so it spans **both** the auth call and the first macro-bundle fetch. (3) `App.tsx` gates
