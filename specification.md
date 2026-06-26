@@ -10,7 +10,35 @@ On every feature or fix, add a dated entry under a `## YYYY-MM-DD` heading
 (**newest first**), one concise line per change, tagged `feat` / `fix` / `chore` /
 `docs` and noting the area touched. Keep it factual — this is the project's history,
 not marketing. Update **Current capabilities** when a change adds or removes a
-user-facing capability.
+user-facing capability. When a dependency or tool is added/removed/version-bumped,
+update **Stack & dependencies** in the same change.
+
+---
+
+## Stack & dependencies
+
+At-a-glance snapshot of the toolchain. **`package.json` / `package-lock.json` are the
+source of truth for versions** — this table is the human-readable summary (refreshed
+when deps change); `CONVENTIONS.md` §2 has the build/scripts narrative.
+
+| Layer | Tool | Version | Used for |
+|-------|------|---------|----------|
+| Language | TypeScript | 6.0.3 | strict typing across engine/data/UI (`tsc --noEmit`, no emit) |
+| Runtime | Node.js | 24 (dev) · 22 (CI) | build + tests; installed via nvm |
+| UI framework | react / react-dom | 18.3.1 | function-component UI |
+| Build / bundler | Vite | 7.3.6 | dev server + production build (rollup-based) |
+| Build plugin | @vitejs/plugin-react | 5.2.0 | React fast-refresh + JSX transform for Vite |
+| PWA | vite-plugin-pwa (workbox-build) | 1.3.0 (wb 7.4.1) | service worker, offline app-shell precache, web manifest |
+| Backend client | @supabase/supabase-js | 2.108.2 | Postgres + Auth + RLS — **only** imported in `src/data/` |
+| Charts | recharts | 3.9.0 | Trends-tab charts — **lazy chunk only** (never eager) |
+| Monitoring | @sentry/react | 10.60.0 | error monitoring — DSN-gated, lazy, off unless configured |
+| Image tooling | sharp | 0.35.x | PWA icon generation (`scripts/gen-icons.mjs`) |
+| Test runner | vitest | 3.2.6 | engine/data unit tests (`*.test.js`, `node:assert`) |
+| TS loader | tsx | 4.22.4 | runs the data-layer smoke test under Node |
+| Type defs | @types/node · react · react-dom | 26.0.1 · 18.3.31 · 18.3.7 | type definitions |
+
+**Toolchain (not npm deps):** Supabase CLI 2.108 (migrations — see `supabase/MIGRATIONS.md`),
+GitHub Actions (Pages build + deploy — `.github/workflows/deploy.yml`), Homebrew (CLI installs).
 
 ---
 
@@ -39,6 +67,9 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-26
+- `docs`: added a **Stack & dependencies** table at the top of this file — at-a-glance
+  toolchain/deps with versions + what each is for (package.json stays canonical; refreshed
+  on dep changes).
 - `chore(ci)`: bumped `actions/upload-pages-artifact` v3→v5 and `actions/deploy-pages` v4→v5
   to silence the Node 20 deprecation warnings (those actions now run on Node 24 natively).
 - `chore(deps)`: **upgraded Vite 5 → 7** (+ `@vitejs/plugin-react` 4 → 5) to clear two
