@@ -71,6 +71,12 @@ GitHub Actions (Pages build + deploy — `.github/workflows/deploy.yml`), Homebr
 ## Change log
 
 ## 2026-06-26
+- `feat(nav)`: **raised the bottom-nav icon+label cluster** toward the top of the bar
+  (YouTube-style). Rebalanced padding so the cluster rides ~12px higher while the bar's **total
+  height is unchanged** (`NAV_H` stays 82): nav-item padding `10px 0` → `4px 0 16px` (height-neutral),
+  and bar `paddingTop` 8 → 2 with the 6px added back to `paddingBottom` (`+12px` → `+18px` over the
+  safe-area inset). `nav.tsx` only; the raise amount is a single tunable (the item top/bottom split +
+  the bar paddingTop). Verify on iPhone.
 - `feat(data)`: **new Data page** (burger menu → Data, after Setup). Two sections: **Download all
   data** — exports every session across all macros as a CSV download
   (`giant-program-export-YYYY-MM-DD.csv`), all session columns, RFC-4180 escaping, `cardio_cals`

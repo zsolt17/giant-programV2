@@ -105,7 +105,9 @@ function navItemStyle(active: boolean) {
     fontSize: 10,
     fontWeight: 600,
     letterSpacing: '0.04em',
-    padding: '10px 0',
+    // Bottom-heavy padding rides the icon+label cluster toward the TOP of the bar
+    // (YouTube-style) while keeping the row's height the same (4+16 = the old 10+10).
+    padding: '4px 0 16px',
   }
 }
 
@@ -126,10 +128,12 @@ export function BottomNav({ tab, setTab, onOpenMenu, menuOpen }: { tab: TabKey; 
         background: C.navy,
         borderTop: `1px solid ${C.border}`,
         boxShadow: '0 -2px 12px rgba(0,0,0,0.30)',
-        paddingTop: 8,
+        // paddingTop trimmed and the same amount added to paddingBottom below, so the
+        // whole row block sits higher in the bar without changing the bar's height.
+        paddingTop: 2,
         // Lift the tap rows clear of the curved bottom corners (iPhone 16 etc.):
         // extra space on top of the home-indicator safe-area inset.
-        paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom) + 18px)',
       }}
     >
       {PRIMARY.map(({ key, label, icon }) => {
