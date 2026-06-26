@@ -80,7 +80,7 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
 const PRIMARY: { key: TabKey; label: string; icon: string }[] = [
   { key: 'today', label: 'Today', icon: 'today' },
   { key: 'calendar', label: 'Calendar', icon: 'calendar' },
-  { key: 'history', label: 'History', icon: 'history' },
+  { key: 'trends', label: 'Trends', icon: 'trends' },
 ]
 
 function navItemStyle(active: boolean) {
@@ -104,7 +104,7 @@ function navItemStyle(active: boolean) {
 export function BottomNav({ tab, setTab, onOpenMenu, menuOpen }: { tab: TabKey; setTab: (t: TabKey) => void; onOpenMenu: () => void; menuOpen: boolean }) {
   // Menu reads as active while a drawer destination (deload/setup) is showing, or
   // while the drawer is open.
-  const menuActive = menuOpen || tab === 'deload' || tab === 'trends' || tab === 'setup'
+  const menuActive = menuOpen || tab === 'deload' || tab === 'history' || tab === 'setup'
   return (
     <nav
       aria-label="Primary"
@@ -145,7 +145,7 @@ export function BottomNav({ tab, setTab, onOpenMenu, menuOpen }: { tab: TabKey; 
 // Add future entries here (e.g. Progress, Account) — they appear automatically.
 const MENU_ITEMS: { key: TabKey; label: string; icon: string }[] = [
   { key: 'deload', label: 'Deload', icon: 'deload' },
-  { key: 'trends', label: 'Trends', icon: 'trends' },
+  { key: 'history', label: 'History', icon: 'history' },
   { key: 'setup', label: 'Setup', icon: 'setup' },
 ]
 
@@ -218,7 +218,10 @@ export function MenuDrawer({ tab, onSelect, onSignOut, onClose }: { tab: TabKey;
                 aria-current={active ? 'page' : undefined}
                 style={rowStyle(active)}
               >
-                <Icon name={it.icon} size={20} />
+                {/* icon always gold (brand accent); the label keeps the row colour */}
+                <span style={{ color: C.gold, display: 'inline-flex' }}>
+                  <Icon name={it.icon} size={20} />
+                </span>
                 <span>{it.label}</span>
               </button>
             )

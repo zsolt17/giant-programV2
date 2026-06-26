@@ -69,6 +69,10 @@ GitHub Actions (Pages build + deploy — `.github/workflows/deploy.yml`), Homebr
 ## Change log
 
 ## 2026-06-26
+- `feat(nav)`: **swapped Trends into the bottom nav, History into the drawer** (Trends now sits
+  in the top-3 with Today/Calendar; History moves under Deload in the menu). Menu-active
+  highlight re-keyed `trends`→`history`. Also **gold-coloured the drawer item icons** (labels
+  unchanged; Sign out icon left muted). `nav.tsx` only.
 - `fix(mobile)`: **raised the bottom nav** so the tap rows clear the curved bottom corners
   on modern iPhones (iPhone 16). Added top padding + extra bottom padding beyond the
   safe-area inset and taller touch rows (`nav.tsx`); bumped the content reserve `NAV_H`
