@@ -1,7 +1,7 @@
 // The ONLY module (besides supabase.ts) that talks to the database. Everything
 // above this works with plain app objects, so swapping the backend is a
 // single-file change. All functions throw on error; callers handle it.
-import { supabase } from './supabase'
+import { supabase, assertWritable, DEV_WRITES_BLOCKED } from './supabase'
 import * as M from './mappers'
 import * as queue from './offline-queue'
 import type { QueueExecutors } from './offline-queue'
@@ -66,6 +66,7 @@ export async function createMacro({
   weeks?: number
   status?: MacroStatus
 }): Promise<Macro> {
+  assertWritable()
   const { data, error } = await supabase
     .from('macros')
     .insert({ number, start_date: startISO, weeks, status })
@@ -76,6 +77,7 @@ export async function createMacro({
 }
 
 export async function setMacroStatus(id: string, status: MacroStatus): Promise<void> {
+  assertWritable()
   const { error } = await supabase.from('macros').update({ status }).eq('id', id)
   if (error) throw error
 }
@@ -84,6 +86,7 @@ export async function updateMacro(
   id: string,
   { number, startISO, weeks, status }: { number?: number; startISO?: string; weeks?: number; status?: MacroStatus } = {}
 ): Promise<Macro> {
+  assertWritable()
   const patch: Record<string, unknown> = {}
   if (number !== undefined) patch.number = number
   if (startISO !== undefined) patch.start_date = startISO
@@ -103,6 +106,7 @@ export async function getWorkingWeights(macroId: string): Promise<WeightsByCycle
 
 // byLift = { deadlift: {hard,medium,light}, ... } for a single cycle.
 export async function saveWorkingWeights(macroId: string, cycle: number, byLift: Record<string, LiftWeightsInput>): Promise<void> {
+  assertWritable()
   const rows = M.weightsToRows(macroId, cycle, byLift)
   const { error } = await supabase.from('working_weights').upsert(rows, { onConflict: 'macro_id,cycle,lift' })
   if (error) throw error
@@ -117,6 +121,7 @@ export async function getAccessoryWeights(macroId: string): Promise<AccessoryByC
 
 // byItem = { clean: 70, carry_deadlift: 60, ... } for a single cycle.
 export async function saveAccessoryWeights(macroId: string, cycle: number, byItem: Record<string, unknown>): Promise<void> {
+  assertWritable()
   const rows = M.accessoryToRows(macroId, cycle, byItem)
   const { error } = await supabase.from('accessory_weights').upsert(rows, { onConflict: 'macro_id,cycle,item' })
   if (error) throw error
@@ -133,10 +138,19 @@ export async function getSessions(macroId: string): Promise<Session[]> {
   return (data || []).map(M.rowToSession)
 }
 
+// All sessions across every macro (RLS-scoped — an unfiltered select returns only
+// the user's rows), newest first. Powers the Data page (CSV export + session picker).
+export async function getAllSessions(): Promise<Session[]> {
+  const { data, error } = await supabase.from('sessions').select('*').order('date', { ascending: false })
+  if (error) throw error
+  return (data || []).map(M.rowToSession)
+}
+
 // Idempotent: upsert on the human-readable id (date-lift-difficulty).
 // Offline (or on a network failure), the write is queued and the call resolves
 // optimistically so the UI updates; it replays on reconnect via flushQueue().
 export async function saveSession(session: SessionDraft): Promise<Session> {
+  assertWritable()
   const row = M.sessionToRow(session)
   if (isOffline()) {
     queue.enqueue({ kind: 'saveSession', payload: row })
@@ -156,6 +170,7 @@ export async function saveSession(session: SessionDraft): Promise<Session> {
 }
 
 export async function deleteSession(id: string): Promise<void> {
+  assertWritable()
   if (isOffline()) {
     queue.enqueue({ kind: 'deleteSession', payload: { id } })
     return
@@ -184,6 +199,7 @@ const QUEUE_EXECUTORS: QueueExecutors = {
   },
 }
 export function flushQueue(): Promise<number> {
+  if (DEV_WRITES_BLOCKED) return Promise.resolve(0) // never replay queued writes to prod from the dev server
   return queue.flush(QUEUE_EXECUTORS)
 }
 export { pendingCount, onPendingChange } from './offline-queue'
@@ -196,6 +212,7 @@ export async function getDeloads(macroId: string): Promise<DeloadMap> {
 }
 
 export async function setDeload(macroId: string, weekKey: string, on: boolean): Promise<void> {
+  assertWritable()
   if (on) {
     const { error } = await supabase
       .from('deloads')
@@ -215,6 +232,7 @@ export async function getBreakDays(): Promise<BreakDayMap> {
 }
 
 export async function setBreakDay(dateISO: string, on: boolean): Promise<void> {
+  assertWritable()
   if (on) {
     const { error } = await supabase.from('break_days').upsert({ date: dateISO }, { onConflict: 'user_id,date' })
     if (error) throw error
@@ -232,6 +250,7 @@ export async function getTestingResults(macroId: string): Promise<TestingResult[
 }
 
 export async function saveTestingResult(result: TestingResult): Promise<TestingResult> {
+  assertWritable()
   const row = M.testingToRow(result)
   // Editing an existing row upserts by id; a brand-new row upserts on the natural
   // key (macro_id, lift, tested_on) so a re-submit UPDATES the same result instead
@@ -246,6 +265,7 @@ export async function saveTestingResult(result: TestingResult): Promise<TestingR
 }
 
 export async function deleteTestingResult(id: string): Promise<void> {
+  assertWritable()
   const { error } = await supabase.from('testing_results').delete().eq('id', id)
   if (error) throw error
 }
@@ -263,6 +283,7 @@ export async function rollToNextMacro({
   currentMacroNumber: number
   newStartISO: string
 }): Promise<Macro> {
+  assertWritable()
   const [w, acc] = await Promise.all([getWorkingWeights(currentMacroId), getAccessoryWeights(currentMacroId)])
   await setMacroStatus(currentMacroId, 'completed')
   const next = await createMacro({ number: currentMacroNumber + 1, startISO: newStartISO, status: 'active' })

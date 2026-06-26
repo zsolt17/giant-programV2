@@ -54,6 +54,8 @@ GitHub Actions (Pages build + deploy — `.github/workflows/deploy.yml`), Homebr
 - **Deload** — per-week fatigue signals + reactive-deload recommend/apply (advise-and-confirm).
 - **Setup** — per-cycle (C1/C2/C3) working-weights grid + cleans/carries, macro anchor,
   macro picker, and "start next macro" archiving (carries C3→C1).
+- **Data** — export all sessions (across every macro) to CSV, and copy a plain-text per-session
+  summary to the clipboard for sharing into a coaching conversation. (Burger menu → Data.)
 - **Pull-ups** — phase-1 bodyweight cluster logging (OHP day) + trend. *(Phase-2 weighted: deferred.)*
 - **Testing weeks** — record 2–3RM results per lift.
 - **Global loading states** — branded pre-React splash (home-screen-icon mark + shimmer bar);
@@ -69,6 +71,27 @@ GitHub Actions (Pages build + deploy — `.github/workflows/deploy.yml`), Homebr
 ## Change log
 
 ## 2026-06-26
+- `feat(data)`: **new Data page** (burger menu → Data, after Setup). Two sections: **Download all
+  data** — exports every session across all macros as a CSV download
+  (`giant-program-export-YYYY-MM-DD.csv`), all session columns, RFC-4180 escaping, `cardio_cals`
+  collapsed to one `15/14/15/15` cell; and **Copy session summary** — pick a session from a
+  newest-first list, copy a plain-text coaching summary to the clipboard (Clipboard API + textarea
+  fallback for non-secure contexts, brief "Copied ✓"). New pure engine modules `export-csv.ts`
+  (`sessionsToCsv`) + `session-summary.ts` (`sessionSummary`, exact share format — OHP-day pull-ups,
+  dips-day cleans, skipped-carry, omitted Duration/Notes handled) with **11 new tests**. New
+  RLS-scoped read `repo.getAllSessions()` (all macros); **no schema change**. `Data.tsx` is
+  lazy-loaded (own ~2.8 KB-gzip chunk, off the main bundle). typecheck + 56 tests + build green;
+  clean boot verified in-browser.
+- `chore(safety)`: **dev write-guard** — `npm run dev` reads `.env.local`, which points at the
+  **PROD** Supabase project, so local browser testing was writing real rows. The dev server is now
+  **write-blocked by default**: every `repository.ts` write calls `assertWritable()` (in
+  `supabase.ts`), which throws unless `VITE_ALLOW_DEV_WRITES=true` is set in `.env.local`;
+  `flushQueue` no-ops when blocked. A fixed on-screen **DEV banner** shows the state (green "writes
+  blocked" / red "writes ON → PROD"). **Never** active in production builds (`import.meta.env.DEV`
+  is false → tree-shaken) or under Node (the smoke test sets `process.env` and isolates to a
+  throwaway macro, so it must write). Opt-in documented in `.env.example`. Verified: banner both
+  states in-browser, **smoke 30/30** (Node write path intact, real data untouched), typecheck +
+  56 tests + build green.
 - `feat(nav)`: **swapped Trends into the bottom nav, History into the drawer** (Trends now sits
   in the top-3 with Today/Calendar; History moves under Deload in the menu). Menu-active
   highlight re-keyed `trends`→`history`. Also **gold-coloured the drawer item icons** (labels

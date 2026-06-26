@@ -28,11 +28,13 @@ src/
     loading.ts     rep schemes, percentages, 2.5 kg rounding, fmt
     deload-rule.ts reactive-deload signals + trigger
     trends.ts      pure derivations: Session/accessory/deload -> Trends chart view-models
+    export-csv.ts  pure Session[] -> CSV string (Data page "Download all data")
+    session-summary.ts  pure Session -> plain-text share summary (Data page "Copy")
     pullups.ts     phase-1 cluster parsing/totals
     *.test.js      Vitest unit tests (node:assert), colocated with each module
   ui/              React components (presentational + container)
     App.tsx        shell: auth gate, top-level state, tab routing, all handlers
-    Today.tsx, Calendar.tsx, History.tsx, Deload.tsx, Setup.tsx, Trends.tsx, Auth.tsx
+    Today.tsx, Calendar.tsx, History.tsx, Deload.tsx, Setup.tsx, Trends.tsx, Data.tsx, Auth.tsx
     SessionForm.tsx     shared prescription + log fields (Today + SessionModal)
     SessionModal.tsx    calendar-cell overlay wrapping SessionForm / TestingResultForm
     TestingResultForm.tsx
@@ -97,6 +99,19 @@ it calls repository functions (always via handlers passed down from `App.tsx`).
 - `SMOKE_EMAIL`, `SMOKE_PASSWORD` — only for `npm run smoke`. **`.env.local` only,
   never committed.** `vite.config.js` sets `base` to `/giant-programV2/` for builds
   and `/` for dev.
+- `VITE_ALLOW_DEV_WRITES` — dev write-guard opt-in (default off/blocked). See below.
+
+**Dev write-guard (don't remove it).** `.env.local` points the dev server at the **PROD**
+Supabase project, so `npm run dev` browser testing would write real rows. To prevent that, the
+dev server is **write-blocked by default**: every write in `repository.ts` calls `assertWritable()`
+(`supabase.ts`), which throws unless `VITE_ALLOW_DEV_WRITES=true` is set in `.env.local`;
+`flushQueue()` no-ops when blocked. A fixed on-screen **DEV banner** (`App.tsx` `DevBanner`, gated on
+`import.meta.env.DEV`) shows the state — green "writes blocked" / red "writes ON → PROD". The guard
+is computed once (`DEV_WRITES_BLOCKED`) and is **inert in production** (`import.meta.env.DEV` false →
+tree-shaken) and **inert under Node** (the smoke test sets `process.env.VITE_SUPABASE_URL` and
+isolates to a throwaway macro, so it must write). To deliberately test the write path locally, flip
+the flag to `true` and use a throwaway macro, then flip it back. **Any new `repository.ts` write
+must call `assertWritable()` first.**
 
 **Deploy:** push to `main` → `.github/workflows/deploy.yml` builds and publishes to
 GitHub Pages. **Pages source must be "GitHub Actions"** (API `build_type: workflow`).

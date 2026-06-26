@@ -230,6 +230,8 @@ Capabilities, in domain terms:
 - **Pull-up cluster logging** (§4, phase 1) + trend.
 - **Testing-session logger** (§2.7) — record 2–3RM results per lift, editable like other sessions.
 - **Multi-macro archiving** — roll into a new macro carrying C3 weights forward; prior macros stay viewable.
+- **Data export / share** — download all sessions (every macro) as CSV, and copy a plain-text
+  per-session summary to the clipboard for pasting into a coaching conversation.
 - **Single-user auth** (Supabase + Row Level Security), installable PWA with offline logging.
 
 Deferred: pull-up **phase-2 weighted** switchover (§4) — waiting until the athlete is consistently

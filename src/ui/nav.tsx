@@ -59,6 +59,14 @@ const ICONS: Record<string, ReactNode> = {
       <circle cx="9" cy="18" r="2" />
     </>
   ),
+  // database cylinder — the data/export page
+  data: (
+    <>
+      <ellipse cx="12" cy="5" rx="8" ry="3" />
+      <path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5" />
+      <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" />
+    </>
+  ),
   signout: (
     <>
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -104,7 +112,7 @@ function navItemStyle(active: boolean) {
 export function BottomNav({ tab, setTab, onOpenMenu, menuOpen }: { tab: TabKey; setTab: (t: TabKey) => void; onOpenMenu: () => void; menuOpen: boolean }) {
   // Menu reads as active while a drawer destination (deload/setup) is showing, or
   // while the drawer is open.
-  const menuActive = menuOpen || tab === 'deload' || tab === 'history' || tab === 'setup'
+  const menuActive = menuOpen || tab === 'deload' || tab === 'history' || tab === 'setup' || tab === 'data'
   return (
     <nav
       aria-label="Primary"
@@ -147,6 +155,7 @@ const MENU_ITEMS: { key: TabKey; label: string; icon: string }[] = [
   { key: 'deload', label: 'Deload', icon: 'deload' },
   { key: 'history', label: 'History', icon: 'history' },
   { key: 'setup', label: 'Setup', icon: 'setup' },
+  { key: 'data', label: 'Data', icon: 'data' },
 ]
 
 // Mounted only while open (so the focus trap's mount/restore lifecycle is correct).

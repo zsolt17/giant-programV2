@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { onAuthChange, getUser, signOut } from '../data/supabase'
+import { onAuthChange, getUser, signOut, DEV_WRITES_BLOCKED } from '../data/supabase'
 import * as repo from '../data/repository'
 import { Shell, Center, Spinner, SplashScreen, Card, TopLoadingBar, SyncStatus } from './components'
 import type { TabKey } from './components'
@@ -18,6 +18,7 @@ const History = lazy(() => import('./History').then((m) => ({ default: m.History
 const Deload = lazy(() => import('./Deload').then((m) => ({ default: m.Deload })))
 // Trends pulls in recharts — keep it in its own lazy chunk, off the main bundle.
 const Trends = lazy(() => import('./Trends').then((m) => ({ default: m.Trends })))
+const Data = lazy(() => import('./Data').then((m) => ({ default: m.Data })))
 import { errMsg } from './controls'
 import { computePosition, parseLocalDate } from '../engine/date-engine'
 import { C } from './theme'
@@ -46,6 +47,41 @@ import type {
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 
+// Dev-only banner: a constant reminder that `npm run dev` points at the PROD
+// database. Gated on import.meta.env.DEV at every call site, so it's tree-shaken
+// out of production builds entirely. Red when writes are enabled (danger), green
+// when the write-guard is blocking them (safe). See supabase.ts assertWritable().
+function DevBanner() {
+  const blocked = DEV_WRITES_BLOCKED
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        zIndex: 200,
+        padding: '3px 9px',
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: '0.06em',
+        textTransform: 'uppercase',
+        borderBottomRightRadius: 4,
+        color: blocked ? C.dark : C.white,
+        background: blocked ? C.green : C.red,
+        boxShadow: '0 1px 6px rgba(0,0,0,0.4)',
+        pointerEvents: 'none',
+      }}
+      title={
+        blocked
+          ? 'Dev server — writes to the production DB are blocked. Set VITE_ALLOW_DEV_WRITES=true in .env.local to enable.'
+          : 'Dev server — WRITES ARE ENABLED against the production database.'
+      }
+    >
+      {blocked ? 'DEV · writes blocked' : 'DEV · writes ON → PROD'}
+    </div>
+  )
+}
+
 export function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined) // undefined = checking, null = logged out
   const [tab, setTab] = useState<TabKey>('today')
@@ -53,6 +89,8 @@ export function App() {
   const [sessionRunning, setSessionRunning] = useState(false) // drives the Shell top inset for the fixed session bar
   const [trends, setTrends] = useState<TrendsData | null>(null) // all-macro data, loaded on first Trends open
   const [trendsErr, setTrendsErr] = useState('')
+  const [allSessions, setAllSessions] = useState<Session[] | null>(null) // all-macro sessions, loaded on first Data open
+  const [dataErr, setDataErr] = useState('')
   // First-login boot: hold the login/loading screen until the initial bundle is in,
   // so Today's first paint is complete (no empty shell / partial fill).
   const [booted, setBooted] = useState(false)
@@ -177,6 +215,20 @@ export function App() {
     }
   }, [tab, user, trends])
 
+  // Load all-macro sessions once, on first open of the Data tab (CSV export + picker).
+  useEffect(() => {
+    if (tab !== 'data' || !user || allSessions) return
+    let cancelled = false
+    setDataErr('')
+    repo
+      .getAllSessions()
+      .then((s) => !cancelled && setAllSessions(s))
+      .catch((e) => !cancelled && setDataErr(errMsg(e)))
+    return () => {
+      cancelled = true
+    }
+  }, [tab, user, allSessions])
+
   // Cache the loaded bundle so reopening offline shows last-known data (incl.
   // optimistic offline writes, since those flow through state).
   useEffect(() => {
@@ -251,7 +303,13 @@ export function App() {
 
   // Checking the stored session — keep the splash up (seamless with the pre-React one).
   if (user === undefined) return <SplashScreen />
-  if (!user) return <Auth />
+  if (!user)
+    return (
+      <>
+        {import.meta.env.DEV && <DevBanner />}
+        <Auth />
+      </>
+    )
   // A first-load failure is retryable here (re-runs load()) — the user is already
   // authenticated, so this is the right landing, not the login form.
   if (status === 'error' && !booted)
@@ -298,6 +356,7 @@ export function App() {
   return (
     <div style={{ animation: 'gp-fade-in 0.4s ease' }}>
     <>
+    {import.meta.env.DEV && <DevBanner />}
     <Shell sessionRunning={sessionRunning}>
       {status === 'loading' && <TopLoadingBar />}
       <SyncStatus online={online} pending={pending} />
@@ -370,6 +429,17 @@ export function App() {
         ) : (
           <Center>
             <Spinner /> Loading trends…
+          </Center>
+        ))}
+
+      {tab === 'data' &&
+        (dataErr ? (
+          <Card style={{ textAlign: 'center', color: C.red }}>Couldn't load data — {dataErr}.</Card>
+        ) : allSessions ? (
+          <Data sessions={allSessions} macros={macros} />
+        ) : (
+          <Center>
+            <Spinner /> Loading data…
           </Center>
         ))}
       </Suspense>
