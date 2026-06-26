@@ -97,7 +97,7 @@ function navItemStyle(active: boolean) {
     fontSize: 10,
     fontWeight: 600,
     letterSpacing: '0.04em',
-    padding: '8px 0',
+    padding: '10px 0',
   }
 }
 
@@ -118,7 +118,10 @@ export function BottomNav({ tab, setTab, onOpenMenu, menuOpen }: { tab: TabKey; 
         background: C.navy,
         borderTop: `1px solid ${C.border}`,
         boxShadow: '0 -2px 12px rgba(0,0,0,0.30)',
-        paddingBottom: 'env(safe-area-inset-bottom)',
+        paddingTop: 8,
+        // Lift the tap rows clear of the curved bottom corners (iPhone 16 etc.):
+        // extra space on top of the home-indicator safe-area inset.
+        paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)',
       }}
     >
       {PRIMARY.map(({ key, label, icon }) => {

@@ -69,6 +69,10 @@ GitHub Actions (Pages build + deploy — `.github/workflows/deploy.yml`), Homebr
 ## Change log
 
 ## 2026-06-26
+- `fix(mobile)`: **raised the bottom nav** so the tap rows clear the curved bottom corners
+  on modern iPhones (iPhone 16). Added top padding + extra bottom padding beyond the
+  safe-area inset and taller touch rows (`nav.tsx`); bumped the content reserve `NAV_H`
+  56→82 (`components.tsx`) so content still scrolls clear. Device-verified on iPhone 16.
 - `feat`: **splash held through a logged-in reopen** — on opening the PWA with a stored
   session, the splash now stays on screen for the whole first data load (was: splash → a
   separate spinner screen → Today). React renders an identical `<SplashScreen/>` during the

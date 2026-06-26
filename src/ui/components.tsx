@@ -4,8 +4,10 @@ import { C, HEADING, cardStyle } from './theme'
 export type TabKey = 'today' | 'calendar' | 'history' | 'deload' | 'trends' | 'setup'
 
 // Heights reserved on the scroll content for the two fixed bars (see Shell):
-// the always-present bottom nav, and the top session bar (only while running).
-export const NAV_H = 56
+// the always-present bottom nav (raised to clear curved corners), and the top
+// session bar (only while running). These exclude the iOS safe-area inset, which
+// Shell adds separately via env(safe-area-inset-*).
+export const NAV_H = 82
 export const SESSION_BAR_H = 84
 
 export function Spinner() {
