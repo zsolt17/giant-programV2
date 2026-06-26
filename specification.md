@@ -69,6 +69,14 @@ GitHub Actions (Pages build + deploy — `.github/workflows/deploy.yml`), Homebr
 ## Change log
 
 ## 2026-06-26
+- `feat`: **splash held through a logged-in reopen** — on opening the PWA with a stored
+  session, the splash now stays on screen for the whole first data load (was: splash → a
+  separate spinner screen → Today). React renders an identical `<SplashScreen/>` during the
+  session-check + first-bundle-load states via the shared `.gp-splash` styles (defined once in
+  index.html), so the pre-React splash hands off seamlessly to it; the app then fades in,
+  fully populated. `main.tsx` still removes the bootstrap splash on React mount (unchanged) —
+  React owns the held splash, so a slow/failed load can't strand it (falls through to the
+  Retry screen). typecheck + 45 tests + build green; React splash verified pixel-identical.
 - `feat`: **polished launch flow** — splash + held first-login. (1) Redesigned the pre-React
   `#splash` (index.html): the actual home-screen icon mark (`icon-192.png`, gold-bordered
   rounded tile) + "THE GIANT PROGRAM" + "v7" + a gold shimmer bar; `main.tsx` fade trigger

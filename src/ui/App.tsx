@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { onAuthChange, getUser, signOut } from '../data/supabase'
 import * as repo from '../data/repository'
-import { Shell, Center, Spinner, Card, TopLoadingBar, SyncStatus } from './components'
+import { Shell, Center, Spinner, SplashScreen, Card, TopLoadingBar, SyncStatus } from './components'
 import type { TabKey } from './components'
 import { BottomNav, MenuDrawer } from './nav'
 import { saveSnapshot, readSnapshot } from '../data/cache'
@@ -249,15 +249,8 @@ export function App() {
     [macro]
   )
 
-  if (user === undefined)
-    return (
-      <Shell>
-        <TopLoadingBar />
-        <Center>
-          <Spinner /> Checking session…
-        </Center>
-      </Shell>
-    )
+  // Checking the stored session — keep the splash up (seamless with the pre-React one).
+  if (user === undefined) return <SplashScreen />
   if (!user) return <Auth />
   // A first-load failure is retryable here (re-runs load()) — the user is already
   // authenticated, so this is the right landing, not the login form.
@@ -279,11 +272,8 @@ export function App() {
     return loggedOutRef.current ? (
       <Auth dataLoading />
     ) : (
-      <Shell>
-        <Center>
-          <Spinner /> Loading your program…
-        </Center>
-      </Shell>
+      // Logged-in reopen: hold the splash through the first bundle load, then fade in.
+      <SplashScreen />
     )
   // After boot, in-app reload failures use the same retry screen.
   if (status === 'error')

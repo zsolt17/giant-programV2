@@ -12,6 +12,21 @@ export function Spinner() {
   return <span className="spin" />
 }
 
+// Mirrors the pre-React `#splash` (index.html) via the shared `.gp-splash` styles,
+// so the splash can stay on screen through the first data load on a logged-in reopen
+// (the real splash fades out on React mount; this identical one holds until data is
+// ready, then the app fades in). index.html owns the `.gp-splash` CSS.
+export function SplashScreen() {
+  return (
+    <div className="gp-splash">
+      <img className="mark" src={`${import.meta.env.BASE_URL}icon-192.png`} alt="" />
+      <div className="name">THE GIANT PROGRAM</div>
+      <div className="ver">v7</div>
+      <div className="bar" />
+    </div>
+  )
+}
+
 // Connectivity / offline-sync strip. Hidden when online with nothing pending.
 export function SyncStatus({ online, pending }: { online: boolean; pending: number }) {
   if (online && !pending) return null
