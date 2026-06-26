@@ -39,6 +39,8 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-26
+- `chore(ci)`: bumped `actions/upload-pages-artifact` v3→v5 and `actions/deploy-pages` v4→v5
+  to silence the Node 20 deprecation warnings (those actions now run on Node 24 natively).
 - `chore(deps)`: **upgraded Vite 5 → 7** (+ `@vitejs/plugin-react` 4 → 5) to clear two
   dev-tooling advisories (esbuild dev-server request forgery + Vite dev-server path-traversal;
   both dev/build-only, not in the shipped app, and the high-rated Vite ones are Windows-specific
