@@ -56,7 +56,9 @@ GitHub Actions (Pages build + deploy — `.github/workflows/deploy.yml`), Homebr
   macro picker, and "start next macro" archiving (carries C3→C1).
 - **Pull-ups** — phase-1 bodyweight cluster logging (OHP day) + trend. *(Phase-2 weighted: deferred.)*
 - **Testing weeks** — record 2–3RM results per lift.
-- **Global loading states** — instant splash on reload + slim top progress bar on data loads.
+- **Global loading states** — branded pre-React splash (home-screen-icon mark + shimmer bar);
+  **first login is held** (sign-in button spinner spans auth + the first data fetch, then Today
+  paints complete in one fade-in); slim top progress bar on later in-app reloads.
 - **Accessibility** — keyboard-navigable tab bar (ARIA tablist + arrow keys), modal focus
   trap with Esc-to-close and focus return, labelled custom/icon-only controls, and a visible
   gold keyboard focus ring. Non-default tabs are code-split (lazy-loaded) to protect first load.
@@ -67,6 +69,19 @@ GitHub Actions (Pages build + deploy — `.github/workflows/deploy.yml`), Homebr
 ## Change log
 
 ## 2026-06-26
+- `feat`: **polished launch flow** — splash + held first-login. (1) Redesigned the pre-React
+  `#splash` (index.html): the actual home-screen icon mark (`icon-192.png`, gold-bordered
+  rounded tile) + "THE GIANT PROGRAM" + "v7" + a gold shimmer bar; `main.tsx` fade trigger
+  unchanged (still tied to React mount, not data). (2) `Auth.tsx` gains a held loading state —
+  button spinner + dimmed/disabled inputs + "Loading your program…" — driven by a `dataLoading`
+  prop so it spans **both** the auth call and the first macro-bundle fetch. (3) `App.tsx` gates
+  on a `booted` flag: on first login it keeps the login screen (held) until the bundle is in
+  (cold-start-with-session shows a matching full-screen loading view), then the whole app
+  **fades in once, fully populated** — no empty shell / partial fill. Post-auth *data* failures
+  land on the existing Retry-load screen (not the login form, since already authenticated);
+  credential failures still return to the login form. In-app reloads after login keep the
+  existing top-bar/spinner behaviour. No deps, no schema, engine untouched. typecheck + 45 tests
+  + build green; splash + login visuals verified in-browser.
 - `docs`: added a **Stack & dependencies** table at the top of this file — at-a-glance
   toolchain/deps with versions + what each is for (package.json stays canonical; refreshed
   on dep changes).

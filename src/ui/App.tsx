@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { onAuthChange, getUser, signOut } from '../data/supabase'
 import * as repo from '../data/repository'
@@ -53,6 +53,10 @@ export function App() {
   const [sessionRunning, setSessionRunning] = useState(false) // drives the Shell top inset for the fixed session bar
   const [trends, setTrends] = useState<TrendsData | null>(null) // all-macro data, loaded on first Trends open
   const [trendsErr, setTrendsErr] = useState('')
+  // First-login boot: hold the login/loading screen until the initial bundle is in,
+  // so Today's first paint is complete (no empty shell / partial fill).
+  const [booted, setBooted] = useState(false)
+  const loggedOutRef = useRef(false) // true once we've shown the login screen (manual-login path)
   const [macros, setMacros] = useState<Macro[]>([])
   const [viewedMacroId, setViewedMacroId] = useState<string | null>(null)
   const [macro, setMacro] = useState<Macro | null>(null)
@@ -114,12 +118,14 @@ export function App() {
       setBreakDays(b.breakDays)
       setTesting(b.testing)
       setStatus('ready')
+      setBooted(true)
     } catch (e) {
       // Offline / network failure: fall back to the last cached snapshot if we have one.
       const snap = readSnapshot()
       if (snap && snap.macro) {
         applySnapshot(snap)
         setStatus('ready')
+        setBooted(true)
       } else {
         setErr(errMsg(e))
         setStatus('error')
@@ -130,6 +136,12 @@ export function App() {
   useEffect(() => {
     if (user) load()
   }, [user, load])
+
+  // Remember if we ever showed the login screen — distinguishes a manual login
+  // (hold the login screen through boot) from a cold start with a stored session.
+  useEffect(() => {
+    if (user === null) loggedOutRef.current = true
+  }, [user])
 
   // Track connectivity; on reconnect, reload (which flushes the queue first).
   useEffect(() => {
@@ -247,17 +259,33 @@ export function App() {
       </Shell>
     )
   if (!user) return <Auth />
-  // First load (nothing to show yet) gets the centered spinner; later reloads keep
-  // the current content and show the slim top bar instead of blanking the screen.
-  if ((status === 'idle' || status === 'loading') && !macro)
+  // A first-load failure is retryable here (re-runs load()) — the user is already
+  // authenticated, so this is the right landing, not the login form.
+  if (status === 'error' && !booted)
     return (
       <Shell onSignOut={signOut}>
-        <TopLoadingBar />
-        <Center>
-          <Spinner /> Loading your data…
+        <Center style={{ color: C.red }}>
+          <div style={{ marginBottom: 12 }}>Couldn't load: {err}</div>
+          <button onClick={load} style={{ background: C.gold, color: C.dark, border: 'none', borderRadius: 2, padding: '8px 16px', cursor: 'pointer', fontWeight: 600 }}>
+            Retry
+          </button>
         </Center>
       </Shell>
     )
+  // First login: hold the screen until the initial bundle is loaded so Today paints
+  // complete. A manual login keeps the login screen (held spinner spans auth + data);
+  // a cold start with a stored session shows a matching full-screen loading view.
+  if (!booted)
+    return loggedOutRef.current ? (
+      <Auth dataLoading />
+    ) : (
+      <Shell>
+        <Center>
+          <Spinner /> Loading your program…
+        </Center>
+      </Shell>
+    )
+  // After boot, in-app reload failures use the same retry screen.
   if (status === 'error')
     return (
       <Shell onSignOut={signOut}>
@@ -275,7 +303,10 @@ export function App() {
 
   const needsMacro = !macro
 
+  // Fade the whole app in once on first boot (replacing the login/loading screen),
+  // so the complete Today view appears as one deliberate unit. Runs once on mount.
   return (
+    <div style={{ animation: 'gp-fade-in 0.4s ease' }}>
     <>
     <Shell sessionRunning={sessionRunning}>
       {status === 'loading' && <TopLoadingBar />}
@@ -357,5 +388,6 @@ export function App() {
     <BottomNav tab={tab} setTab={setTab} onOpenMenu={() => setMenuOpen(true)} menuOpen={menuOpen} />
     {menuOpen && <MenuDrawer tab={tab} onSelect={setTab} onSignOut={signOut} onClose={() => setMenuOpen(false)} />}
     </>
+    </div>
   )
 }
