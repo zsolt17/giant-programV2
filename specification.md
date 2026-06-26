@@ -39,6 +39,13 @@ user-facing capability.
 ## Change log
 
 ## 2026-06-26
+- `chore(deps)`: **upgraded Vite 5 → 7** (+ `@vitejs/plugin-react` 4 → 5) to clear two
+  dev-tooling advisories (esbuild dev-server request forgery + Vite dev-server path-traversal;
+  both dev/build-only, not in the shipped app, and the high-rated Vite ones are Windows-specific
+  — N/A here). Chose Vite **7** (rollup-based, mature) over the rolldown-based Vite 8 for a smaller
+  blast radius; it fixes the advisories all the same. `vitest`/`vite-plugin-pwa` unchanged (both
+  already support Vite 7). `npm audit` now reports **0 vulnerabilities**; typecheck + 45 tests +
+  build (PWA SW generates) + dev-server smoke all green.
 - `feat`: **Trends tab** — a charts/analytics view in the menu (Deload → **Trends** → Setup),
   ported from a provided mockup onto our Supabase data and navy/gold system. Four views:
   **Lifts** (weight + RPE trends with the 9.5 S1 line, bar-speed distribution), **Cleans**

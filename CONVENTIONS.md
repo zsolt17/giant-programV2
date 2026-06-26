@@ -69,7 +69,7 @@ it calls repository functions (always via handlers passed down from `App.tsx`).
   these looser shapes.
 - **Framework:** React 18 (function components + hooks), TSX. Style objects are typed
   `CSSProperties`; per-component prop interfaces sit alongside each component.
-- **Build tool:** Vite 5 (`@vitejs/plugin-react`). ES modules; `package.json` has `"type": "module"`.
+- **Build tool:** Vite 7 (rollup-based) + `@vitejs/plugin-react` 5. ES modules; `package.json` has `"type": "module"`.
 - **Code-splitting:** the default view loads eagerly; non-default tab screens are
   `React.lazy` behind a single `<Suspense>` in `App` (fallback = the standard `Spinner`),
   so each is an on-demand chunk. Keep boot-critical deps eager — `@supabase` is needed for
