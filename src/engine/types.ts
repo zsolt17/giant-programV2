@@ -14,7 +14,8 @@ export interface Scheme {
 
 export interface CarryMeta {
   name: string
-  load: string
+  load: string // descriptive fallback shown only when no per-cycle weight is set in Setup
+  perHand?: boolean // true = the Setup weight is per hand (Farmer/Suitcase/Overhead); display appends "/ hand"
   dist: string
   sets: string
 }

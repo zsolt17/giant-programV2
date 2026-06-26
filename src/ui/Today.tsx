@@ -187,6 +187,7 @@ export function Today({
   const isDeload = !!deloads[weekKey]
   const top = base != null ? (isDeload ? deloadTop(base) : base) : null
   const cleanDefault = accessory?.[cycle]?.clean ?? ''
+  const carryDefault = accessory?.[cycle]?.[`carry_${dayType}`] ?? ''
   const sessionId = `${todayISO()}-${dayType}-${difficulty[0].toUpperCase()}`
   const existing = sessions.find((s) => s.id === sessionId)
   const currentWeekSessions = sessions.filter((s) => s.cycle === cycle && s.week === week)
@@ -246,6 +247,7 @@ export function Today({
         top={top}
         hasWeight={hasWeight}
         isDeload={isDeload}
+        carryLoad={carryDefault}
         currentWeekSessions={currentWeekSessions}
         stamp={{ macroId, cycle, week, weekType: 'training', dayType, difficulty, topReps: SCHEMES[difficulty].sets[3], topWeight: top, date: todayISO(), id: sessionId }}
         onSaveSession={onSaveSession}
@@ -269,6 +271,7 @@ interface SessionEditorProps {
   top: number | null
   hasWeight: boolean
   isDeload: boolean
+  carryLoad?: number | string | null
   currentWeekSessions: Session[]
   stamp: Stamp
   onSaveSession: (record: SessionDraft) => Promise<Session>
@@ -279,7 +282,7 @@ interface SessionEditorProps {
   setSaved: (b: boolean) => void
 }
 
-function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, currentWeekSessions, stamp, onSaveSession, onRunningChange, saving, setSaving, saved, setSaved }: SessionEditorProps) {
+function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, carryLoad, currentWeekSessions, stamp, onSaveSession, onRunningChange, saving, setSaving, saved, setSaved }: SessionEditorProps) {
   const [draft, setDraft] = useState<SessionDraft>(() => existing || blank())
   const [err, setErr] = useState('')
   const [nowTs, setNowTs] = useState(() => Date.now())
@@ -403,7 +406,7 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
         />
       )}
 
-      <SessionForm dayType={dayType} difficulty={difficulty} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} locked={notStarted} />
+      <SessionForm dayType={dayType} difficulty={difficulty} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} locked={notStarted} carryLoad={carryLoad} />
 
       {completed && (
         <button

@@ -67,6 +67,7 @@ export function SessionModal({
   const isDeload = !isSpecial && !!deloads[weekKey]
   const top = base != null ? (isDeload ? deloadTop(base) : base) : null
   const cleanDefault = cycle != null ? accessory?.[cycle]?.clean ?? '' : ''
+  const carryDefault = cycle != null && dayType ? accessory?.[cycle]?.[`carry_${dayType}`] ?? '' : ''
 
   const [draft, setDraft] = useState<SessionDraft>(
     () =>
@@ -194,7 +195,7 @@ export function SessionModal({
           </div>
         ) : (
           <>
-            <SessionForm dayType={dayType!} difficulty={difficulty!} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} />
+            <SessionForm dayType={dayType!} difficulty={difficulty!} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} carryLoad={carryDefault} />
             {draft.startedAt && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
                 <div>

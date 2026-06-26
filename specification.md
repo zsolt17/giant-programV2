@@ -71,6 +71,14 @@ GitHub Actions (Pages build + deploy — `.github/workflows/deploy.yml`), Homebr
 ## Change log
 
 ## 2026-06-26
+- `fix(today/calendar)`: **carry prescription now reads the per-cycle weight from Setup** instead of
+  a hardcoded value. The carry block's load (e.g. Farmer's Carry) showed the static `DAY_META`
+  default (`60 kg / hand`) regardless of Setup; it now shows `accessory_weights.carry_<lift>` for the
+  session's cycle, formatted with the per-carry unit (`perHand` flag → Farmer/Suitcase/Overhead append
+  "/ hand", Sandbag is total). Falls back to the descriptive default only when that cycle's carry
+  weight is unset. Threaded a `carryLoad` prop through `SessionForm` (Today's `SessionEditor` + the
+  calendar `SessionModal`); **display-only, no data-model change**. (Overhead/dips treats the Setup
+  number as per-hand — confirm if you track it as total.) typecheck + 56 tests + build green.
 - `feat(nav)`: **raised the bottom-nav icon+label cluster** toward the top of the bar
   (YouTube-style). Rebalanced padding so the cluster rides ~12px higher while the bar's **total
   height is unchanged** (`NAV_H` stays 82): nav-item padding `10px 0` → `4px 0 16px` (height-neutral),

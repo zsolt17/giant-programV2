@@ -40,25 +40,25 @@ export const DAY_META: Record<Lift, DayMeta> = {
     antag: 'Sørensen Hold',
     antagType: 'hold',
     core: 'Ab Rollout',
-    carry: { name: "Farmer's Carry", load: '60 kg / hand', dist: '20–30 m', sets: '3–4' },
+    carry: { name: "Farmer's Carry", load: '60 kg / hand', perHand: true, dist: '20–30 m', sets: '3–4' },
   },
   ohp: {
     antag: 'Pull-ups',
     antagType: 'pullup',
     core: 'GHD Abs',
-    carry: { name: 'Suitcase Carry', load: '50 kg / hand', dist: '20 m / side', sets: '3–4' },
+    carry: { name: 'Suitcase Carry', load: '50 kg / hand', perHand: true, dist: '20 m / side', sets: '3–4' },
   },
   squat: {
     antag: 'Copenhagen Plank',
     antagType: 'hold20',
     core: 'Leg Raises',
-    carry: { name: 'Sandbag Bear Hug', load: '68–80 kg', dist: '20–30 m', sets: '3–4' },
+    carry: { name: 'Sandbag Bear Hug', load: '68–80 kg', perHand: false, dist: '20–30 m', sets: '3–4' },
   },
   dips: {
     antag: 'Ring Rows',
     antagType: 'ringrow',
     core: 'GHD Back Extension',
-    carry: { name: 'Overhead Carry', load: '2 × 25 kg', dist: '20 m / side', sets: '3–4' },
+    carry: { name: 'Overhead Carry', load: '2 × 25 kg', perHand: true, dist: '20 m / side', sets: '3–4' },
   },
 }
 

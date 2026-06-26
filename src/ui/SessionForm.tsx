@@ -76,14 +76,21 @@ interface SessionFormProps {
   draft: SessionDraft
   setField: <K extends keyof SessionDraft>(k: K, v: SessionDraft[K]) => void
   locked?: boolean
+  // Per-cycle carry weight from Setup (accessory_weights). When set, it replaces the
+  // hardcoded descriptive load in the carry prescription.
+  carryLoad?: number | string | null
 }
 
 // The prescription + log fields for a training-week session. Reused by Today
 // (inline) and SessionModal (overlay). The parent owns the draft + Save button;
 // it stamps the prescribed top weight/reps on save.
-export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, draft, setField, locked = false }: SessionFormProps) {
+export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, draft, setField, locked = false, carryLoad }: SessionFormProps) {
   const scheme = SCHEMES[difficulty]
   const meta = DAY_META[dayType]
+  // Prefer the per-cycle carry weight set in Setup; fall back to the descriptive
+  // default when it hasn't been configured for this cycle.
+  const carryNum = carryLoad === '' || carryLoad == null ? null : Number(carryLoad)
+  const carryDisplay = carryNum != null && !Number.isNaN(carryNum) ? `${fmt(carryNum)}${meta.carry.perHand ? ' / hand' : ''}` : meta.carry.load
   const hasTop = hasWeight && top != null
   const wu = hasTop ? warmupSets(top, difficulty) : null
   const gsets = hasTop ? giantSets(top, difficulty) : null
@@ -198,7 +205,7 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
       {!isDeload && (
         <Card>
           {blockTitle(`${carryLetter}. Carry`, '10 min')}
-          <Row a={meta.carry.name} b={`${meta.carry.sets} sets · ${meta.carry.dist}`} c={meta.carry.load} cls={C.off} />
+          <Row a={meta.carry.name} b={`${meta.carry.sets} sets · ${meta.carry.dist}`} c={carryDisplay} cls={C.off} />
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.off, marginTop: 8 }}>
             <input type="checkbox" checked={draft.carrySkipped} onChange={(e) => setField('carrySkipped', e.target.checked)} /> Skipped
             today
