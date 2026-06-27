@@ -38,7 +38,8 @@ when deps change); `CONVENTIONS.md` §2 has the build/scripts narrative.
 | Type defs | @types/node · react · react-dom | 26.0.1 · 18.3.31 · 18.3.7 | type definitions |
 
 **Toolchain (not npm deps):** Supabase CLI 2.108 (migrations — see `supabase/MIGRATIONS.md`),
-GitHub Actions (Pages build + deploy — `.github/workflows/deploy.yml`), Homebrew (CLI installs).
+**Colima** (Docker engine for `supabase db dump` / local stack — not Docker Desktop; auto-starts
+at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.yml`), Homebrew (CLI installs).
 
 ---
 
@@ -72,6 +73,11 @@ GitHub Actions (Pages build + deploy — `.github/workflows/deploy.yml`), Homebr
 ## Change log
 
 ## 2026-06-27
+- `feat(nav)` + `chore(tooling)`: **moved Setup to the bottom of the menu drawer** — order is now
+  Deload · History · **Data · Setup** (Data above Setup), `nav.tsx` `MENU_ITEMS` only. Separately,
+  installed **Colima** + the Docker CLI (Apple Silicon, via Homebrew) as the Docker engine so
+  `supabase db dump` and the local stack work (Docker Desktop wasn't installed; Colima auto-starts
+  at login). Documented in `supabase/MIGRATIONS.md` (backups) and the Stack toolchain note above.
 - `feat(loading)`: **single-anchor loading engine** — Setup now takes only the **Hard top set**
   per lift per cycle; Medium (×0.95) / Light (×0.90) day tops, the four Giant Block sets
   (uniform **85/90/95/100%** of each day's top), and Volume (80%) all compute live, rounded to

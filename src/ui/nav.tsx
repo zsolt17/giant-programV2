@@ -158,8 +158,8 @@ export function BottomNav({ tab, setTab, onOpenMenu, menuOpen }: { tab: TabKey; 
 const MENU_ITEMS: { key: TabKey; label: string; icon: string }[] = [
   { key: 'deload', label: 'Deload', icon: 'deload' },
   { key: 'history', label: 'History', icon: 'history' },
-  { key: 'setup', label: 'Setup', icon: 'setup' },
   { key: 'data', label: 'Data', icon: 'data' },
+  { key: 'setup', label: 'Setup', icon: 'setup' },
 ]
 
 // Mounted only while open (so the focus trap's mount/restore lifecycle is correct).

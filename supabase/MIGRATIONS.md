@@ -95,16 +95,29 @@ the ultimate proof the migrations are reproducible.
 
 The schema is reproducible from these files, but the **data** is not — years of
 training history is irreplaceable. Free-tier automatic backups are thin, so keep your
-own:
+own. **Run a backup before any destructive migration** (column/table drop). Three options:
 
+**Easiest — `supabase db dump` (needs Docker):**
 ```bash
-# Full logical dump (schema + data). Connection string is in the dashboard
-# under Project Settings → Database. Store the file somewhere durable.
+supabase db dump --data-only -f giant_data_$(date +%F).sql   # the irreplaceable data
+supabase db dump            -f giant_schema_$(date +%F).sql   # schema (also in these files)
+```
+Docker on this machine is provided by **Colima** (not Docker Desktop), installed via
+`brew install colima docker` and set to auto-start at login (`brew services start colima`).
+If `db dump` errors with *"Cannot connect to the Docker daemon"*, run `colima start`.
+
+**Raw `pg_dump`** (no Docker, needs the dashboard connection string — Project Settings → Database):
+```bash
 pg_dump "<connection-string>" --no-owner --no-privileges -f giant_backup_$(date +%F).sql
 ```
 
-Run one before any destructive migration, and ideally on a schedule (a periodic
-`pg_dump`, or a small JSON export of the macro bundle). Restoring is
+**No-Docker, no-connection-string fallback** (used for `0005`): a small authenticated **JSON
+export** of every table via the app's Supabase credentials (`SMOKE_EMAIL`/`PASSWORD` from
+`.env.local`) — a short script that signs in and `select('*')`s each table to a JSON file.
+Proportionate when a migration only touches one table.
+
+Note: `supabase db push` / `migration list` connect directly and **don't** need Docker — only
+`db dump` and the local stack (`supabase start`) do. Restoring a SQL dump is
 `psql "<connection-string>" -f giant_backup_YYYY-MM-DD.sql`.
 
 ## Related
