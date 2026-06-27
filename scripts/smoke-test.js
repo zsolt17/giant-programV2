@@ -47,25 +47,28 @@ async function main() {
   const id = macro.id
 
   try {
-    console.log('Working weights (per-cycle)')
+    console.log('Working weights (single-anchor — only Hard is stored, Med/Light computed)')
     await repo.saveWorkingWeights(id, 1, {
-      deadlift: { hard: 160, medium: 150, light: 145 },
-      squat: { hard: 140, medium: 135, light: 125 },
+      deadlift: { hard: 160 },
+      squat: { hard: 140 },
     })
     let w = await repo.getWorkingWeights(id)
-    ok('C1 deadlift hard = 160', w?.[1]?.deadlift?.hard === 160, w?.[1]?.deadlift)
-    ok('C1 squat light = 125', w?.[1]?.squat?.light === 125, w?.[1]?.squat)
+    ok('C1 deadlift hard anchor = 160', w?.[1]?.deadlift?.hard === 160, w?.[1]?.deadlift)
+    // Cascade is computed on read: Medium = round(hard×0.95), Light = round(hard×0.90).
+    ok('C1 deadlift medium computed = 152.5 (round 160×0.95)', w?.[1]?.deadlift?.medium === 152.5, w?.[1]?.deadlift?.medium)
+    ok('C1 squat medium computed = 132.5 (round 140×0.95)', w?.[1]?.squat?.medium === 132.5, w?.[1]?.squat?.medium)
 
-    // The motivating bug: a different cycle must NOT clobber another cycle's grid.
-    await repo.saveWorkingWeights(id, 3, { deadlift: { hard: 170, medium: 160, light: 155 } })
+    // The motivating bug: a different cycle must NOT clobber another cycle's anchor.
+    await repo.saveWorkingWeights(id, 3, { deadlift: { hard: 170 } })
     w = await repo.getWorkingWeights(id)
     ok('per-cycle isolation: C1 deadlift hard still 160', w?.[1]?.deadlift?.hard === 160, w?.[1]?.deadlift?.hard)
     ok('per-cycle isolation: C3 deadlift hard is 170', w?.[3]?.deadlift?.hard === 170, w?.[3]?.deadlift?.hard)
 
-    // Re-saving C1 updates in place (no duplicate rows).
-    await repo.saveWorkingWeights(id, 1, { deadlift: { hard: 162.5, medium: 150, light: 145 } })
+    // Re-saving C1 updates in place (no duplicate rows); cascade follows the new anchor.
+    await repo.saveWorkingWeights(id, 1, { deadlift: { hard: 162.5 } })
     w = await repo.getWorkingWeights(id)
     ok('upsert updates C1 deadlift hard -> 162.5', w?.[1]?.deadlift?.hard === 162.5, w?.[1]?.deadlift?.hard)
+    ok('cascade follows edit: C1 deadlift medium -> 155', w?.[1]?.deadlift?.medium === 155, w?.[1]?.deadlift?.medium)
 
     console.log('Accessory weights')
     await repo.saveAccessoryWeights(id, 1, { clean: 70, carry_deadlift: 60 })

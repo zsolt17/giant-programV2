@@ -17,6 +17,7 @@ import type {
   BreakDayMap,
   TestingResult,
 } from '../engine/types'
+import { expandDayTops } from '../engine/loading'
 
 const blankToNull = (v: string | null | undefined): string | null => (v === '' || v === undefined ? null : v)
 const toNum = (v: unknown): number | null => (v === '' || v === null || v === undefined ? null : Number(v))
@@ -29,13 +30,13 @@ export interface MacroRow {
   weeks: number
   status: MacroStatus
 }
+// Single-anchor model: only the Hard top set is stored. Medium/Light day tops and
+// the within-day ladder are computed live (see rowsToWeights / engine/loading.ts).
 export interface WorkingWeightRow {
   macro_id: string
   cycle: number
   lift: string
   hard: number | null
-  medium: number | null
-  light: number | null
 }
 export interface AccessoryRow {
   macro_id: string
@@ -90,24 +91,29 @@ export function rowToMacro(r: MacroRow): Macro {
 }
 
 // ---- working weights -------------------------------------------------------
+// Expand each stored Hard anchor into the {hard, medium, light} day-top grid the UI
+// reads (so Today/Calendar consumers are unchanged). The computed grid is never
+// persisted — it's regenerated here on every load, so editing the anchor is
+// instantly correct everywhere. A null anchor yields a null grid (prescription
+// shows "—" until it's set in Setup).
 export function rowsToWeights(rows: WorkingWeightRow[]): WeightsByCycle {
   const out: WeightsByCycle = {}
   ;(rows || []).forEach((r) => {
     out[r.cycle] = out[r.cycle] || {}
-    out[r.cycle][r.lift] = { hard: toNum(r.hard), medium: toNum(r.medium), light: toNum(r.light) }
+    const anchor = toNum(r.hard)
+    out[r.cycle][r.lift] = anchor == null ? { hard: null, medium: null, light: null } : expandDayTops(anchor, r.lift as Lift)
   })
   return out
 }
-// { [lift]: { hard, medium, light } } for one cycle -> rows[]. Accepts the loose
-// Setup-form cell (LiftWeightsInput); toNum coerces the string inputs.
+// { [lift]: { hard, ... } } for one cycle -> rows[]. Persists ONLY the Hard anchor;
+// medium/light are computed, never stored. Accepts the loose Setup-form cell
+// (LiftWeightsInput) and the full computed grid (LiftWeights) — both carry `hard`.
 export function weightsToRows(macroId: string, cycle: number, byLift: Record<string, LiftWeightsInput>): WorkingWeightRow[] {
   return Object.keys(byLift).map((lift) => ({
     macro_id: macroId,
     cycle: Number(cycle),
     lift,
     hard: toNum(byLift[lift].hard),
-    medium: toNum(byLift[lift].medium),
-    light: toNum(byLift[lift].light),
   }))
 }
 

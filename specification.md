@@ -52,7 +52,8 @@ GitHub Actions (Pages build + deploy — `.github/workflows/deploy.yml`), Homebr
 - **Calendar** — 15-week × Mon/Wed/Fri grid; log/edit/delete any session; mark breaks.
 - **History** — latest top sets, recent-session feed, pull-up cluster trend, testing results.
 - **Deload** — per-week fatigue signals + reactive-deload recommend/apply (advise-and-confirm).
-- **Setup** — per-cycle (C1/C2/C3) working-weights grid + cleans/carries, macro anchor,
+- **Setup** — per-cycle (C1/C2/C3) **Hard-top anchor** per lift (Medium/Light, the Giant Block
+  ladder and Volume all compute live, with a read-only preview) + cleans/carries, macro anchor,
   macro picker, and "start next macro" archiving (carries C3→C1).
 - **Data** — export all sessions (across every macro) to CSV, and copy a plain-text per-session
   summary to the clipboard for sharing into a coaching conversation. (Burger menu → Data.)
@@ -70,7 +71,24 @@ GitHub Actions (Pages build + deploy — `.github/workflows/deploy.yml`), Homebr
 
 ## Change log
 
-## 2026-06-26
+## 2026-06-27
+- `feat(loading)`: **single-anchor loading engine** — Setup now takes only the **Hard top set**
+  per lift per cycle; Medium (×0.95) / Light (×0.90) day tops, the four Giant Block sets
+  (uniform **85/90/95/100%** of each day's top), and Volume (80%) all compute live, rounded to
+  2.5 kg. Named engine constants (`DAY_SPREAD`, `SET_LADDER`, `VOLUME_PCT` in `constants.ts`) +
+  `dayTop`/`expandDayTops` and a reworked `giantSets` in `loading.ts` (no magic numbers).
+  **Within-day ladder changed** from the old per-difficulty 75/82/90 (etc.) to the uniform
+  85/90/95/100 — this raises Giant Block back-off loads on every prescribed session and
+  supersedes `ARCHITECTURE.md §2.4`. All four lifts (incl. dips) use the identical cascade; a
+  per-lift `dayTop(...,lift)` seam is left for a future dips-off-bodyweight path. **Data model:**
+  `working_weights` now stores **only** the Hard anchor — `mappers.rowsToWeights` expands it on
+  read (Today/Calendar/History consumers unchanged), `weightsToRows` writes only `hard`; the
+  computed grid is never persisted, so editing the anchor is instantly correct everywhere.
+  **Setup UI:** one Hard-top input per lift + a read-only live cascade preview (3 day tops ×
+  Set 1–4 + Volume, kg prominent / % secondary). Migration `0005_anchor_weights.sql` drops the
+  old `medium`/`light` columns (the existing `hard` is the seed — no data move). typecheck +
+  60 tests + build green; **smoke 32/32** (anchor write→computed-cascade round-trip on the live
+  DB, real data untouched).
 - `fix(today/calendar)`: **carry prescription now reads the per-cycle weight from Setup** instead of
   a hardcoded value. The carry block's load (e.g. Farmer's Carry) showed the static `DAY_META`
   default (`60 kg / hand`) regardless of Setup; it now shows `accessory_weights.carry_<lift>` for the

@@ -23,9 +23,9 @@ src/
     offline-queue.ts / cache.ts  offline write queue + last-known snapshot (PWA)
   engine/          pure domain logic, framework-agnostic, unit-tested
     types.ts       shared domain types (Difficulty, Lift, Position, Session, SessionDraft, …)
-    constants.ts   ROTATION, SCHEMES, DAY_META, PULLUP, SIGNALS, TESTING_SCHEDULE, MACRO_WEEKS
+    constants.ts   ROTATION, SCHEMES, DAY_SPREAD/SET_LADDER/VOLUME_PCT (anchor cascade), DAY_META, PULLUP, SIGNALS, TESTING_SCHEDULE, MACRO_WEEKS
     date-engine.ts position math from the macro start date (see §7)
-    loading.ts     rep schemes, percentages, 2.5 kg rounding, fmt
+    loading.ts     single-anchor cascade (dayTop/expandDayTops/giantSets/volumeWeight), 2.5 kg rounding, fmt
     deload-rule.ts reactive-deload signals + trigger
     trends.ts      pure derivations: Session/accessory/deload -> Trends chart view-models
     export-csv.ts  pure Session[] -> CSV string (Data page "Download all data")
@@ -310,9 +310,16 @@ See `ARCHITECTURE.md` §2–§6 for the full domain. In code:
   `nextSessionFrom` both call `corePosition`. **Do not make them call each other** —
   that caused infinite recursion and was deliberately split. Dates are computed in
   **local time** (`parseLocalDate`, `isoLocal`, `todayISO`), never UTC.
-- **Loading math — `src/engine/loading.ts`.** `SCHEMES` percentages off the top set;
-  `round` to nearest 2.5 kg; `giantSets`, `warmupSets`, `volumeWeight` (80%),
-  `deloadTop` (70%). `fmt` is null-safe (returns `—`) so weightless sessions don't crash.
+- **Loading math — `src/engine/loading.ts` (single-anchor model).** Only the **Hard top set**
+  is stored per lift/cycle; everything cascades off it via named constants in `constants.ts`
+  (`DAY_SPREAD` = Hard 1.0 / Med 0.95 / Light 0.90, `SET_LADDER` = [0.85, 0.90, 0.95, 1.0] uniform
+  for all days, `VOLUME_PCT` = 0.80) — no magic numbers at call sites. `dayTop(anchor, difficulty,
+  lift?)` → a day's top; `expandDayTops(anchor)` → the three day tops; `giantSets(dayTop, difficulty)`
+  uses `SET_LADDER` (reps still per-difficulty from `SCHEMES`); `volumeWeight`, `set1Weight`,
+  `warmupSets`; `round` to 2.5 kg; `deloadTop` (70%). The computed grid is **never persisted** —
+  `mappers.rowsToWeights` expands the stored anchor on every read (so Today/Calendar consumers are
+  unchanged), and `weightsToRows` writes only `hard`. The `lift` arg on `dayTop` is a seam for a
+  future dips-off-bodyweight path (identical for all lifts today). `fmt` is null-safe (returns `—`).
 - **Reactive deload — `src/engine/deload-rule.ts`.** The revised rule (brief §5,
   supersedes the v7 book): `computeWeekSignals` (S1 R9.5+, S2 volume incomplete,
   S3 carry skipped for fatigue, S5 bar-speed down in 2+ sessions; S4 is notebook-only).

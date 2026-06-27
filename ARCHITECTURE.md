@@ -70,13 +70,18 @@ Warm-Up → [Clean Block — dips day only] → Giant Block → Volume Block →
 | Dips | Ring Rows | GHD Back Extension |
 
 ### 2.4 Difficulty rep schemes (Giant Block: 4 sets, descending)
+Reps differentiate the days; the **load ladder is uniform** across all days (single-anchor
+model, §3) — each set is 85 / 90 / 95 / 100% of that day's top. *(Supersedes the earlier
+per-difficulty percentages 75/82/90, 72/80/88, 70/78/86.)*
+
 | Difficulty | Set 1 | Set 2 | Set 3 | Set 4 | Volume |
 |-----------|-------|-------|-------|-------|--------|
-| Hard | 8 @ 75% | 6 @ 82% | 4 @ 90% | 2 @ 100% | 2×6 |
-| Medium | 9 @ 72% | 7 @ 80% | 5 @ 88% | 3 @ 100% | 2×8 |
-| Light | 10 @ 70% | 8 @ 78% | 6 @ 86% | 4 @ 100% | 2×10 |
+| Hard | 8 @ 85% | 6 @ 90% | 4 @ 95% | 2 @ 100% | 2×6 @ 80% |
+| Medium | 9 @ 85% | 7 @ 90% | 5 @ 95% | 3 @ 100% | 2×8 @ 80% |
+| Light | 10 @ 85% | 8 @ 90% | 6 @ 95% | 4 @ 100% | 2×10 @ 80% |
 
-Percentages are of the top set (Set 4 = 100% = the working weight). Round to nearest 2.5 kg.
+Set percentages are of that day's top (Set 4 = 100%). The day tops themselves come from the
+Hard anchor (Medium = 95%, Light = 90% of the Hard top — §3). Round to nearest 2.5 kg.
 
 ### 2.5 The 15-week macrocycle
 - Weeks 1–12: three 4-week mesocycles (C1, C2, C3), H/M/L rotation.
@@ -107,18 +112,29 @@ Deadlift = Farmer's 60kg/hand · OHP = Suitcase 50kg/hand · Squat = Sandbag bea
 
 ---
 
-## 3. Working weights — PER CYCLE (critical data-model point)
+## 3. Working weights — PER CYCLE, from a single Hard anchor (critical data-model point)
 
-Working weights are **not** a single set per lift. They progress across the macro, so each
-mesocycle (C1/C2/C3) has its own hard/medium/light grid. Example: hard deadlift = 160 (C1) /
-165 (C2) / 170 (C3). **A logged session must use its own cycle's weights** — this is essential
-for correct retroactive logging (the bug that motivated the rebuild: logging a C1 session
-prefilled C3's heavier weights, corrupting history). Solved relationally — see §9.
+Working weights progress across the macro, so each mesocycle (C1/C2/C3) has its own loads.
+**Only one number is entered per lift per cycle: the Hard top set (the anchor).** Everything
+else computes off it:
+- **Day tops:** Hard = the anchor (100%), Medium = anchor × 0.95, Light = anchor × 0.90.
+- **Giant Block sets:** 85 / 90 / 95 / 100% of that day's top (uniform ladder — §2.4).
+- **Volume:** 80% of that day's top.
+- All loads **rounded to the nearest 2.5 kg**.
 
-- Main lifts (DL/OHP/Squat/Dips): per-cycle H/M/L grid.
-- Cleans and carries: per-cycle, but a single controllable weight each (no H/M/L split).
-- **Light days should be meaningfully lighter** than medium (learned refinement): e.g. squat 140/135/125 (5kg then 10kg gap), OHP 65/62.5/57.5 (2.5 then 5kg gap). A light day too close to medium gives no real recovery.
-- **Start-of-macro rule:** a new macro's C1 weights start at the previous macro's C3 working weights (not testing weights).
+A logged session reads its own **(macro, cycle)** anchor and recomputes — essential for correct
+retroactive logging (the bug that motivated the rebuild: a C1 session must not use C3's heavier
+loads). The anchor is editable any time, up or down; the whole cascade recomputes live
+everywhere, and **only the anchor is stored** (the computed grid is never persisted, so nothing
+goes stale). Solved relationally — see §9.
+
+- Main lifts (DL/OHP/Squat/Dips) all use the **identical** added-weight cascade off their Hard anchor.
+- **Dips** use the same cascade today; because the added load is small, sets/days may round to
+  near-identical kg — expected (the rep scheme differentiates the days; real load differentiation
+  emerges as the added weight grows). A future option may compute dips off **bodyweight + added
+  load**; the engine keeps a per-lift seam (`dayTop(..., lift)`) so this drops in without a rebuild.
+- Cleans and carries: per-cycle, a single controllable weight each (not part of the anchor cascade).
+- **Start-of-macro rule:** a new macro's C1 anchor = the previous macro's C3 anchor (not testing weights).
 
 ---
 
@@ -246,7 +262,8 @@ account. Canonical schema lives in `supabase/migrations/` (`0001_init.sql`;
 `0002_session_timer.sql` adds `started_at`/`ended_at`; `0003_hardening.sql` adds the
 log-field CHECK constraints, the idempotent `testing_results` key, and FK/date indexes;
 `0004_session_extra_logging.sql` adds `clean_rounds`, `cardio_cals int[]` (per-round Giant
-Block cardio cals), `carry_rounds`, `carry_distance`).
+Block cardio cals), `carry_rounds`, `carry_distance`; `0005_anchor_weights.sql` drops
+`working_weights.medium`/`light` for the single-anchor model — §3).
 See `supabase/MIGRATIONS.md` for how migrations are applied and the DB kept reproducible.
 Tables:
 
@@ -262,15 +279,15 @@ macros (
   created_at    timestamptz default now()
 )
 
--- Per-cycle working weights for the main lifts (H/M/L)
+-- Per-cycle Hard top set (the ANCHOR) for the main lifts. Medium/Light day tops and
+-- the within-day Giant Block ladder are COMPUTED in the engine (§3), never stored.
+-- (0005 dropped the old medium/light columns.)
 working_weights (
   id            uuid primary key default gen_random_uuid(),
   macro_id      uuid references macros not null,
   cycle         int not null,              -- 1, 2, 3
   lift          text not null,             -- deadlift | ohp | squat | dips
-  hard          numeric,
-  medium        numeric,
-  light         numeric,
+  hard          numeric,                   -- the Hard top set (anchor); everything cascades off it
   unique (macro_id, cycle, lift)
 )
 
@@ -381,6 +398,11 @@ repeated here. The two load-bearing domain invariants to preserve, wherever the 
 ## 11. Decisions log (settled — don't relitigate)
 
 - Position is date-computed, never manual. Firm.
+- **Working weights = a single Hard-top anchor per lift per cycle.** Medium (×0.95) / Light
+  (×0.90) day tops, the uniform 85/90/95/100 Giant Block ladder, and 80% volume all compute off
+  it (rounded 2.5 kg); only the anchor is stored. Supersedes the per-difficulty percentages (§2.4)
+  and the hand-tuned independent H/M/L values. All four lifts — including dips — use the identical
+  added-weight cascade (a dips-off-bodyweight path is deferred, with an engine seam left for it).
 - Strict-date model: missed sessions stay missed; you rejoin at the calendar's position. No flexible "attach a late session to an earlier slot" logic — you just edit the scheduled slot in the calendar.
 - Stored session `date` = the scheduled slot date, not the physical lift day.
 - Cleans = power cleans (not squat cleans), 5×3, fixed weight, bar-speed governed, first on dips day.

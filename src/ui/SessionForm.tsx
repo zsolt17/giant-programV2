@@ -1,7 +1,7 @@
 import { C, inp, lbl } from './theme'
 import { Card } from './components'
 import { blockTitle, Row, SpeedPick, LogRpe, antagDesc } from './controls'
-import { SCHEMES, WU_PCT, WU_REPS, DAY_META, LIFT_LABEL, PULLUP } from '../engine/constants'
+import { SCHEMES, WU_PCT, WU_REPS, SET_LADDER, DAY_META, LIFT_LABEL, PULLUP } from '../engine/constants'
 import { fmt, giantSets, warmupSets, volumeWeight, deloadTop } from '../engine/loading'
 import { clusterTotal, isUnbroken, meetsTarget } from '../engine/pullups'
 import type { Difficulty, Lift, WeekType, SessionDraft } from '../engine/types'
@@ -92,7 +92,7 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
   const carryNum = carryLoad === '' || carryLoad == null ? null : Number(carryLoad)
   const carryDisplay = carryNum != null && !Number.isNaN(carryNum) ? `${fmt(carryNum)}${meta.carry.perHand ? ' / hand' : ''}` : meta.carry.load
   const hasTop = hasWeight && top != null
-  const wu = hasTop ? warmupSets(top, difficulty) : null
+  const wu = hasTop && top != null ? warmupSets(top) : null
   const gsets = hasTop ? giantSets(top, difficulty) : null
   const giantLetter = dayType === 'dips' ? 'C' : 'B'
   const volLetter = dayType === 'dips' ? 'D' : 'C'
@@ -161,8 +161,8 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
       {/* Giant Block */}
       <Card>
         {blockTitle(`${giantLetter}. Giant Block`, '4 rounds · 2 min')}
-        {scheme.pct.map((p, i) => {
-          const isTop = i === 3
+        {SET_LADDER.map((p, i) => {
+          const isTop = i === SET_LADDER.length - 1
           return (
             <Row
               key={i}

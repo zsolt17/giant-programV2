@@ -8,7 +8,6 @@ export type TestRole = 'test' | 'light'
 
 export interface Scheme {
   sets: number[]
-  pct: number[]
   vol: number
 }
 
@@ -160,12 +159,13 @@ export interface LiftWeights {
   medium: number | null
   light: number | null
 }
-// Loose H/M/L cell as held in the Setup form — inputs hold strings until the
-// mappers coerce them. LiftWeights is assignable to this (number|null ⊆ here).
+// Setup-form anchor cell — the Hard top set, held as a string until the mapper
+// coerces it. medium/light are optional (computed now, not entered): the full
+// computed LiftWeights grid is still assignable here, so rollToNextMacro can pass it.
 export interface LiftWeightsInput {
   hard: number | string | null
-  medium: number | string | null
-  light: number | string | null
+  medium?: number | string | null
+  light?: number | string | null
 }
 // cycle (1|2|3) -> lift -> H/M/L grid
 export type WeightsByCycle = Record<number, Record<string, LiftWeights>>

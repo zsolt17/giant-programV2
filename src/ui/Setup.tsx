@@ -4,7 +4,8 @@ import { C, cardStyle, inp, lbl, pillColor } from './theme'
 import { Card, BlockTitle } from './components'
 import * as repo from '../data/repository'
 import { computePosition, parseLocalDate, mondayOf, isoLocal } from '../engine/date-engine'
-import { LIFT_LABEL } from '../engine/constants'
+import { LIFT_LABEL, SET_LADDER, VOLUME_PCT } from '../engine/constants'
+import { expandDayTops, giantSets, volumeWeight } from '../engine/loading'
 import { errMsg } from './controls'
 import type { Macro, WeightsByCycle, AccessoryByCycle, Lift, Difficulty } from '../engine/types'
 
@@ -57,6 +58,47 @@ interface SetupProps {
   onReload: () => Promise<void>
   onSelectMacro: (id: string) => void
   onRollMacro: (newStartISO: string) => Promise<void>
+}
+
+// Read-only live preview of the full cascade from one Hard anchor: the three day
+// tops (Hard/Med/Light) and, per day, the four Giant Block sets + the Volume load.
+// kg prominent, % secondary. Computed via the engine — never stored.
+function CascadePreview({ anchor, lift }: { anchor: number | string; lift: Lift }) {
+  const a = anchor === '' || anchor == null ? NaN : Number(anchor)
+  if (!Number.isFinite(a) || a <= 0) {
+    return <div style={{ fontSize: 11, color: C.muted, fontStyle: 'italic', marginTop: 8 }}>Enter the Hard top to preview the computed loads.</div>
+  }
+  const tops = expandDayTops(a, lift)
+  const kg = (n: number) => (n % 1 === 0 ? String(n) : n.toFixed(1))
+  const colLabel = ['Set 1', 'Set 2', 'Set 3', 'Top', 'Vol']
+  const colPct = [...SET_LADDER.map((p) => Math.round(p * 100)), Math.round(VOLUME_PCT * 100)]
+  const cell: CSSProperties = { textAlign: 'center', fontSize: 12, fontVariantNumeric: 'tabular-nums', padding: '3px 0' }
+  return (
+    <div style={{ marginTop: 10, background: 'rgba(0,0,0,0.18)', border: `1px solid ${C.border}`, borderRadius: 2, padding: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '52px repeat(5, 1fr)', alignItems: 'center', gap: 2 }}>
+        <span />
+        {colLabel.map((l, i) => (
+          <div key={l} style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 9.5, color: i === 3 ? C.gold : C.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{l}</div>
+            <div style={{ fontSize: 9, color: C.muted }}>{colPct[i]}%</div>
+          </div>
+        ))}
+        {DIFFS.map((d) => {
+          const sets = giantSets(tops[d], d)
+          const vals = [sets[0].weight, sets[1].weight, sets[2].weight, sets[3].weight, volumeWeight(tops[d])]
+          return (
+            <Fragment key={d}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: pillColor(d), textTransform: 'uppercase' }}>{d === 'medium' ? 'Med' : d}</span>
+              {vals.map((v, i) => (
+                <span key={i} style={{ ...cell, color: i === 3 ? C.gold : C.off, fontWeight: i === 3 ? 700 : 400 }}>{kg(v)}</span>
+              ))}
+            </Fragment>
+          )
+        })}
+      </div>
+      <div style={{ fontSize: 9.5, color: C.muted, marginTop: 6, textAlign: 'right' }}>kg · rounded to 2.5</div>
+    </div>
+  )
 }
 
 export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onRollMacro }: SetupProps) {
@@ -149,12 +191,6 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
     </button>
   )
 
-  const diffHeader = (d: Difficulty) => (
-    <span key={d} style={{ color: pillColor(d), textAlign: 'center', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' }}>
-      {d === 'medium' ? 'Med' : d}
-    </span>
-  )
-
   return (
     <div>
       {/* Macro picker (only once more than one macro exists) */}
@@ -203,38 +239,38 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
 
       {/* Cycle selector */}
       <Card>
-        <BlockTitle tag="per mesocycle">Working Weights</BlockTitle>
+        <BlockTitle tag="single anchor">Working Weights</BlockTitle>
         <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>
-          Each mesocycle (C1/C2/C3) has its own H/M/L grid — a logged session always uses its own cycle's weights. Top
-          set = the working weight (Set 4 = 100%).
+          Enter only the <strong style={{ color: C.off }}>Hard top set</strong> per lift, per cycle. Medium (×95%) and
+          Light (×90%) day tops, the four Giant Block sets (85/90/95/100% of each day's top) and the Volume load (80%)
+          all compute automatically — rounded to 2.5 kg, recomputed live as you type. A session always reads its own
+          cycle's loads.
         </div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>{CYCLES.map(cycleBtn)}</div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>{CYCLES.map(cycleBtn)}</div>
 
-        {/* Main-lift grid for the selected cycle */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 1fr 1fr', gap: 6, alignItems: 'center' }}>
-          <span style={{ fontSize: 11, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-            Cycle {cycle}
-          </span>
-          {DIFFS.map(diffHeader)}
-          {LIFTS.map((lift) => (
-            <Fragment key={lift}>
-              <span style={{ fontSize: 12, color: C.off }}>{LIFT_LABEL[lift]}</span>
-              {DIFFS.map((d) => (
-                <input
-                  key={d}
-                  data-lift={lift}
-                  data-diff={d}
-                  aria-label={`${LIFT_LABEL[lift]} ${d}, cycle ${cycle} (kg)`}
-                  style={{ ...inp, padding: '6px', textAlign: 'center' }}
-                  type="number"
-                  step="2.5"
-                  value={weights[cycle][lift][d]}
-                  onChange={(e) => setW(cycle, lift, d, e.target.value)}
-                />
-              ))}
-            </Fragment>
-          ))}
-        </div>
+        {/* One Hard-top anchor per lift, with a read-only computed cascade below it */}
+        {LIFTS.map((lift) => (
+          <div key={lift} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: 8, alignItems: 'center' }}>
+              <label htmlFor={`hard-${cycle}-${lift}`} style={{ fontSize: 13, color: C.off, fontWeight: 600 }}>
+                {LIFT_LABEL[lift]} <span style={{ color: pillColor('hard') }}>· Hard top</span>
+              </label>
+              <input
+                id={`hard-${cycle}-${lift}`}
+                data-lift={lift}
+                data-diff="hard"
+                aria-label={`${LIFT_LABEL[lift]} Hard top, cycle ${cycle} (kg)`}
+                style={{ ...inp, padding: '6px', textAlign: 'center' }}
+                type="number"
+                step="2.5"
+                inputMode="decimal"
+                value={weights[cycle][lift].hard}
+                onChange={(e) => setW(cycle, lift, 'hard', e.target.value)}
+              />
+            </div>
+            <CascadePreview anchor={weights[cycle][lift].hard} lift={lift} />
+          </div>
+        ))}
       </Card>
 
       {/* Accessory loads for the selected cycle */}

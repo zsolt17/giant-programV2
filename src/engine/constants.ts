@@ -11,13 +11,24 @@ export const ROTATION: Record<Difficulty, Lift>[] = [
   { hard: 'ohp', medium: 'squat', light: 'dips' },
 ]
 
-// Giant Block rep schemes (4 descending sets) + volume reps. Percentages are of
-// the top set (Set 4 = 100%). Round to nearest 2.5 kg (see loading.js).
+// Giant Block rep schemes (4 descending sets) + volume reps. The reps differentiate
+// the days; the load percentages are the uniform SET_LADDER below (single-anchor model).
 export const SCHEMES: Record<Difficulty, Scheme> = {
-  hard: { sets: [8, 6, 4, 2], pct: [0.75, 0.82, 0.9, 1.0], vol: 6 },
-  medium: { sets: [9, 7, 5, 3], pct: [0.72, 0.8, 0.88, 1.0], vol: 8 },
-  light: { sets: [10, 8, 6, 4], pct: [0.7, 0.78, 0.86, 1.0], vol: 10 },
+  hard: { sets: [8, 6, 4, 2], vol: 6 },
+  medium: { sets: [9, 7, 5, 3], vol: 8 },
+  light: { sets: [10, 8, 6, 4], vol: 10 },
 }
+
+// ---- single-anchor loading engine -----------------------------------------
+// Only the Hard top set is stored (per lift, per cycle); every other load cascades
+// off it. These are the fixed constants — call sites use these names, never literals.
+// Day-to-day top-set spread, as a fraction of the Hard top.
+export const DAY_SPREAD: Record<Difficulty, number> = { hard: 1.0, medium: 0.95, light: 0.9 }
+// Within-day ladder: each of the 4 Giant Block sets as a fraction of that day's top.
+// Uniform across all days — the rep scheme (SCHEMES) differentiates the days, not the load %.
+export const SET_LADDER: number[] = [0.85, 0.9, 0.95, 1.0]
+// Volume block = this fraction of the day's top set.
+export const VOLUME_PCT = 0.8
 
 // Barbell build-up sets: 8-5-3-2 reps at ~40/55/70/85% of Giant Block Set 1.
 export const WU_PCT: number[] = [0.4, 0.55, 0.7, 0.85]
