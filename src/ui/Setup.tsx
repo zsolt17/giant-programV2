@@ -13,13 +13,17 @@ const LIFTS: Lift[] = ['deadlift', 'ohp', 'squat', 'dips']
 const DIFFS: Difficulty[] = ['hard', 'medium', 'light']
 const CYCLES: number[] = [1, 2, 3]
 const ACC_LABEL: Record<string, string> = {
-  clean: 'Power Clean (5×3)',
+  rdl_deadlift: 'B-Stance DB RDL — DL day',
+  row_ohp: 'One-Arm DB Row — OHP day',
   carry_deadlift: 'Farmer Carry — DL day',
   carry_ohp: 'Suitcase Carry — OHP day',
   carry_squat: 'Sandbag Bear Hug — Squat day',
   carry_dips: 'Overhead Carry — Dips day',
 }
 const ACC_ITEMS = Object.keys(ACC_LABEL)
+// Recorded accessories (one-arm row, B-stance RDL): an empty cycle auto-fills from
+// the nearest lower cycle as a starting reference (the user adjusts by feel + saves).
+const SEED_ITEMS = ['rdl_deadlift', 'row_ohp']
 
 // Native <input type="date"> on iOS keeps an intrinsic width and overflows its
 // container; -webkit-appearance:none strips that so it respects width:100%.
@@ -47,6 +51,14 @@ function initAcc(loaded?: AccessoryByCycle): EditAcc {
   for (const c of CYCLES) {
     a[c] = {}
     for (const it of ACC_ITEMS) a[c][it] = loaded?.[c]?.[it] ?? ''
+  }
+  // Forward-seed the recorded accessories: an empty higher cycle inherits the
+  // previous cycle's value (which may itself have been seeded). Editable + saved.
+  const blank = (v: number | string) => v === '' || v == null
+  for (const it of SEED_ITEMS) {
+    for (const c of CYCLES) {
+      if (c > 1 && blank(a[c][it]) && !blank(a[c - 1][it])) a[c][it] = a[c - 1][it]
+    }
   }
   return a
 }
@@ -275,9 +287,10 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
 
       {/* Accessory loads for the selected cycle */}
       <Card>
-        <BlockTitle tag={`cycle ${cycle}`}>Cleans &amp; Carries</BlockTitle>
+        <BlockTitle tag={`cycle ${cycle}`}>Accessories &amp; Carries</BlockTitle>
         <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>
-          Single value each (no H/M/L). Carries are the same all week within a cycle; cleans are bar-speed governed.
+          Recorded weight each (no cascade). The B-stance RDL and one-arm row auto-seed from the previous cycle as a
+          starting reference — adjust by feel. Carries are the same all week within a cycle.
         </div>
         {ACC_ITEMS.map((it) => (
           <div

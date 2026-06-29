@@ -3,8 +3,8 @@ import type { CSSProperties, ReactNode } from 'react'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { C as TH, HEADING, BODY } from './theme'
 import { useFocusTrap } from './useFocusTrap'
-import { toTrendSessions, toCleanSessions, toCarrySessions, toAttendance, macroLabels } from '../engine/trends'
-import type { TrendsData, TrendSession, TrendClean, TrendCarry, TrendDay, CarryType, AttMacro, AttStatus } from '../engine/types'
+import { toTrendSessions, toAccessoryTrend, toCarrySessions, toAttendance, macroLabels } from '../engine/trends'
+import type { TrendsData, TrendSession, TrendAccessory, TrendCarry, TrendDay, CarryType, AttMacro, AttStatus } from '../engine/types'
 
 // Mockup palette remapped onto the navy/gold system (the mockup's amber ≈ our gold).
 const C = {
@@ -30,14 +30,12 @@ const num: CSSProperties = { fontVariantNumeric: 'tabular-nums' }
 const tick = { fill: C.dim, fontSize: 9, fontFamily: BODY }
 
 const LIFT_COLORS: Record<string, string> = { DL: C.amber, OHP: C.slate, Squat: C.purple, Dips: C.green }
-const SPD_COLOR: Record<number, string> = { 0: C.red, 1: C.slate, 2: C.green }
-const SPD_LABEL: Record<number, string> = { 0: '↓ Slow', 1: '→ Normal', 2: '↑ Fast' }
 const CARRY_TYPES: CarryType[] = ['Farmer', 'Suitcase', 'Sandbag', 'Overhead']
 const CARRY_COLORS: Record<CarryType, string> = { Farmer: C.amber, Suitcase: C.slate, Sandbag: C.purple, Overhead: C.green }
 const STATUS_COLOR: Record<string, string> = { done: C.green, missed: C.red, deload: C.amber, holiday: C.slate, test: C.purple, upcoming: C.muted }
 const SLOTS = ['Mon', 'Wed', 'Fri']
 const ALL_LIFTS: TrendDay[] = ['DL', 'OHP', 'Squat', 'Dips']
-const AUX_VIEWS = ['Lifts', 'Cleans', 'Carries', 'Session'] as const
+const AUX_VIEWS = ['Lifts', 'Accessories', 'Carries', 'Session'] as const
 type View = (typeof AUX_VIEWS)[number]
 
 // ─── shared UI ───────────────────────────────────────────────────────────────
@@ -225,7 +223,7 @@ function FilterBar({ rangeStart, rangeEnd, cycle, lift, view, onOpenPicker, onCy
       <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
         <span style={rowLabel}>VIEW</span>
         {AUX_VIEWS.map((v) => (
-          <Btn key={v} active={view === v} onClick={() => onView(v)} color={v === 'Cleans' ? C.purple : v === 'Carries' ? C.green : v === 'Session' ? C.slate : C.amber}>
+          <Btn key={v} active={view === v} onClick={() => onView(v)} color={v === 'Accessories' ? C.purple : v === 'Carries' ? C.green : v === 'Session' ? C.slate : C.amber}>
             {v}
           </Btn>
         ))}
@@ -380,70 +378,32 @@ function BarSpeedChart({ sessions, lift }: { sessions: TrendSession[]; lift: str
   )
 }
 
-// ─── Cleans view ─────────────────────────────────────────────────────────────
-function CleanTooltip({ active, payload }: TipProps) {
-  if (!active || !payload?.length) return null
-  const d = payload[0]?.payload as { label?: string; weight?: number; spdColor?: string; spdLabel?: string } | undefined
-  return (
-    <div style={{ background: C.inset, border: `1px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', fontSize: 11 }}>
-      <div style={{ color: C.label, marginBottom: 3 }}>{d?.label}</div>
-      <div style={{ color: C.amber, ...num }}>{d?.weight}kg</div>
-      <div style={{ color: d?.spdColor, marginTop: 2 }}>{d?.spdLabel}</div>
-    </div>
-  )
-}
-
-function CleansChart({ cleans, activeMacros, cycle }: { cleans: TrendClean[]; activeMacros: string[]; cycle: string }) {
-  const data = useMemo(
-    () =>
-      cleans
-        .filter((c) => activeMacros.includes(c.macro) && (cycle === 'All' || c.cycle === cycle))
-        .map((c, i) => ({ label: `${c.macro}${c.cycle}${c.week}`, weight: c.weight, spd: c.spd, spdColor: c.spd != null ? SPD_COLOR[c.spd] : C.slate, spdLabel: c.spd != null ? SPD_LABEL[c.spd] : '→ Normal', idx: i })),
-    [cleans, activeMacros, cycle]
-  )
-  if (!data.length) return <Card style={{ textAlign: 'center', color: C.dim, padding: '40px 0', fontSize: 13 }}>No cleans logged yet.</Card>
-
+// ─── Accessories view ────────────────────────────────────────────────────────
+// Recorded per-cycle weight for a single accessory (one-arm row / B-stance RDL),
+// plotted oldest -> newest across (macro, cycle). One chart per accessory.
+function AccessoryChart({ data, title, sub, color }: { data: TrendAccessory[]; title: string; sub: string; color: string }) {
+  if (!data.length) return <Card style={{ textAlign: 'center', color: C.dim, padding: '40px 0', fontSize: 13 }}>No {title} weights yet.</Card>
+  const first = data[0]
   const latest = data[data.length - 1]
-  const fastPct = Math.round((data.filter((d) => d.spd === 2).length / data.length) * 100)
-  const slowPct = Math.round((data.filter((d) => d.spd === 0).length / data.length) * 100)
-
-  // Color-coded dot per session (by bar speed).
-  const SpeedDot = (props: { cx?: number; cy?: number; payload?: { spdColor: string } }) => {
-    const { cx, cy, payload } = props
-    if (cx === undefined || cy === undefined || !payload) return null
-    return <circle cx={cx} cy={cy} r={5} fill={payload.spdColor} stroke={C.card} strokeWidth={1.5} />
-  }
-
+  const delta = +(latest.weight - first.weight).toFixed(1)
   return (
     <Card>
-      <SectionHeader sub="Power Cleans · 5×3 Touch & Go" title="Load & Bar Speed" />
+      <SectionHeader sub={sub} title={title} />
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        <StatPill label="Current" value={`${latest.weight}kg`} accent={C.amber} />
-        <StatPill label="↑ Fast" value={`${fastPct}%`} accent={SPD_COLOR[2]} />
-        <StatPill label="↓ Slow" value={`${slowPct}%`} accent={slowPct > 20 ? SPD_COLOR[0] : C.label} />
-        <StatPill label="Sessions" value={data.length} />
+        <StatPill label="Current" value={`${latest.weight}kg`} accent={color} />
+        <StatPill label="Start" value={`${first.weight}kg`} />
+        <StatPill label="Change" value={delta > 0 ? `+${delta}` : `${delta}`} accent={delta > 0 ? C.green : delta < 0 ? C.red : C.label} />
+        <StatPill label="Cycles" value={data.length} />
       </div>
       <ResponsiveContainer width="100%" height={190}>
         <LineChart data={data} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={C.line} vertical={false} />
-          <XAxis dataKey="label" tick={false} axisLine={false} tickLine={false} />
-          <YAxis domain={['dataMin - 5', 'dataMax + 5']} tick={tick} axisLine={false} tickLine={false} />
-          <Tooltip content={<CleanTooltip />} />
-          <Line type="stepAfter" dataKey="weight" stroke={C.amberDim} strokeWidth={2} strokeDasharray="4 2" dot={<SpeedDot />} activeDot={false} name="Weight" />
+          <XAxis dataKey="label" tick={tick} axisLine={false} tickLine={false} />
+          <YAxis domain={['dataMin - 2', 'dataMax + 2']} tick={tick} axisLine={false} tickLine={false} />
+          <Tooltip content={<DarkTooltip unit="kg" />} />
+          <Line type="stepAfter" dataKey="weight" stroke={color} strokeWidth={2.5} dot={{ r: 3, fill: color, stroke: C.card, strokeWidth: 1.5 }} name="Weight" />
         </LineChart>
       </ResponsiveContainer>
-      <div style={{ display: 'flex', gap: 14, marginTop: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-        {([['↑ Fast', SPD_COLOR[2]], ['→ Normal', SPD_COLOR[1]], ['↓ Slow', SPD_COLOR[0]]] as [string, string][]).map(([l, col]) => (
-          <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: col }} />
-            <span style={{ fontSize: 10, color: C.dim }}>{l}</span>
-          </div>
-        ))}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <div style={{ width: 14, height: 2, background: C.amberDim, borderRadius: 1 }} />
-          <span style={{ fontSize: 10, color: C.dim }}>Load</span>
-        </div>
-      </div>
     </Card>
   )
 }
@@ -795,7 +755,8 @@ function CalTooltip({ active, payload }: TipProps) {
 // ─── main ────────────────────────────────────────────────────────────────────
 export function Trends({ data }: { data: TrendsData }) {
   const allSessions = useMemo(() => toTrendSessions(data.sessions, data.macros, data.deloads), [data])
-  const allCleans = useMemo(() => toCleanSessions(data.sessions, data.macros), [data])
+  const allRow = useMemo(() => toAccessoryTrend(data.macros, data.accessory, 'row_ohp'), [data])
+  const allRdl = useMemo(() => toAccessoryTrend(data.macros, data.accessory, 'rdl_deadlift'), [data])
   const allCarries = useMemo(() => toCarrySessions(data.sessions, data.macros, data.accessory), [data])
   const allAttendance = useMemo(() => toAttendance(data.macros, data.sessions, data.deloads, data.breakDays), [data])
   const ALL_MACROS = useMemo(() => macroLabels(data.macros), [data.macros])
@@ -855,7 +816,12 @@ export function Trends({ data }: { data: TrendsData }) {
               <BarSpeedChart sessions={filtered} lift={lift} />
             </>
           ))}
-        {view === 'Cleans' && <CleansChart cleans={allCleans} activeMacros={activeMacros} cycle={cycle} />}
+        {view === 'Accessories' && (
+          <>
+            <AccessoryChart data={allRow.filter((a) => activeMacros.includes(a.macro))} title="One-Arm DB Row" sub="OHP-day antagonist · per cycle" color={C.slate} />
+            <AccessoryChart data={allRdl.filter((a) => activeMacros.includes(a.macro))} title="B-Stance DB RDL" sub="DL-day antagonist · per cycle" color={C.amber} />
+          </>
+        )}
         {view === 'Carries' && <CarriesChart carries={allCarries} activeMacros={activeMacros} cycle={cycle} />}
         {view === 'Session' && (
           <>

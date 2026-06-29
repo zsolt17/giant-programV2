@@ -5,7 +5,7 @@ import { C, HEADING, inp, lbl, pillColor } from './theme'
 import { SessionForm, buildBlankSession } from './SessionForm'
 import { TestingResultForm } from './TestingResultForm'
 import { fmtClock, errMsg } from './controls'
-import { SCHEMES, LIFT_LABEL } from '../engine/constants'
+import { SCHEMES, LIFT_LABEL, ANTAG_ITEM } from '../engine/constants'
 import { deloadTop } from '../engine/loading'
 import { parseLocalDate } from '../engine/date-engine'
 import type {
@@ -66,13 +66,14 @@ export function SessionModal({
   const weekKey = `M${macroNumber}C${cycle}W${cell.week}`
   const isDeload = !isSpecial && !!deloads[weekKey]
   const top = base != null ? (isDeload ? deloadTop(base) : base) : null
-  const cleanDefault = cycle != null ? accessory?.[cycle]?.clean ?? '' : ''
   const carryDefault = cycle != null && dayType ? accessory?.[cycle]?.[`carry_${dayType}`] ?? '' : ''
+  const antagItem = dayType ? ANTAG_ITEM[dayType] : undefined
+  const antagDefault = cycle != null && antagItem ? accessory?.[cycle]?.[antagItem] ?? '' : ''
 
   const [draft, setDraft] = useState<SessionDraft>(
     () =>
       existing ||
-      buildBlankSession({ date: cell.date, macroId, cycle, week: cell.week, weekType: cell.weekType, dayType, difficulty, baseTop: base, isDeload, cleanDefault })
+      buildBlankSession({ date: cell.date, macroId, cycle, week: cell.week, weekType: cell.weekType, dayType, difficulty, baseTop: base, isDeload })
   )
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
@@ -195,7 +196,7 @@ export function SessionModal({
           </div>
         ) : (
           <>
-            <SessionForm dayType={dayType!} difficulty={difficulty!} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} carryLoad={carryDefault} />
+            <SessionForm dayType={dayType!} difficulty={difficulty!} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} carryLoad={carryDefault} antagLoad={antagDefault} />
             {draft.startedAt && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
                 <div>

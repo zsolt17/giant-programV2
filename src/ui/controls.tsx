@@ -21,10 +21,10 @@ export function fmtClock(ms: number | null | undefined): string {
 }
 
 export function antagDesc(type: DayMeta['antagType'], diff: Difficulty): string {
-  if (type === 'hold') return 'max hold, sub-maximal'
   if (type === 'hold20') return '20 sec'
   if (type === 'pullup') return `${PULLUP[diff]} reps/round (clusters ok)`
-  if (type === 'ringrow') return 'sub-maximal, scale by angle'
+  if (type === 'rdl') return '8 reps / leg'
+  if (type === 'dbrow') return '10 reps / arm'
   return ''
 }
 

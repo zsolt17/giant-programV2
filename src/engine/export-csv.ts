@@ -16,9 +16,6 @@ const COLUMNS: { header: string; value: (s: Session, macroNumber: number | '') =
   { header: 'top_reps', value: (s) => s.topReps },
   { header: 'rpe', value: (s) => s.rpe },
   { header: 'bar_speed', value: (s) => s.barSpeed },
-  { header: 'clean_load', value: (s) => s.cleanLoad },
-  { header: 'clean_rounds', value: (s) => s.cleanRounds },
-  { header: 'clean_speed', value: (s) => s.cleanSpeed },
   // Per-round cardio cals collapsed into one cell, e.g. "15/14/15/15" (blank round → "").
   { header: 'cardio_cals', value: (s) => s.cardioCals.map((c) => (c == null ? '' : c)).join('/') },
   { header: 'vol_done', value: (s) => s.volDone },

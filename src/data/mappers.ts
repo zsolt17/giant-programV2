@@ -57,9 +57,6 @@ export interface SessionRow {
   top_weight: number | null
   rpe: string | null
   bar_speed: string | null
-  clean_load: number | null
-  clean_rounds: number | null
-  clean_speed: string | null
   cardio_cals: (number | null)[] | null
   vol_done: boolean | null
   vol_rpe: string | null
@@ -163,9 +160,6 @@ export function rowToSession(r: SessionRow): Session {
     topWeight: toNum(r.top_weight),
     rpe: r.rpe || '',
     barSpeed: r.bar_speed || '',
-    cleanLoad: toNum(r.clean_load),
-    cleanRounds: r.clean_rounds ?? null,
-    cleanSpeed: r.clean_speed || '',
     cardioCals: rowToCardio(r.cardio_cals),
     volDone: r.vol_done ?? true,
     volRpe: r.vol_rpe || '',
@@ -196,9 +190,6 @@ export function sessionToRow(s: SessionDraft): SessionRow {
     top_weight: toNum(s.topWeight),
     rpe: blankToNull(s.rpe),
     bar_speed: blankToNull(s.barSpeed),
-    clean_load: toNum(s.cleanLoad),
-    clean_rounds: toNum(s.cleanRounds),
-    clean_speed: blankToNull(s.cleanSpeed),
     cardio_cals: cardioToRow(s.cardioCals),
     vol_done: s.volDone ?? true,
     vol_rpe: blankToNull(s.volRpe),

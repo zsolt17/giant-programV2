@@ -46,19 +46,19 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ## Current capabilities
 
 - **Single-user auth** (Supabase email/password, RLS-protected).
-- **Today** — date-computed position; full session prescription (warm-up, clean
-  block on dips day, Giant Block, volume, carry) and logging. **Optional session
+- **Today** — date-computed position; full session prescription (warm-up,
+  Giant Block, volume, carry) and logging. **Optional session
   timer:** Start → live timer → End, duration derived from `started_at`/`ended_at`,
   90-min auto-end safeguard, manual duration edit.
 - **Calendar** — 15-week × Mon/Wed/Fri grid; log/edit/delete any session; mark breaks.
 - **History** — latest top sets, recent-session feed, pull-up cluster trend, testing results.
 - **Deload** — per-week fatigue signals + reactive-deload recommend/apply (advise-and-confirm).
 - **Setup** — per-cycle (C1/C2/C3) **Hard-top anchor** per lift (Medium/Light, the Giant Block
-  ladder and Volume all compute live, with a read-only preview) + cleans/carries, macro anchor,
+  ladder and Volume all compute live, with a read-only preview) + recorded accessories (RDL/row, auto-seeded) & carries, macro anchor,
   macro picker, and "start next macro" archiving (carries C3→C1).
 - **Data** — export all sessions (across every macro) to CSV, and copy a plain-text per-session
   summary to the clipboard for sharing into a coaching conversation. (Burger menu → Data.)
-- **Pull-ups** — phase-1 bodyweight cluster logging (OHP day) + trend. *(Phase-2 weighted: deferred.)*
+- **Pull-ups** — phase-1 bodyweight cluster logging (**dips day** Giant Block antagonist) + trend. *(Phase-2 weighted: deferred.)*
 - **Testing weeks** — record 2–3RM results per lift.
 - **Global loading states** — branded pre-React splash (home-screen-icon mark + shimmer bar);
   **first login is held** (sign-in button spinner spans auth + the first data fetch, then Today
@@ -71,6 +71,22 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ---
 
 ## Change log
+
+## 2026-06-29
+- `feat(exercises)`: **exercise-selection overhaul** (3 parts). **Movements:** removed the
+  power-clean block entirely (UI + logging fields + loading); dips-day antagonist Ring Rows →
+  **Pull-ups** (the phase-1 cluster logging + History trend moved here from OHP day); deadlift-day
+  Sørensen Hold → **B-Stance DB RDL** (8/leg); OHP-day Pull-ups → **One-Arm DB Row** (10/arm). With
+  no clean block, every day is now A Warm-Up · B Giant · C Volume · D Carry. **Recorded accessory
+  weights:** the RDL and row get a per-cycle weight in Setup (`accessory_weights` items
+  `rdl_deadlift` / `row_ohp`; recorded, no cascade), **auto-seeded from the previous cycle** as a
+  starting reference and shown in the Giant Block prescription (threaded as `antagLoad`, like
+  `carryLoad`). **Graphs:** removed the power-clean trend; the **Cleans** filter chip is now
+  **Accessories** with two per-cycle weight charts (One-Arm DB Row, B-Stance RDL;
+  `engine/trends.ts` `toAccessoryTrend`). Migration `0006_remove_cleans.sql` drops `sessions.clean_*`,
+  deletes the `clean` accessory rows, and widens the `accessory_weights.item` CHECK for the two new
+  items. New shared `ANTAG_ITEM` map (day → accessory item). typecheck + 61 tests + build green;
+  smoke updated (new-accessory + clean-less session round-trip on the live DB).
 
 ## 2026-06-27
 - `feat(nav)` + `chore(tooling)`: **moved Setup to the bottom of the menu drawer** — order is now

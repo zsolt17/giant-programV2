@@ -48,14 +48,13 @@ the app encodes:
 
 ### 2.1 Primary lifts (4)
 Deadlift, Overhead Press (OHP), Back Squat, Weighted Ring Dips. (Barbell bench and barbell rows
-are retired — dips replaced bench, power cleans replaced rows.)
+are retired — dips replaced bench. The power-clean block, once on dips day, has also been removed.)
 
 ### 2.2 Strength day structure (ordered blocks)
 ```
-Warm-Up → [Clean Block — dips day only] → Giant Block → Volume Block → Carry → Cooldown
+Warm-Up → Giant Block → Volume Block → Carry → Cooldown
 ```
 - **Warm-Up:** GOWOD Activate flow (external app) + barbell build-up sets (8-5-3-2 @ ~40/55/70/85% of Giant Block Set 1).
-- **Clean Block (dips day only, done first):** power cleans 5×3, fixed weight (~70kg start), bar-speed governed.
 - **Giant Block:** 4-round circuit — main lift + antagonist + core + 30s cardio. 2 min rest between rounds.
 - **Volume Block:** 2 sets at 80% of top set; reps by difficulty.
 - **Carry:** loaded carry, ~10 min, treated as accessory/reward effort (RPE ~6, never pushed).
@@ -64,10 +63,13 @@ Warm-Up → [Clean Block — dips day only] → Giant Block → Volume Block →
 ### 2.3 Antagonist / core by day
 | Day | Antagonist | Core |
 |-----|-----------|------|
-| Deadlift | Sørensen Hold | Ab Rollout |
-| OHP | Pull-ups | GHD Abs |
+| Deadlift | B-Stance (kickstand) DB RDL — 8 / leg | Ab Rollout |
+| OHP | One-Arm DB Row — 10 / arm (constant) | GHD Abs |
 | Squat | Copenhagen Plank | Leg Raises (strict toes-to-bar) |
-| Dips | Ring Rows | GHD Back Extension |
+| Dips | Pull-ups (cluster, §4) | GHD Back Extension |
+
+The DL-day RDL and OHP-day row carry a **recorded** per-cycle weight (Setup, like carries — not
+engine-cascaded). Pull-ups (dips day) and the Copenhagen plank (squat day) are bodyweight.
 
 ### 2.4 Difficulty rep schemes (Giant Block: 4 sets, descending)
 Reps differentiate the days; the **load ladder is uniform** across all days (single-anchor
@@ -133,7 +135,7 @@ goes stale). Solved relationally — see §9.
   near-identical kg — expected (the rep scheme differentiates the days; real load differentiation
   emerges as the added weight grows). A future option may compute dips off **bodyweight + added
   load**; the engine keeps a per-lift seam (`dayTop(..., lift)`) so this drops in without a rebuild.
-- Cleans and carries: per-cycle, a single controllable weight each (not part of the anchor cascade).
+- Carries + the recorded accessories (B-stance RDL, one-arm row): per-cycle, a single controllable weight each (not part of the anchor cascade).
 - **Start-of-macro rule:** a new macro's C1 anchor = the previous macro's C3 anchor (not testing weights).
 
 ---
@@ -144,7 +146,8 @@ Pull-ups don't fit the weights model in their first phase.
 - **Phase 1 (bodyweight, chasing unbroken):** progress measured by the **cluster shape on the final Giant Block round**, not load. Target reps per round: Hard 10, Medium 8, Light 6. Log the final-round cluster, e.g. `6+4` → `7+3` → `8+2` → `10`, tracked as a trend tightening toward unbroken. (Log final-set cluster only, not all four rounds.)
 - **Phase 2 (weighted):** once consistently unbroken at the target, pull-ups become a normal weighted lift and join the per-cycle weights grid; reps fix at 6/8/10.
 
-**Status:** phase-1 cluster logging + trend are built (OHP day). Phase-2 weighted switchover is
+**Status:** phase-1 cluster logging + trend are built — pull-ups are the **dips-day** Giant Block
+antagonist (moved from OHP day, which now uses the one-arm DB row). Phase-2 weighted switchover is
 deferred until the athlete is consistently unbroken.
 
 ---
@@ -169,7 +172,7 @@ bad day. One catastrophic single day never fires it.)
 prompt; the athlete taps Apply. Never auto-forced.
 
 **Deload week (when applied):** Giant Block only at ~70%, hard scheme; no volume; light/no
-carries; clean block skipped/light; skill days kept.
+carries; skill days kept.
 
 **Repeat rule:** if two weeks in one mesocycle trigger it, the next cycle repeats the same
 weights instead of progressing.
@@ -235,12 +238,12 @@ The full rebuild is shipped and deployed to GitHub Pages
 see `specification.md` for the dated build history and `CONVENTIONS.md` for how it's structured.
 Capabilities, in domain terms:
 
-- **Today** — date-computed position; full session prescription (warm-up, clean block on dips
-  day, Giant Block, volume, carry) + logging, with an optional session timer.
+- **Today** — date-computed position; full session prescription (warm-up, Giant Block, volume,
+  carry) + logging, with an optional session timer.
 - **Calendar** — the 15-week × Mon/Wed/Fri grid (§7); log/edit/delete any session; mark breaks.
 - **History** — latest top sets, recent-session feed, pull-up cluster trend, testing results.
 - **Deload** — per-week fatigue signals + reactive-deload recommend/apply (§5).
-- **Setup** — per-cycle (C1/C2/C3) working-weights grid + cleans/carries (§3), macro anchor,
+- **Setup** — per-cycle (C1/C2/C3) Hard-top anchors + recorded accessories/carries (§3), macro anchor,
   macro picker, and "start next macro" archiving (carries C3→C1).
 - **Per-cycle working weights** — the motivating fix; a session reads its own `(macro, cycle)` grid.
 - **Pull-up cluster logging** (§4, phase 1) + trend.
@@ -263,7 +266,8 @@ account. Canonical schema lives in `supabase/migrations/` (`0001_init.sql`;
 log-field CHECK constraints, the idempotent `testing_results` key, and FK/date indexes;
 `0004_session_extra_logging.sql` adds `clean_rounds`, `cardio_cals int[]` (per-round Giant
 Block cardio cals), `carry_rounds`, `carry_distance`; `0005_anchor_weights.sql` drops
-`working_weights.medium`/`light` for the single-anchor model — §3).
+`working_weights.medium`/`light` for the single-anchor model — §3; `0006_remove_cleans.sql` drops the
+`sessions.clean_*` columns and retires the `clean` accessory item, adding `rdl_deadlift`/`row_ohp`).
 See `supabase/MIGRATIONS.md` for how migrations are applied and the DB kept reproducible.
 Tables:
 
@@ -291,13 +295,13 @@ working_weights (
   unique (macro_id, cycle, lift)
 )
 
--- Per-cycle single-value loads for cleans and each carry
+-- Per-cycle single-value recorded loads: the RDL/row antagonists and each carry
 accessory_weights (
   id            uuid primary key default gen_random_uuid(),
   macro_id      uuid references macros not null,
   cycle         int not null,
-  item          text not null,             -- clean | carry_deadlift | carry_ohp | carry_squat | carry_dips
-  weight        numeric,
+  item          text not null,             -- rdl_deadlift | row_ohp | carry_deadlift | carry_ohp | carry_squat | carry_dips
+  weight        numeric,                    -- recorded per-cycle weight (RDL/row antagonists + carries); not engine-cascaded
   unique (macro_id, cycle, item)
 )
 
@@ -327,10 +331,6 @@ sessions (
   top_weight    numeric,
   rpe           text,                      -- "R7".."R10"
   bar_speed     text,                      -- up | normal | down
-  -- clean block (dips day)
-  clean_load    numeric,
-  clean_rounds  int,                       -- rounds completed (UI default 5)
-  clean_speed   text,
   -- Giant Block per-round cardio calories, ordered [R1..R4] (e.g. {15,14,15,15})
   cardio_cals   int[],
   -- volume
@@ -405,8 +405,10 @@ repeated here. The two load-bearing domain invariants to preserve, wherever the 
   added-weight cascade (a dips-off-bodyweight path is deferred, with an engine seam left for it).
 - Strict-date model: missed sessions stay missed; you rejoin at the calendar's position. No flexible "attach a late session to an earlier slot" logic — you just edit the scheduled slot in the calendar.
 - Stored session `date` = the scheduled slot date, not the physical lift day.
-- Cleans = power cleans (not squat cleans), 5×3, fixed weight, bar-speed governed, first on dips day.
-- Ring rows are the dips-day antagonist (sub-maximal, scale by body angle).
+- **Antagonists (revised 2026-06-27):** DL = B-stance DB RDL (8/leg), OHP = one-arm DB row (10/arm),
+  Squat = Copenhagen plank, Dips = pull-ups (cluster, §4). The RDL + row carry a **recorded** per-cycle
+  weight (Setup, like carries); pull-ups + plank are bodyweight. *(Superseded & removed: the Sørensen
+  hold, ring rows, and the entire power-clean block.)*
 - Push press: rejected. Sandbag lunges: parked (maybe later, via carry-block rotation).
 - GOWOD handles warm-up activation + cooldown; barbell build-up sets stay in-app.
 - Carries are accessory/reward effort, ~RPE 6, never pushed.

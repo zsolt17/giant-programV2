@@ -26,11 +26,6 @@ function carrySuffix(s: Session): string {
   if (d != null) return ` · carry ${d} m`
   return ` · carry ${r} rds`
 }
-function cleanSuffix(s: Session): string {
-  if (s.dayType !== 'dips' || s.cleanRounds == null) return ''
-  return ` · clean ${s.cleanRounds} rds`
-}
-
 interface HistoryProps {
   sessions: Session[]
   testingResults?: TestingResult[]
@@ -109,7 +104,6 @@ export function History({ sessions, testingResults = [], macroNumber, onDeleteSe
             </div>
             <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
               Top {fmt(s.topWeight)} × {s.topReps} {s.rpe && `| ${s.rpe}`} {s.barSpeed && `| ${speedArrow(s.barSpeed)}`}
-              {cleanSuffix(s)}
               {cardioSuffix(s.cardioCals)}
               {carrySuffix(s)}
               {s.carrySkipped && ' · carry skipped'}
@@ -187,16 +181,16 @@ function CarryDistanceTrend({ sessions }: { sessions: Session[] }) {
   )
 }
 
-// Phase-1 pull-up cluster trend (OHP-day final-round clusters, oldest -> newest).
+// Phase-1 pull-up cluster trend (dips-day final-round clusters, oldest -> newest).
 function PullupTrend({ sessions }: { sessions: Session[] }) {
   const items = sessions
-    .filter((s) => s.dayType === 'ohp' && s.pullupCluster)
+    .filter((s) => s.dayType === 'dips' && s.pullupCluster)
     .slice()
     .sort((a, b) => (a.date < b.date ? -1 : 1))
   if (!items.length) return null
   return (
     <Card>
-      {blockTitle('Pull-up Cluster Trend', 'OHP day · toward unbroken')}
+      {blockTitle('Pull-up Cluster Trend', 'Dips day · toward unbroken')}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         {items.map((s, i) => {
           const total = clusterTotal(s.pullupCluster)

@@ -17,9 +17,6 @@ function base(over = {}) {
     topWeight: 145,
     rpe: 'R9.5',
     barSpeed: 'up',
-    cleanLoad: null,
-    cleanRounds: null,
-    cleanSpeed: '',
     cardioCals: [15, 14, 15, 15],
     volDone: true,
     volRpe: 'R8',
@@ -51,17 +48,16 @@ test('squat day: header, giant block (RPE de-duped, arrow), cardio, volume, carr
   )
 })
 
-test('dips day includes Cleans line; non-dips omits it', () => {
-  const dips = sessionSummary(base({ dayType: 'dips', cleanLoad: 70, cleanRounds: 5, cleanSpeed: 'down' }), 2)
-  assert.match(dips, /^Session — M2C3W3 — Dips Hard/)
-  assert.match(dips, /\nCleans: 5×3 @ 70 ↓\n/)
-  assert.doesNotMatch(sessionSummary(base(), 2), /Cleans:/)
+test('no Cleans line anywhere (clean block removed)', () => {
+  assert.doesNotMatch(sessionSummary(base({ dayType: 'dips' }), 2), /Cleans:/)
 })
 
-test('OHP day includes Pull-ups line; other days omit it', () => {
-  const ohp = sessionSummary(base({ dayType: 'ohp', pullupCluster: '8+2' }), 2)
-  assert.match(ohp, /\nPull-ups: 8\+2/)
-  assert.doesNotMatch(sessionSummary(base(), 2), /Pull-ups:/)
+test('dips day includes Pull-ups line; other days (incl. OHP) omit it', () => {
+  const dips = sessionSummary(base({ dayType: 'dips', pullupCluster: '8+2' }), 2)
+  assert.match(dips, /^Session — M2C3W3 — Dips Hard/)
+  assert.match(dips, /\nPull-ups: 8\+2/)
+  assert.doesNotMatch(sessionSummary(base(), 2), /Pull-ups:/) // squat
+  assert.doesNotMatch(sessionSummary(base({ dayType: 'ohp', pullupCluster: '8+2' }), 2), /Pull-ups:/) // OHP no longer
 })
 
 test('skipped carry shows reason and drops rounds/distance', () => {

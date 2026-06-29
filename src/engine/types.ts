@@ -20,7 +20,7 @@ export interface CarryMeta {
 }
 export interface DayMeta {
   antag: string
-  antagType: 'hold' | 'hold20' | 'pullup' | 'ringrow'
+  antagType: 'hold20' | 'pullup' | 'rdl' | 'dbrow'
   core: string
   carry: CarryMeta
 }
@@ -106,9 +106,6 @@ export interface Session {
   topWeight: number | null
   rpe: string
   barSpeed: string
-  cleanLoad: number | null
-  cleanRounds: number | null
-  cleanSpeed: string
   // Per-round Giant Block cardio calories, ordered [R1..R4]; null entry = unfilled round.
   cardioCals: (number | null)[]
   volDone: boolean
@@ -129,9 +126,7 @@ export interface Session {
 // A session as held in the UI form state and handed to the persistence layer.
 // Numeric inputs hold raw strings until the mappers coerce them (toNum/blankToNull),
 // so the form-bound fields are looser than the canonical persisted Session.
-export interface SessionDraft extends Omit<Session, 'cleanLoad' | 'cleanRounds' | 'cardioCals' | 'carryRounds' | 'carryDistance'> {
-  cleanLoad: number | string | null
-  cleanRounds: number | string | null
+export interface SessionDraft extends Omit<Session, 'cardioCals' | 'carryRounds' | 'carryDistance'> {
   cardioCals: (number | string | null)[]
   carryRounds: number | string | null
   carryDistance: number | string | null
@@ -230,14 +225,13 @@ export interface TrendSession {
   sets: number[] // per-round cardio kcal (cardio_cals)
 }
 
-// Power-clean session (dips day) flattened for the Cleans view.
-export interface TrendClean {
+// Recorded accessory weight (one-arm DB row / B-stance RDL) per cycle, for the
+// Accessories trend view. One point per (macro, cycle) that has a value logged.
+export interface TrendAccessory {
   macro: string
   cycle: string
-  week: string
-  date: string
-  weight: number | null
-  spd: 0 | 1 | 2 | null
+  label: string // "M2C1"
+  weight: number
 }
 
 // Attendance grid (Session view). Columns are the Mon/Wed/Fri slots; each cell's

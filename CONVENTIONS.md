@@ -23,7 +23,7 @@ src/
     offline-queue.ts / cache.ts  offline write queue + last-known snapshot (PWA)
   engine/          pure domain logic, framework-agnostic, unit-tested
     types.ts       shared domain types (Difficulty, Lift, Position, Session, SessionDraft, …)
-    constants.ts   ROTATION, SCHEMES, DAY_SPREAD/SET_LADDER/VOLUME_PCT (anchor cascade), DAY_META, PULLUP, SIGNALS, TESTING_SCHEDULE, MACRO_WEEKS
+    constants.ts   ROTATION, SCHEMES, DAY_SPREAD/SET_LADDER/VOLUME_PCT (anchor cascade), DAY_META, ANTAG_ITEM (day→recorded-accessory), PULLUP, SIGNALS, TESTING_SCHEDULE, MACRO_WEEKS
     date-engine.ts position math from the macro start date (see §7)
     loading.ts     single-anchor cascade (dayTop/expandDayTops/giantSets/volumeWeight), 2.5 kg rounding, fmt
     deload-rule.ts reactive-deload signals + trigger

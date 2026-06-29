@@ -1,6 +1,6 @@
 import { C, inp, lbl } from './theme'
 import { Card } from './components'
-import { blockTitle, Row, SpeedPick, LogRpe, antagDesc } from './controls'
+import { blockTitle, Row, LogRpe, antagDesc } from './controls'
 import { SCHEMES, WU_PCT, WU_REPS, SET_LADDER, DAY_META, LIFT_LABEL, PULLUP } from '../engine/constants'
 import { fmt, giantSets, warmupSets, volumeWeight, deloadTop } from '../engine/loading'
 import { clusterTotal, isUnbroken, meetsTarget } from '../engine/pullups'
@@ -16,11 +16,9 @@ interface BlankSessionArgs {
   difficulty?: Difficulty | null
   baseTop?: number | null
   isDeload?: boolean
-  cleanDefault?: number | string | null
 }
 
-// Build a blank session draft for a given slot. cleanDefault seeds the dips-day
-// clean load from the cycle's accessory weight.
+// Build a blank session draft for a given slot.
 export function buildBlankSession({
   date,
   macroId,
@@ -31,7 +29,6 @@ export function buildBlankSession({
   difficulty,
   baseTop,
   isDeload,
-  cleanDefault,
 }: BlankSessionArgs): SessionDraft {
   const scheme = difficulty ? SCHEMES[difficulty] : null
   const top = baseTop != null && isDeload ? deloadTop(baseTop) : baseTop ?? null
@@ -48,9 +45,6 @@ export function buildBlankSession({
     topWeight: top,
     rpe: '',
     barSpeed: '',
-    cleanLoad: cleanDefault ?? '',
-    cleanRounds: dayType === 'dips' ? 5 : null,
-    cleanSpeed: '',
     cardioCals: ['', '', '', ''],
     volDone: true,
     volRpe: '',
@@ -79,24 +73,32 @@ interface SessionFormProps {
   // Per-cycle carry weight from Setup (accessory_weights). When set, it replaces the
   // hardcoded descriptive load in the carry prescription.
   carryLoad?: number | string | null
+  // Per-cycle recorded weight for the day's Giant Block antagonist accessory
+  // (B-stance RDL on DL day, one-arm DB row on OHP day). null for bodyweight days.
+  antagLoad?: number | string | null
 }
 
 // The prescription + log fields for a training-week session. Reused by Today
 // (inline) and SessionModal (overlay). The parent owns the draft + Save button;
 // it stamps the prescribed top weight/reps on save.
-export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, draft, setField, locked = false, carryLoad }: SessionFormProps) {
+export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, draft, setField, locked = false, carryLoad, antagLoad }: SessionFormProps) {
   const scheme = SCHEMES[difficulty]
   const meta = DAY_META[dayType]
   // Prefer the per-cycle carry weight set in Setup; fall back to the descriptive
   // default when it hasn't been configured for this cycle.
   const carryNum = carryLoad === '' || carryLoad == null ? null : Number(carryLoad)
   const carryDisplay = carryNum != null && !Number.isNaN(carryNum) ? `${fmt(carryNum)}${meta.carry.perHand ? ' / hand' : ''}` : meta.carry.load
+  // Recorded antagonist accessory weight (RDL / one-arm row days); 'BW' for bodyweight antagonists.
+  const antagNum = antagLoad === '' || antagLoad == null ? null : Number(antagLoad)
+  const antagWeighted = meta.antagType === 'rdl' || meta.antagType === 'dbrow'
+  const antagDisplay = antagWeighted ? (antagNum != null && !Number.isNaN(antagNum) ? fmt(antagNum) : '—') : 'BW'
   const hasTop = hasWeight && top != null
   const wu = hasTop && top != null ? warmupSets(top) : null
   const gsets = hasTop ? giantSets(top, difficulty) : null
-  const giantLetter = dayType === 'dips' ? 'C' : 'B'
-  const volLetter = dayType === 'dips' ? 'D' : 'C'
-  const carryLetter = dayType === 'dips' ? 'E' : 'D'
+  // Every day is now A Warm-Up · B Giant Block · C Volume · D Carry (no clean block).
+  const giantLetter = 'B'
+  const volLetter = 'C'
+  const carryLetter = 'D'
 
   // When locked (timer not started), the prescription is readable but inert.
   return (
@@ -119,44 +121,7 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
         {WU_PCT.map((p, i) => (
           <Row key={i} a={`WU${i + 1}`} b={`${WU_REPS[i]} reps @ ~${Math.round(p * 100)}%`} c={wu ? fmt(wu[i].weight) : '—'} cls={C.muted} />
         ))}
-        {dayType === 'dips' && <div style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>+ a few build-up power cleans</div>}
       </Card>
-
-      {/* Clean block (dips only, not on deload) */}
-      {dayType === 'dips' && !isDeload && (
-        <Card>
-          {blockTitle('B. Clean Block', '5×3 · bar speed')}
-          <Row a="Power clean" b="5 × 3, touch-and-go, RPE 7 ceiling" c={draft.cleanLoad ? fmt(Number(draft.cleanLoad)) : '—'} cls={C.gold} />
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
-            <div style={{ flex: 1, minWidth: 90 }}>
-              <label style={lbl}>Load</label>
-              <input
-                style={inp}
-                type="number"
-                step="2.5"
-                value={draft.cleanLoad ?? ''}
-                onChange={(e) => setField('cleanLoad', e.target.value)}
-              />
-            </div>
-            <div style={{ flex: 1, minWidth: 70 }}>
-              <label style={lbl}>Rounds</label>
-              <input
-                data-clean-rounds="1"
-                style={inp}
-                type="number"
-                min="0"
-                step="1"
-                value={draft.cleanRounds ?? ''}
-                onChange={(e) => setField('cleanRounds', e.target.value)}
-              />
-            </div>
-            <div style={{ flex: 1, minWidth: 120 }}>
-              <label style={lbl}>Bar speed</label>
-              <SpeedPick value={draft.cleanSpeed} onChange={(v) => setField('cleanSpeed', v)} />
-            </div>
-          </div>
-        </Card>
-      )}
 
       {/* Giant Block */}
       <Card>
@@ -173,14 +138,14 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
             />
           )
         })}
-        <Row a={meta.antag} b={antagDesc(meta.antagType, difficulty)} c="" cls={C.muted} />
+        <Row a={meta.antag} b={antagDesc(meta.antagType, difficulty)} c={antagDisplay} cls={antagWeighted ? C.off : C.muted} />
         <Row a={meta.core} b="10 reps" c="BW" cls={C.muted} />
         <Row a="Cardio" b="30 sec high effort" c="" cls={C.muted} />
         <CardioCals
           values={draft.cardioCals}
           onChange={(i, v) => setField('cardioCals', draft.cardioCals.map((x, idx) => (idx === i ? v : x)))}
         />
-        {dayType === 'ohp' && <PullupCluster difficulty={difficulty} value={draft.pullupCluster} onChange={(v) => setField('pullupCluster', v)} />}
+        {dayType === 'dips' && <PullupCluster difficulty={difficulty} value={draft.pullupCluster} onChange={(v) => setField('pullupCluster', v)} />}
         <LogRpe label="Top set" rpe={draft.rpe} speed={draft.barSpeed} onRpe={(v) => setField('rpe', v)} onSpeed={(v) => setField('barSpeed', v)} />
       </Card>
 

@@ -1,7 +1,7 @@
 // Pure derivation: our persisted Session/Macro/deload data -> the flat row shape
 // the Trends charts consume (TrendSession). No DB calls, no React. The deload
 // signal flags mirror deload-rule.ts exactly so Trends never disagrees with Deload.
-import type { Session, Macro, DeloadMap, BreakDayMap, AccessoryByCycle, TrendSession, TrendDay, TrendClean, TrendCarry, CarryType, AttStatus, AttMacro, AttCycle } from './types'
+import type { Session, Macro, DeloadMap, BreakDayMap, AccessoryByCycle, TrendSession, TrendDay, TrendAccessory, TrendCarry, CarryType, AttStatus, AttMacro, AttCycle } from './types'
 import { weekKeyFor } from './deload-rule'
 import { enumerateMacro, todayISO } from './date-engine'
 
@@ -54,24 +54,21 @@ export function toTrendSessions(sessions: Session[], macros: Macro[], deloads: D
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
 }
 
-// Power cleans live on dips-day sessions (clean_load + clean_speed). One row per
-// logged clean, oldest -> newest.
-export function toCleanSessions(sessions: Session[], macros: Macro[]): TrendClean[] {
-  const numById: Record<string, number> = {}
-  macros.forEach((m) => {
-    numById[m.id] = m.number
-  })
-  return sessions
-    .filter((s) => s.dayType === 'dips' && s.cycle != null && s.week != null && s.cleanLoad != null)
-    .map((s) => ({
-      macro: `M${numById[s.macroId] ?? 0}`,
-      cycle: `C${s.cycle}`,
-      week: `W${s.week}`,
-      date: s.date,
-      weight: typeof s.cleanLoad === 'number' ? s.cleanLoad : Number(s.cleanLoad),
-      spd: s.cleanSpeed in SPD ? SPD[s.cleanSpeed] : null,
-    }))
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+// Recorded per-cycle accessory weight (one-arm DB row / B-stance RDL) over time:
+// one point per (macro, cycle) that has a value, ordered M1C1, M1C2, … MnC3.
+// These are Setup values (no per-session log), so the series is per cycle, not per session.
+export function toAccessoryTrend(macros: Macro[], accessory: Record<string, AccessoryByCycle>, item: string): TrendAccessory[] {
+  const out: TrendAccessory[] = []
+  macros
+    .slice()
+    .sort((a, b) => a.number - b.number)
+    .forEach((m) => {
+      for (const cycle of [1, 2, 3]) {
+        const w = accessory[m.id]?.[cycle]?.[item]
+        if (w != null) out.push({ macro: `M${m.number}`, cycle: `C${cycle}`, label: `M${m.number}C${cycle}`, weight: w })
+      }
+    })
+  return out
 }
 
 // Each training session has one carry, typed by the day's lift. Weight is the

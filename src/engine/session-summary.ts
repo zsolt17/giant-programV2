@@ -50,13 +50,6 @@ export function sessionSummary(s: Session, macroNumber: number): string {
   const diff = s.difficulty ? ` ${s.difficulty.charAt(0).toUpperCase() + s.difficulty.slice(1)}` : ''
   lines.push(`Session — ${pos} — ${liftLabel(s.dayType)}${diff} — ${fmtDate(s.date)}`)
 
-  // Cleans (dips day only).
-  if (s.dayType === 'dips' && (s.cleanLoad != null || s.cleanRounds != null)) {
-    const rounds = s.cleanRounds ?? '—'
-    const load = s.cleanLoad != null ? `${s.cleanLoad}` : '—'
-    lines.push(`Cleans: ${rounds}×3 @ ${load} ${arrow(s.cleanSpeed)}`.trimEnd())
-  }
-
   // Giant Block (the main lift top set + per-round cardio).
   const top = s.topWeight != null && s.topReps != null ? `${s.topWeight}×${s.topReps}` : '—'
   const cardio = cardioStr(s.cardioCals)
@@ -65,8 +58,8 @@ export function sessionSummary(s: Session, macroNumber: number): string {
   // Volume block.
   lines.push(`Volume R${rpeNum(s.volRpe)}${arrow(s.volSpeed)}: ${s.volDone ? '2 sets done' : 'incomplete'}`)
 
-  // Pull-ups (OHP day only).
-  if (s.dayType === 'ohp' && s.pullupCluster) {
+  // Pull-ups (dips day only — the dips-day Giant Block antagonist).
+  if (s.dayType === 'dips' && s.pullupCluster) {
     lines.push(`Pull-ups: ${s.pullupCluster}`)
   }
 

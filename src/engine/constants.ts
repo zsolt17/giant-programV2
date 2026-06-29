@@ -45,17 +45,22 @@ export const LIFT_LABEL: Record<Lift, string> = {
 }
 export const LIFT_SHORT: Record<Lift, string> = { deadlift: 'Deadlift', ohp: 'OHP', squat: 'Squat', dips: 'Dips' }
 
+// Days whose Giant Block antagonist carries a recorded per-cycle weight
+// (accessory_weights.item). B-stance RDL on DL day, one-arm DB row on OHP day;
+// squat (Copenhagen) and dips (pull-ups) are bodyweight → no entry.
+export const ANTAG_ITEM: Partial<Record<Lift, string>> = { deadlift: 'rdl_deadlift', ohp: 'row_ohp' }
+
 // Antagonist / core / carry per lift day.
 export const DAY_META: Record<Lift, DayMeta> = {
   deadlift: {
-    antag: 'Sørensen Hold',
-    antagType: 'hold',
+    antag: 'B-Stance DB RDL',
+    antagType: 'rdl',
     core: 'Ab Rollout',
     carry: { name: "Farmer's Carry", load: '60 kg / hand', perHand: true, dist: '20–30 m', sets: '3–4' },
   },
   ohp: {
-    antag: 'Pull-ups',
-    antagType: 'pullup',
+    antag: 'One-Arm DB Row',
+    antagType: 'dbrow',
     core: 'GHD Abs',
     carry: { name: 'Suitcase Carry', load: '50 kg / hand', perHand: true, dist: '20 m / side', sets: '3–4' },
   },
@@ -66,8 +71,8 @@ export const DAY_META: Record<Lift, DayMeta> = {
     carry: { name: 'Sandbag Bear Hug', load: '68–80 kg', perHand: false, dist: '20–30 m', sets: '3–4' },
   },
   dips: {
-    antag: 'Ring Rows',
-    antagType: 'ringrow',
+    antag: 'Pull-ups',
+    antagType: 'pullup',
     core: 'GHD Back Extension',
     carry: { name: 'Overhead Carry', load: '2 × 25 kg', perHand: true, dist: '20 m / side', sets: '3–4' },
   },

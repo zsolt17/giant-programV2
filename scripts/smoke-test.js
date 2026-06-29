@@ -70,17 +70,19 @@ async function main() {
     ok('upsert updates C1 deadlift hard -> 162.5', w?.[1]?.deadlift?.hard === 162.5, w?.[1]?.deadlift?.hard)
     ok('cascade follows edit: C1 deadlift medium -> 155', w?.[1]?.deadlift?.medium === 155, w?.[1]?.deadlift?.medium)
 
-    console.log('Accessory weights')
-    await repo.saveAccessoryWeights(id, 1, { clean: 70, carry_deadlift: 60 })
+    console.log('Accessory weights (recorded per-cycle: RDL / one-arm row / carries)')
+    await repo.saveAccessoryWeights(id, 1, { rdl_deadlift: 30, row_ohp: 22.5, carry_deadlift: 60 })
     const acc = await repo.getAccessoryWeights(id)
-    ok('C1 clean = 70', acc?.[1]?.clean === 70, acc?.[1])
+    ok('C1 rdl_deadlift = 30', acc?.[1]?.rdl_deadlift === 30, acc?.[1])
+    ok('C1 row_ohp = 22.5', acc?.[1]?.row_ohp === 22.5, acc?.[1])
+    ok('C1 carry_deadlift = 60', acc?.[1]?.carry_deadlift === 60, acc?.[1])
 
     console.log('Sessions')
     const sid = `SMOKE-${id}-deadlift-H`
     const saved = await repo.saveSession({
       id: sid, macroId: id, date: '2099-01-04', cycle: 1, week: 1, weekType: 'training',
       dayType: 'deadlift', difficulty: 'hard', topReps: 2, topWeight: 160, rpe: 'R8', barSpeed: 'normal',
-      cleanLoad: '', cleanRounds: 5, cleanSpeed: '', cardioCals: [15, 14, '', 15],
+      cardioCals: [15, 14, '', 15],
       volDone: true, volRpe: '', volSpeed: '', pullupCluster: '',
       carrySkipped: false, carrySkipReason: '', carryRounds: 3, carryDistance: 40, carryRpe: '', notes: 'smoke test',
       startedAt: '2099-01-04T08:00:00Z', endedAt: '2099-01-04T08:45:00Z',
@@ -88,16 +90,14 @@ async function main() {
     ok('session saved, topWeight = 160', saved.topWeight === 160, saved.topWeight)
     ok('timer fields round-trip', !!saved.startedAt && !!saved.endedAt, { s: saved.startedAt, e: saved.endedAt })
 
-    // 0004 extra logging fields round-trip (clean rounds, per-round cardio cals, carry rounds+distance).
-    ok('cleanRounds round-trips = 5', saved.cleanRounds === 5, saved.cleanRounds)
+    // Extra logging fields round-trip (per-round cardio cals, carry rounds+distance).
     ok('carryRounds round-trips = 3', saved.carryRounds === 3, saved.carryRounds)
     ok('carryDistance round-trips = 40', saved.carryDistance === 40, saved.carryDistance)
     ok('cardioCals = [15,14,null,15] (blank round -> NULL, length 4)',
       JSON.stringify(saved.cardioCals) === JSON.stringify([15, 14, null, 15]), saved.cardioCals)
 
     // "" -> NULL normalization at the raw row level.
-    const { data: raw } = await supabase.from('sessions').select('clean_speed,carry_skip_reason,bar_speed').eq('id', sid).single()
-    ok('empty cleanSpeed stored as NULL', raw.clean_speed === null, raw.clean_speed)
+    const { data: raw } = await supabase.from('sessions').select('carry_skip_reason,bar_speed').eq('id', sid).single()
     ok('empty carrySkipReason stored as NULL', raw.carry_skip_reason === null, raw.carry_skip_reason)
     ok('barSpeed preserved as "normal"', raw.bar_speed === 'normal', raw.bar_speed)
 

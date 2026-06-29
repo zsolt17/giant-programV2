@@ -6,7 +6,7 @@ import { PositionHeader, fmtClock, errMsg } from './controls'
 import { useWakeLock } from './useWakeLock'
 import { SessionForm, buildBlankSession } from './SessionForm'
 import { TestingResultForm } from './TestingResultForm'
-import { ROTATION, SCHEMES, LIFT_LABEL, SIGNALS } from '../engine/constants'
+import { ROTATION, SCHEMES, LIFT_LABEL, SIGNALS, ANTAG_ITEM } from '../engine/constants'
 import { deloadTop } from '../engine/loading'
 import { todayISO, mondayOf, parseLocalDate, isoLocal } from '../engine/date-engine'
 import { computeWeekSignals, shouldRecommendDeload, usedDeloadThisMeso, weekKeyFor } from '../engine/deload-rule'
@@ -186,8 +186,9 @@ export function Today({
   const weekKey = weekKeyFor(macro, cycle, week)
   const isDeload = !!deloads[weekKey]
   const top = base != null ? (isDeload ? deloadTop(base) : base) : null
-  const cleanDefault = accessory?.[cycle]?.clean ?? ''
   const carryDefault = accessory?.[cycle]?.[`carry_${dayType}`] ?? ''
+  const antagItem = ANTAG_ITEM[dayType]
+  const antagDefault = antagItem ? accessory?.[cycle]?.[antagItem] ?? '' : ''
   const sessionId = `${todayISO()}-${dayType}-${difficulty[0].toUpperCase()}`
   const existing = sessions.find((s) => s.id === sessionId)
   const currentWeekSessions = sessions.filter((s) => s.cycle === cycle && s.week === week)
@@ -240,7 +241,7 @@ export function Today({
         key={sessionId + (isDeload ? '-d' : '')}
         sessionId={sessionId}
         existing={existing}
-        blank={() => buildBlankSession({ date: todayISO(), macroId, cycle, week, weekType: 'training', dayType, difficulty, baseTop: base, isDeload, cleanDefault })}
+        blank={() => buildBlankSession({ date: todayISO(), macroId, cycle, week, weekType: 'training', dayType, difficulty, baseTop: base, isDeload })}
         headerSlot={<PositionHeader computed={computed} viewDiff={viewDiff} setViewDiff={setViewDiff} />}
         dayType={dayType}
         difficulty={difficulty}
@@ -248,6 +249,7 @@ export function Today({
         hasWeight={hasWeight}
         isDeload={isDeload}
         carryLoad={carryDefault}
+        antagLoad={antagDefault}
         currentWeekSessions={currentWeekSessions}
         stamp={{ macroId, cycle, week, weekType: 'training', dayType, difficulty, topReps: SCHEMES[difficulty].sets[3], topWeight: top, date: todayISO(), id: sessionId }}
         onSaveSession={onSaveSession}
@@ -272,6 +274,7 @@ interface SessionEditorProps {
   hasWeight: boolean
   isDeload: boolean
   carryLoad?: number | string | null
+  antagLoad?: number | string | null
   currentWeekSessions: Session[]
   stamp: Stamp
   onSaveSession: (record: SessionDraft) => Promise<Session>
@@ -282,7 +285,7 @@ interface SessionEditorProps {
   setSaved: (b: boolean) => void
 }
 
-function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, carryLoad, currentWeekSessions, stamp, onSaveSession, onRunningChange, saving, setSaving, saved, setSaved }: SessionEditorProps) {
+function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, carryLoad, antagLoad, currentWeekSessions, stamp, onSaveSession, onRunningChange, saving, setSaving, saved, setSaved }: SessionEditorProps) {
   const [draft, setDraft] = useState<SessionDraft>(() => existing || blank())
   const [err, setErr] = useState('')
   const [nowTs, setNowTs] = useState(() => Date.now())
@@ -406,7 +409,7 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
         />
       )}
 
-      <SessionForm dayType={dayType} difficulty={difficulty} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} locked={notStarted} carryLoad={carryLoad} />
+      <SessionForm dayType={dayType} difficulty={difficulty} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} locked={notStarted} carryLoad={carryLoad} antagLoad={antagLoad} />
 
       {completed && (
         <button
