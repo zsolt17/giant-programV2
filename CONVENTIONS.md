@@ -30,11 +30,13 @@ src/
     trends.ts      pure derivations: Session/accessory/deload -> Trends chart view-models
     export-csv.ts  pure Session[] -> CSV string (Data page "Download all data")
     session-summary.ts  pure Session -> plain-text share summary (Data page "Copy")
+    recovery-content.ts  static Recovery content (joints/tendons/exercises + 64x64 SVGs, PHASE_DOSE)
+    recovery.ts    local-date phase/day helpers for Recovery (suggestedPhase/effectivePhase/protocolDay)
     pullups.ts     phase-1 cluster parsing/totals
     *.test.js      Vitest unit tests (node:assert), colocated with each module
   ui/              React components (presentational + container)
     App.tsx        shell: auth gate, top-level state, tab routing, all handlers
-    Today.tsx, Calendar.tsx, History.tsx, Deload.tsx, Setup.tsx, Trends.tsx, Data.tsx, Auth.tsx
+    Today.tsx, Calendar.tsx, History.tsx, Deload.tsx, Setup.tsx, Trends.tsx, Data.tsx, Recovery.tsx, Auth.tsx
     SessionForm.tsx     shared prescription + log fields (Today + SessionModal)
     SessionModal.tsx    calendar-cell overlay wrapping SessionForm / TestingResultForm
     TestingResultForm.tsx

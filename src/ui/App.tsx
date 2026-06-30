@@ -19,9 +19,12 @@ const Deload = lazy(() => import('./Deload').then((m) => ({ default: m.Deload })
 // Trends pulls in recharts — keep it in its own lazy chunk, off the main bundle.
 const Trends = lazy(() => import('./Trends').then((m) => ({ default: m.Trends })))
 const Data = lazy(() => import('./Data').then((m) => ({ default: m.Data })))
+const Recovery = lazy(() => import('./Recovery').then((m) => ({ default: m.Recovery })))
 import { errMsg } from './controls'
-import { computePosition, parseLocalDate } from '../engine/date-engine'
+import { computePosition, parseLocalDate, todayISO } from '../engine/date-engine'
 import { C } from './theme'
+import type { Joint, Phase } from '../engine/recovery-content'
+import type { RecoveryProtocol, RecoveryLogMap } from '../engine/types'
 
 // Dev-only date override: `?today=YYYY-MM-DD` makes the app treat that date as "now"
 // so date-driven views (Today's prescription) can be exercised off a real session day.
@@ -91,6 +94,9 @@ export function App() {
   const [trendsErr, setTrendsErr] = useState('')
   const [allSessions, setAllSessions] = useState<Session[] | null>(null) // all-macro sessions, loaded on first Data open
   const [dataErr, setDataErr] = useState('')
+  // Recovery (Tendon Health) — independent of macros, loaded on first Recovery open.
+  const [recovery, setRecovery] = useState<{ protocol: RecoveryProtocol | null; logs: RecoveryLogMap } | null>(null)
+  const [recoveryErr, setRecoveryErr] = useState('')
   // First-login boot: hold the login/loading screen until the initial bundle is in,
   // so Today's first paint is complete (no empty shell / partial fill).
   const [booted, setBooted] = useState(false)
@@ -229,6 +235,58 @@ export function App() {
     }
   }, [tab, user, allSessions])
 
+  // Load the active recovery protocol + today's tendon logs, on first Recovery open.
+  useEffect(() => {
+    if (tab !== 'recovery' || !user || recovery) return
+    let cancelled = false
+    setRecoveryErr('')
+    repo
+      .getActiveProtocol()
+      .then(async (p) => {
+        const logs = p ? await repo.getTendonLogsForDate(p.id, todayISO()) : {}
+        if (!cancelled) setRecovery({ protocol: p, logs })
+      })
+      .catch((e) => !cancelled && setRecoveryErr(errMsg(e)))
+    return () => {
+      cancelled = true
+    }
+  }, [tab, user, recovery])
+
+  const onStartProtocol = useCallback(async (joint: Joint, startISO: string) => {
+    const p = await repo.startProtocol(joint, startISO)
+    setRecovery({ protocol: p, logs: {} })
+  }, [])
+
+  const onSetPhaseOverride = useCallback(
+    async (phase: Phase | null) => {
+      if (!recovery?.protocol) return
+      const p = await repo.setPhaseOverride(recovery.protocol.id, phase)
+      setRecovery((prev) => (prev ? { ...prev, protocol: p } : prev))
+    },
+    [recovery]
+  )
+
+  const onCloseProtocol = useCallback(async () => {
+    if (!recovery?.protocol) return
+    await repo.closeProtocol(recovery.protocol.id, todayISO())
+    setRecovery({ protocol: null, logs: {} })
+  }, [recovery])
+
+  const onToggleTendonLog = useCallback(
+    async (tendonKey: string, on: boolean) => {
+      if (!recovery?.protocol) return
+      await repo.setTendonLog(recovery.protocol.id, tendonKey, todayISO(), on)
+      setRecovery((prev) => {
+        if (!prev) return prev
+        const logs = { ...prev.logs }
+        if (on) logs[tendonKey] = true
+        else delete logs[tendonKey]
+        return { ...prev, logs }
+      })
+    },
+    [recovery]
+  )
+
   // Cache the loaded bundle so reopening offline shows last-known data (incl.
   // optimistic offline writes, since those flow through state).
   useEffect(() => {
@@ -362,7 +420,7 @@ export function App() {
       <SyncStatus online={online} pending={pending} />
 
       <Suspense fallback={<Center><Spinner /> Loading…</Center>}>
-      {needsMacro && tab !== 'setup' && (
+      {needsMacro && tab !== 'setup' && tab !== 'recovery' && (
         <Card style={{ textAlign: 'center', color: C.muted }}>No active macro yet — create one in the Setup tab.</Card>
       )}
 
@@ -440,6 +498,24 @@ export function App() {
         ) : (
           <Center>
             <Spinner /> Loading data…
+          </Center>
+        ))}
+
+      {tab === 'recovery' &&
+        (recoveryErr ? (
+          <Card style={{ textAlign: 'center', color: C.red }}>Couldn't load recovery — {recoveryErr}.</Card>
+        ) : recovery ? (
+          <Recovery
+            protocol={recovery.protocol}
+            logs={recovery.logs}
+            onStartProtocol={onStartProtocol}
+            onSetPhaseOverride={onSetPhaseOverride}
+            onCloseProtocol={onCloseProtocol}
+            onToggleTendonLog={onToggleTendonLog}
+          />
+        ) : (
+          <Center>
+            <Spinner /> Loading recovery…
           </Center>
         ))}
       </Suspense>

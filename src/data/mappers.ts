@@ -16,7 +16,10 @@ import type {
   DeloadMap,
   BreakDayMap,
   TestingResult,
+  RecoveryProtocol,
+  RecoveryLogMap,
 } from '../engine/types'
+import type { Joint, Phase } from '../engine/recovery-content'
 import { expandDayTops } from '../engine/loading'
 
 const blankToNull = (v: string | null | undefined): string | null => (v === '' || v === undefined ? null : v)
@@ -248,4 +251,34 @@ export function testingToRow(t: TestingResult): TestingRow {
   }
   if (t.id) row.id = t.id
   return row
+}
+
+// ---- recovery (protocols + per-tendon daily logs) --------------------------
+export interface RecoveryProtocolRow {
+  id: string
+  joint: string
+  start_date: string
+  phase_override: string | null
+  status: 'active' | 'completed'
+  closed_early: boolean | null
+  end_date: string | null
+}
+export function rowToProtocol(r: RecoveryProtocolRow): RecoveryProtocol {
+  return {
+    id: r.id,
+    joint: r.joint as Joint,
+    startISO: r.start_date,
+    phaseOverride: (r.phase_override as Phase) || null,
+    status: r.status,
+    closedEarly: !!r.closed_early,
+    endISO: r.end_date || null,
+  }
+}
+// Tendon-log rows for one (protocol, date) -> set of done tendon keys.
+export function rowsToRecoveryLogs(rows: { tendon_key: string }[]): RecoveryLogMap {
+  const o: RecoveryLogMap = {}
+  ;(rows || []).forEach((r) => {
+    o[r.tendon_key] = true
+  })
+  return o
 }

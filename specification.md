@@ -58,6 +58,9 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
   macro picker, and "start next macro" archiving (carries C3→C1).
 - **Data** — export all sessions (across every macro) to CSV, and copy a plain-text per-session
   summary to the clipboard for sharing into a coaching conversation. (Burger menu → Data.)
+- **Recovery → Tendon Health** — joint-specific isometric loading protocol: pick a joint, phase
+  auto-advances (Acute/Build/Maintenance, overridable), per-tendon 30s hold timer + light per-day
+  "done" logging, position diagrams. One active protocol at a time. (Burger menu → Recovery; first item.)
 - **Pull-ups** — phase-1 bodyweight cluster logging (**dips day** Giant Block antagonist) + trend. *(Phase-2 weighted: deferred.)*
 - **Testing weeks** — record 2–3RM results per lift.
 - **Global loading states** — branded pre-React splash (home-screen-icon mark + shimmer bar);
@@ -73,6 +76,21 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ## Change log
 
 ## 2026-06-30
+- `feat(recovery)`: **new Recovery section — Tendon Health** (drawer item, ordered **first**, above
+  Deload). A joint-specific isometric loading protocol: pick a joint (wrist/elbow/shoulder/knee/ankle)
+  + start date → an active protocol with a hybrid **phase** (Acute/Build/Maintenance auto-suggested
+  from days-since-start, overridable via a segmented control; tapping the suggested segment clears the
+  override). Per-tendon rows show a 64×64 position diagram, exercise + current dose (from `PHASE_DOSE`),
+  a **30s hold timer** (countdown ring, manual set advance 1/3→3/3, screen wake-lock while holding,
+  auto-checks "done today" on 3/3), and a per-tendon done checkbox. Logging is intentionally light —
+  one row per (tendon, day); the row's existence is the signal. Close = confirm → status `completed`,
+  `closed_early`, joint picker re-opens. **Data:** two new tables `recovery_protocols` +
+  `recovery_tendon_logs` (RLS: protocols via `user_id`, logs transitive via `protocol_id`; **one active
+  protocol per user** enforced by a partial unique index). New engine modules `recovery-content.ts`
+  (static content incl. all 16 exercise SVGs — the 3 provided + 13 authored) and `recovery.ts`
+  (local-date phase/day helpers, 3 tests). Recovery is **macro-independent** (works with no active
+  macro) and loaded lazily on first open (own ~4 KB-gzip chunk). Migration `0008_recovery.sql`.
+  typecheck + 65 tests + build green; smoke extended (protocol/override/log/close round-trip).
 - `fix(calendar)`: **session modal no longer slides behind the bottom nav / leaks scroll to the
   calendar**. The `SessionModal` overlay was `zIndex 50` — equal to the fixed bottom nav, which
   (later in the DOM) painted over the Log button; and the background wasn't scroll-locked, so

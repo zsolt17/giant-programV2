@@ -238,6 +238,21 @@ export interface TrendAccessory {
   weight: number
 }
 
+// ---- Recovery > Tendon Health ---------------------------------------------
+// An active or completed joint isometric-loading protocol. Joint/Phase live in
+// engine/recovery-content.ts (the static content module).
+export interface RecoveryProtocol {
+  id: string
+  joint: import('./recovery-content').Joint
+  startISO: string
+  phaseOverride: import('./recovery-content').Phase | null
+  status: 'active' | 'completed'
+  closedEarly: boolean
+  endISO: string | null
+}
+// Which tendons are logged done for the viewed date: tendon_key -> true.
+export type RecoveryLogMap = Record<string, boolean>
+
 // Attendance grid (Session view). Columns are the Mon/Wed/Fri slots; each cell's
 // status is derived from the schedule + what was logged.
 export type AttStatus = 'done' | 'deload' | 'test' | 'missed' | 'holiday' | 'upcoming' | null

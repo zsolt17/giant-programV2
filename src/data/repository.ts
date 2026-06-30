@@ -18,7 +18,10 @@ import type {
   TestingResult,
   MacroBundle,
   TrendsData,
+  RecoveryProtocol,
+  RecoveryLogMap,
 } from '../engine/types'
+import type { Joint, Phase } from '../engine/recovery-content'
 
 // Browser-only offline handling (Node smoke test has no navigator/window).
 const isBrowser = typeof navigator !== 'undefined' && typeof window !== 'undefined'
@@ -330,6 +333,54 @@ export async function loadTrends(): Promise<TrendsData> {
     testing: (tRows.data || []).map(M.rowToTesting),
     deloads: M.rowsToDeloads(dRows.data || []),
     breakDays,
+  }
+}
+
+// ---- recovery (Tendon Health) ----------------------------------------------
+export async function getActiveProtocol(): Promise<RecoveryProtocol | null> {
+  const { data, error } = await supabase.from('recovery_protocols').select('*').eq('status', 'active').maybeSingle()
+  if (error) throw error
+  return data ? M.rowToProtocol(data) : null
+}
+
+export async function startProtocol(joint: Joint, startISO: string): Promise<RecoveryProtocol> {
+  assertWritable()
+  const { data, error } = await supabase.from('recovery_protocols').insert({ joint, start_date: startISO }).select().single()
+  if (error) throw error
+  return M.rowToProtocol(data)
+}
+
+export async function setPhaseOverride(id: string, phase: Phase | null): Promise<RecoveryProtocol> {
+  assertWritable()
+  const { data, error } = await supabase.from('recovery_protocols').update({ phase_override: phase }).eq('id', id).select().single()
+  if (error) throw error
+  return M.rowToProtocol(data)
+}
+
+// Close the active protocol (v1 has no natural completion — every close is early).
+export async function closeProtocol(id: string, endISO: string): Promise<void> {
+  assertWritable()
+  const { error } = await supabase.from('recovery_protocols').update({ status: 'completed', closed_early: true, end_date: endISO }).eq('id', id)
+  if (error) throw error
+}
+
+export async function getTendonLogsForDate(protocolId: string, dateISO: string): Promise<RecoveryLogMap> {
+  const { data, error } = await supabase.from('recovery_tendon_logs').select('tendon_key').eq('protocol_id', protocolId).eq('log_date', dateISO)
+  if (error) throw error
+  return M.rowsToRecoveryLogs(data || [])
+}
+
+// A log row's existence is the signal: upsert to mark done, delete to unmark.
+export async function setTendonLog(protocolId: string, tendonKey: string, dateISO: string, on: boolean): Promise<void> {
+  assertWritable()
+  if (on) {
+    const { error } = await supabase
+      .from('recovery_tendon_logs')
+      .upsert({ protocol_id: protocolId, tendon_key: tendonKey, log_date: dateISO }, { onConflict: 'protocol_id,tendon_key,log_date' })
+    if (error) throw error
+  } else {
+    const { error } = await supabase.from('recovery_tendon_logs').delete().eq('protocol_id', protocolId).eq('tendon_key', tendonKey).eq('log_date', dateISO)
+    if (error) throw error
   }
 }
 

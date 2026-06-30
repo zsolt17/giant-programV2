@@ -59,6 +59,10 @@ const ICONS: Record<string, ReactNode> = {
       <circle cx="9" cy="18" r="2" />
     </>
   ),
+  // heart — the recovery section
+  recovery: (
+    <path d="M12 20s-6.5-4.2-9-7.7C1.4 10 2.3 6.4 5.6 6.4c1.9 0 3.2 1.2 4 2.3 .8-1.1 2.1-2.3 4-2.3 3.3 0 4.2 3.6 2.6 5.9C18.5 15.8 12 20 12 20z" />
+  ),
   // database cylinder — the data/export page
   data: (
     <>
@@ -114,7 +118,7 @@ function navItemStyle(active: boolean) {
 export function BottomNav({ tab, setTab, onOpenMenu, menuOpen }: { tab: TabKey; setTab: (t: TabKey) => void; onOpenMenu: () => void; menuOpen: boolean }) {
   // Menu reads as active while a drawer destination (deload/setup) is showing, or
   // while the drawer is open.
-  const menuActive = menuOpen || tab === 'deload' || tab === 'history' || tab === 'setup' || tab === 'data'
+  const menuActive = menuOpen || tab === 'recovery' || tab === 'deload' || tab === 'history' || tab === 'setup' || tab === 'data'
   return (
     <nav
       aria-label="Primary"
@@ -156,6 +160,7 @@ export function BottomNav({ tab, setTab, onOpenMenu, menuOpen }: { tab: TabKey; 
 // --- slide-in menu drawer (secondary destinations) --------------------------
 // Add future entries here (e.g. Progress, Account) — they appear automatically.
 const MENU_ITEMS: { key: TabKey; label: string; icon: string }[] = [
+  { key: 'recovery', label: 'Recovery', icon: 'recovery' },
   { key: 'deload', label: 'Deload', icon: 'deload' },
   { key: 'history', label: 'History', icon: 'history' },
   { key: 'data', label: 'Data', icon: 'data' },

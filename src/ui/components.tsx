@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { C, HEADING, cardStyle } from './theme'
 
-export type TabKey = 'today' | 'calendar' | 'history' | 'deload' | 'trends' | 'setup' | 'data'
+export type TabKey = 'today' | 'calendar' | 'history' | 'deload' | 'trends' | 'setup' | 'data' | 'recovery'
 
 // Heights reserved on the scroll content for the two fixed bars (see Shell):
 // the always-present bottom nav (raised to clear curved corners), and the top

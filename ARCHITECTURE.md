@@ -260,6 +260,8 @@ Capabilities, in domain terms:
 - **Multi-macro archiving** — roll into a new macro carrying C3 weights forward; prior macros stay viewable.
 - **Data export / share** — download all sessions (every macro) as CSV, and copy a plain-text
   per-session summary to the clipboard for pasting into a coaching conversation.
+- **Recovery → Tendon Health** (§12) — joint isometric-loading protocols with phase-based dosing,
+  per-tendon hold timers, and light per-day "done" logging. Macro-independent.
 - **Single-user auth** (Supabase + Row Level Security), installable PWA with offline logging.
 
 Deferred: pull-up **phase-2 weighted** switchover (§4) — waiting until the athlete is consistently
@@ -278,7 +280,7 @@ Block cardio cals), `carry_rounds`, `carry_distance`; `0005_anchor_weights.sql` 
 `working_weights.medium`/`light` for the single-anchor model — §3; `0006_remove_cleans.sql` drops the
 `sessions.clean_*` columns and retires the `clean` accessory item, adding `rdl_deadlift`/`row_ohp`;
 `0007_program_revision.sql` reassigns secondaries (`rdl_deadlift`→`rdl_squat`, adds `lunge_deadlift`)
-and adds `sessions.block_completion`).
+and adds `sessions.block_completion`; `0008_recovery.sql` adds the Recovery tables — §12).
 See `supabase/MIGRATIONS.md` for how migrations are applied and the DB kept reproducible.
 Tables:
 
@@ -383,6 +385,31 @@ break_days (
   date          date not null,
   unique (user_id, date)
 )
+
+-- Recovery > Tendon Health: one isometric-loading protocol per joint (0008).
+-- Macro-INDEPENDENT (user-scoped, not macro-scoped). One active per user.
+recovery_protocols (
+  id             uuid primary key default gen_random_uuid(),
+  user_id        uuid references auth.users not null default auth.uid(),
+  joint          text not null,             -- wrist | elbow | shoulder | knee | ankle
+  start_date     date not null default current_date,
+  phase_override text,                       -- acute | build | maintenance (null = auto)
+  status         text not null default 'active',  -- active | completed
+  closed_early   boolean not null default false,
+  end_date       date,
+  created_at     timestamptz not null default now()
+)
+-- partial unique index: one active protocol per user
+--   create unique index ... on recovery_protocols (user_id) where status = 'active';
+
+-- Light per-tendon daily log — the row's existence is the "done" signal (no detail).
+recovery_tendon_logs (
+  id            uuid primary key default gen_random_uuid(),
+  protocol_id   uuid references recovery_protocols on delete cascade not null,
+  tendon_key    text not null,
+  log_date      date not null default current_date,
+  unique (protocol_id, tendon_key, log_date)
+)
 ```
 
 Notes:
@@ -438,7 +465,27 @@ repeated here. The two load-bearing domain invariants to preserve, wherever the 
 
 ---
 
-## 12. Related documents
+## 12. Recovery — Tendon Health
+
+A separate tool (not part of the training program above), reached from the burger drawer (ordered
+**first**). It is **macro-independent** — works with no active macro, owned directly by `user_id`.
+
+- **Protocol:** pick a joint (wrist / elbow / shoulder / knee / ankle) + a start date → one **active**
+  protocol. Only one active per user (DB partial unique index, §9). Closing it (confirm step) sets
+  `status = completed`, `closed_early`, `end_date`, and re-opens the joint picker. No history UI in v1.
+- **Phase (hybrid):** auto-suggested from local days-since-start — Acute (0–20) / Build (21–56) /
+  Maintenance (57+) — shown in a segmented control. Tapping a non-suggested segment sets
+  `phase_override`; tapping the suggested one clears it (back to auto). Only the **frequency** changes
+  by phase (`PHASE_DOSE`); hold (30s) and set count (3) are fixed.
+- **Content:** static in `engine/recovery-content.ts` — joints → tendons → one fixed exercise each,
+  with an inline 64×64 SVG position diagram. Phase/day math is local-date (`engine/recovery.ts`),
+  consistent with the date engine (§6).
+- **Timer + logging:** each tendon has a 30s hold timer (countdown ring, manual set advance to 3/3,
+  screen wake-lock while holding). Logging is deliberately light — one `recovery_tendon_logs` row per
+  (tendon, day); the row's existence is the "done" signal (no set/rep detail). Completing 3/3 auto-logs
+  done; the per-tendon checkbox also toggles it manually.
+
+## 13. Related documents
 
 - **`The_Giant_Program_v7_Book`** (`.pdf` / `.docx`) — the authoritative *training program*. Read
   for full domain detail. Kept in the separate documentation folder (`The Giant Program/`), **not**

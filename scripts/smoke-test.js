@@ -139,6 +139,28 @@ async function main() {
     console.log('Bundle')
     const bundle = await repo.loadMacroBundle(id)
     ok('bundle returns all sections', !!(bundle && bundle.weights && bundle.sessions && 'deloads' in bundle))
+
+    // Recovery (Tendon Health). Only one ACTIVE protocol per user is allowed (DB index),
+    // so skip the write round-trip if the user already has a real active protocol.
+    console.log('Recovery (Tendon Health)')
+    await supabase.from('recovery_protocols').delete().eq('start_date', '2099-01-01') // clean a prior crashed run
+    if (await repo.getActiveProtocol()) {
+      ok('recovery: user has an active protocol — skipping write round-trip', true)
+    } else {
+      const proto = await repo.startProtocol('knee', '2099-01-01')
+      ok('protocol started (knee, active)', proto.joint === 'knee' && proto.status === 'active', proto)
+      ok('getActiveProtocol returns it', (await repo.getActiveProtocol())?.id === proto.id)
+      ok('phase override -> build', (await repo.setPhaseOverride(proto.id, 'build')).phaseOverride === 'build')
+      ok('phase override cleared', (await repo.setPhaseOverride(proto.id, null)).phaseOverride === null)
+      await repo.setTendonLog(proto.id, 'knee-patellar', '2099-01-02', true)
+      ok('tendon logged done', (await repo.getTendonLogsForDate(proto.id, '2099-01-02'))['knee-patellar'] === true)
+      await repo.setTendonLog(proto.id, 'knee-patellar', '2099-01-02', false)
+      ok('tendon log removed', !(await repo.getTendonLogsForDate(proto.id, '2099-01-02'))['knee-patellar'])
+      await repo.closeProtocol(proto.id, '2099-01-03')
+      ok('no active protocol after close', !(await repo.getActiveProtocol()))
+      await supabase.from('recovery_protocols').delete().eq('id', proto.id) // cascades logs
+      ok('recovery protocol cleaned up', true)
+    }
   } finally {
     console.log('Cleanup (delete throwaway macro — cascades to all its rows)')
     await supabase.from('macros').delete().eq('id', id)
