@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import type { CSSProperties } from 'react'
 import { useFocusTrap } from './useFocusTrap'
 import { C, HEADING, inp, lbl, pillColor } from './theme'
@@ -79,6 +79,15 @@ export function SessionModal({
   const [err, setErr] = useState('')
   const sheetRef = useRef<HTMLDivElement>(null)
   useFocusTrap(sheetRef, onClose) // Esc to close, trap Tab, restore focus on close
+  // Lock the background (calendar) from scrolling while the modal is open — otherwise
+  // touch-scrolling leaks to the page behind and the fixed overlay appears frozen.
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [])
   const setField = <K extends keyof SessionDraft>(k: K, v: SessionDraft[K]) => setDraft((p) => ({ ...p, [k]: v }) as SessionDraft)
 
   // Manual duration edit for a timed session (editable-after-the-fact fallback).
@@ -134,9 +143,15 @@ export function SessionModal({
     display: 'flex',
     alignItems: 'flex-start',
     justifyContent: 'center',
-    padding: '20px 12px',
+    paddingTop: 20,
+    paddingLeft: 12,
+    paddingRight: 12,
+    // Clear the home-indicator inset so the Log button isn't cut off at the bottom.
+    paddingBottom: 'calc(24px + env(safe-area-inset-bottom))',
     overflowY: 'auto',
-    zIndex: 50,
+    overscrollBehavior: 'contain', // don't chain scroll to the page behind
+    // Above the fixed bottom nav (zIndex 50) — otherwise the nav covers the Log button.
+    zIndex: 60,
   }
   const sheet: CSSProperties = { background: C.dark, border: `1px solid ${C.border}`, borderRadius: 4, maxWidth: 520, width: '100%', padding: 18, marginTop: 20 }
 

@@ -73,6 +73,13 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ## Change log
 
 ## 2026-06-30
+- `fix(calendar)`: **session modal no longer slides behind the bottom nav / leaks scroll to the
+  calendar**. The `SessionModal` overlay was `zIndex 50` — equal to the fixed bottom nav, which
+  (later in the DOM) painted over the Log button; and the background wasn't scroll-locked, so
+  touch-scrolling moved the calendar behind while the fixed overlay appeared frozen. Raised the
+  overlay to `zIndex 60` (above the nav), added bottom padding for the home-indicator safe-area inset,
+  locked `document.body` overflow while the modal is open, and set `overscroll-behavior: contain`.
+  `SessionModal.tsx` only.
 - `feat(program)`: **finalized program revision** (builds on the same-day exercise overhaul). The
   Giant Block "antagonist" slot is **renamed Secondary** throughout (`DAY_META.secondary`,
   `secondaryDesc`, `SECONDARY_ITEM`, `secondaryLoad`). **Secondaries:** DL B-stance RDL → **Reverse
