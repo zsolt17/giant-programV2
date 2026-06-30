@@ -13,17 +13,18 @@ const LIFTS: Lift[] = ['deadlift', 'ohp', 'squat', 'dips']
 const DIFFS: Difficulty[] = ['hard', 'medium', 'light']
 const CYCLES: number[] = [1, 2, 3]
 const ACC_LABEL: Record<string, string> = {
-  rdl_deadlift: 'B-Stance DB RDL — DL day',
+  lunge_deadlift: 'Reverse Lunge — DL day',
+  rdl_squat: 'B-Stance DB RDL — Squat day',
   row_ohp: 'One-Arm DB Row — OHP day',
-  carry_deadlift: 'Farmer Carry — DL day',
-  carry_ohp: 'Suitcase Carry — OHP day',
-  carry_squat: 'Sandbag Bear Hug — Squat day',
-  carry_dips: 'Overhead Carry — Dips day',
+  carry_deadlift: 'Bear-Hug Sandbag — DL day',
+  carry_ohp: "Farmer's Carry — OHP day",
+  carry_squat: 'Overhead Carry — Squat day',
+  carry_dips: 'Suitcase Carry — Dips day',
 }
 const ACC_ITEMS = Object.keys(ACC_LABEL)
-// Recorded accessories (one-arm row, B-stance RDL): an empty cycle auto-fills from
-// the nearest lower cycle as a starting reference (the user adjusts by feel + saves).
-const SEED_ITEMS = ['rdl_deadlift', 'row_ohp']
+// Recorded secondaries (reverse lunge, B-stance RDL, one-arm row): an empty cycle
+// auto-fills from the nearest lower cycle as a starting reference (adjust by feel + save).
+const SEED_ITEMS = ['lunge_deadlift', 'rdl_squat', 'row_ohp']
 
 // Native <input type="date"> on iOS keeps an intrinsic width and overflows its
 // container; -webkit-appearance:none strips that so it respects width:100%.
@@ -289,8 +290,8 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
       <Card>
         <BlockTitle tag={`cycle ${cycle}`}>Accessories &amp; Carries</BlockTitle>
         <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>
-          Recorded weight each (no cascade). The B-stance RDL and one-arm row auto-seed from the previous cycle as a
-          starting reference — adjust by feel. Carries are the same all week within a cycle.
+          Recorded weight each (no cascade). The secondaries (reverse lunge, B-stance RDL, one-arm row) auto-seed from
+          the previous cycle as a starting reference — adjust by feel. Carries are the same all week within a cycle.
         </div>
         {ACC_ITEMS.map((it) => (
           <div

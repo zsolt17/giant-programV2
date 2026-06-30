@@ -20,10 +20,10 @@ export function fmtClock(ms: number | null | undefined): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
 }
 
-export function antagDesc(type: DayMeta['antagType'], diff: Difficulty): string {
-  if (type === 'hold20') return '20 sec'
+export function secondaryDesc(type: DayMeta['secondaryType'], diff: Difficulty): string {
   if (type === 'pullup') return `${PULLUP[diff]} reps/round (clusters ok)`
   if (type === 'rdl') return '8 reps / leg'
+  if (type === 'lunge') return '8 reps / leg'
   if (type === 'dbrow') return '10 reps / arm'
   return ''
 }

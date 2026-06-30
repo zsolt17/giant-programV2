@@ -58,6 +58,7 @@ export interface SessionRow {
   rpe: string | null
   bar_speed: string | null
   cardio_cals: (number | null)[] | null
+  block_completion: string | null
   vol_done: boolean | null
   vol_rpe: string | null
   vol_speed: string | null
@@ -161,6 +162,7 @@ export function rowToSession(r: SessionRow): Session {
     rpe: r.rpe || '',
     barSpeed: r.bar_speed || '',
     cardioCals: rowToCardio(r.cardio_cals),
+    blockCompletion: r.block_completion || 'completed', // legacy null → treated as completed
     volDone: r.vol_done ?? true,
     volRpe: r.vol_rpe || '',
     volSpeed: r.vol_speed || '',
@@ -191,6 +193,7 @@ export function sessionToRow(s: SessionDraft): SessionRow {
     rpe: blankToNull(s.rpe),
     bar_speed: blankToNull(s.barSpeed),
     cardio_cals: cardioToRow(s.cardioCals),
+    block_completion: blankToNull(s.blockCompletion),
     vol_done: s.volDone ?? true,
     vol_rpe: blankToNull(s.volRpe),
     vol_speed: blankToNull(s.volSpeed),

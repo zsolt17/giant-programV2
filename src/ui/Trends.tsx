@@ -614,16 +614,20 @@ function AttendanceChart({ macros }: { macros: AttMacro[] }) {
 
 function DeloadChart({ sessions }: { sessions: TrendSession[] }) {
   const weeks = useMemo(() => {
-    const map: Record<string, { label: string; S1: number; S2: number; S3: number; S5: number }> = {}
+    const map: Record<string, { label: string; S1: number; S6: number; S2: number; S3: number; S5: number }> = {}
     sessions.forEach((s) => {
       const key = `${s.macro}${s.cycle}${s.week}`
-      if (!map[key]) map[key] = { label: `${s.cycle}${s.week}`, S1: 0, S2: 0, S3: 0, S5: 0 }
+      if (!map[key]) map[key] = { label: `${s.cycle}${s.week}`, S1: 0, S6: 0, S2: 0, S3: 0, S5: 0 }
       map[key].S1 = Math.max(map[key].S1, s.S1)
+      map[key].S6 = Math.max(map[key].S6, s.S6)
       map[key].S2 = Math.max(map[key].S2, s.S2)
       map[key].S3 = Math.max(map[key].S3, s.S3)
       map[key].S5 = Math.max(map[key].S5, s.S5)
     })
-    return Object.values(map).map((w) => ({ ...w, total: w.S1 + w.S2 + w.S3 + w.S5, fired: w.S1 + w.S2 + w.S3 + w.S5 >= 3 }))
+    return Object.values(map).map((w) => {
+      const total = w.S1 + w.S6 + w.S2 + w.S3 + w.S5
+      return { ...w, total, fired: total >= 3 }
+    })
   }, [sessions])
   if (!weeks.length) return null
   return (
@@ -641,12 +645,12 @@ function DeloadChart({ sessions }: { sessions: TrendSession[] }) {
         {weeks.map((d) => {
           const barCol = d.fired ? C.red : d.total >= 2 ? C.amber : d.total >= 1 ? C.slate : C.muted
           const lblCol = d.fired ? C.red : d.total >= 2 ? C.amber : d.total >= 1 ? C.slate : C.dim
-          const flags = (['S1', 'S2', 'S3', 'S5'] as const).filter((k) => d[k])
+          const flags = (['S1', 'S6', 'S2', 'S3', 'S5'] as const).filter((k) => d[k])
           return (
             <div key={d.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 9, color: C.dim, width: 48, textAlign: 'right', flexShrink: 0, ...num }}>{d.label}</span>
               <div style={{ flex: 1, height: 20, background: C.muted, borderRadius: 3, overflow: 'hidden', position: 'relative' }}>
-                <div style={{ width: `${(d.total / 4) * 100}%`, height: '100%', background: barCol, borderRadius: 3, display: 'flex', alignItems: 'center', paddingLeft: 6 }}>
+                <div style={{ width: `${(d.total / 5) * 100}%`, height: '100%', background: barCol, borderRadius: 3, display: 'flex', alignItems: 'center', paddingLeft: 6 }}>
                   {d.total > 0 && <span style={{ fontSize: 9, color: '#fff', fontWeight: 700 }}>{flags.join(' ')}</span>}
                 </div>
                 {d.fired && <span style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', fontSize: 9, color: C.red, fontWeight: 700 }}>DELOAD</span>}
@@ -756,7 +760,8 @@ function CalTooltip({ active, payload }: TipProps) {
 export function Trends({ data }: { data: TrendsData }) {
   const allSessions = useMemo(() => toTrendSessions(data.sessions, data.macros, data.deloads), [data])
   const allRow = useMemo(() => toAccessoryTrend(data.macros, data.accessory, 'row_ohp'), [data])
-  const allRdl = useMemo(() => toAccessoryTrend(data.macros, data.accessory, 'rdl_deadlift'), [data])
+  const allRdl = useMemo(() => toAccessoryTrend(data.macros, data.accessory, 'rdl_squat'), [data])
+  const allLunge = useMemo(() => toAccessoryTrend(data.macros, data.accessory, 'lunge_deadlift'), [data])
   const allCarries = useMemo(() => toCarrySessions(data.sessions, data.macros, data.accessory), [data])
   const allAttendance = useMemo(() => toAttendance(data.macros, data.sessions, data.deloads, data.breakDays), [data])
   const ALL_MACROS = useMemo(() => macroLabels(data.macros), [data.macros])
@@ -818,8 +823,9 @@ export function Trends({ data }: { data: TrendsData }) {
           ))}
         {view === 'Accessories' && (
           <>
-            <AccessoryChart data={allRow.filter((a) => activeMacros.includes(a.macro))} title="One-Arm DB Row" sub="OHP-day antagonist · per cycle" color={C.slate} />
-            <AccessoryChart data={allRdl.filter((a) => activeMacros.includes(a.macro))} title="B-Stance DB RDL" sub="DL-day antagonist · per cycle" color={C.amber} />
+            <AccessoryChart data={allRow.filter((a) => activeMacros.includes(a.macro))} title="One-Arm DB Row" sub="OHP-day secondary · per cycle" color={C.slate} />
+            <AccessoryChart data={allRdl.filter((a) => activeMacros.includes(a.macro))} title="B-Stance DB RDL" sub="Squat-day secondary · per cycle" color={C.amber} />
+            <AccessoryChart data={allLunge.filter((a) => activeMacros.includes(a.macro))} title="Reverse Lunge" sub="DL-day secondary · per cycle" color={C.purple} />
           </>
         )}
         {view === 'Carries' && <CarriesChart carries={allCarries} activeMacros={activeMacros} cycle={cycle} />}

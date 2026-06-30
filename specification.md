@@ -72,6 +72,25 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-06-30
+- `feat(program)`: **finalized program revision** (builds on the same-day exercise overhaul). The
+  Giant Block "antagonist" slot is **renamed Secondary** throughout (`DAY_META.secondary`,
+  `secondaryDesc`, `SECONDARY_ITEM`, `secondaryLoad`). **Secondaries:** DL B-stance RDL → **Reverse
+  Lunge** (8/leg); Squat Copenhagen plank → **B-stance RDL** (8/leg — the RDL moves DL→Squat); OHP
+  one-arm row + dips pull-ups unchanged. **Squat core** Leg Raises → **strict toes-to-bar**.
+  **Carries reassigned** (all four kept, keyed by day): DL bear-hug sandbag 68, OHP farmer 60/hand,
+  Squat overhead 2×20, Dips suitcase 50/hand. **Recorded secondary weights** are now `lunge_deadlift`
+  / `rdl_squat` / `row_ohp` (RDL item renamed, lunge added), auto-seeded across cycles. **Giant-block
+  completion control** — one-tap "completed as prescribed ✓" or a categorical reason
+  (`block_completion`: failed_heavy / stopped_fatigue / stopped_form / reduced_weight / cut_time),
+  under the top-set RPE/speed; Volume + per-round cardio logging unchanged. **Deload:** retired S4,
+  added **S6** (giant block not completed, driven by the new control) → signal set S1·S6·S2·S3·S5,
+  trigger unchanged (3+ across 2+ sessions, max 1/meso). **Trends:** Accessories view now **3 charts**
+  (one-arm row, B-stance RDL, **reverse lunge**); carry trend remapped to the new day→implement
+  assignment; deload signal chart scales /5. Migration `0007_program_revision.sql` widens the
+  accessory item CHECK and adds `sessions.block_completion`. typecheck + 62 tests + build green; smoke
+  updated (new accessory items + `block_completion` round-trip).
+
 ## 2026-06-29
 - `feat(exercises)`: **exercise-selection overhaul** (3 parts). **Movements:** removed the
   power-clean block entirely (UI + logging fields + loading); dips-day antagonist Ring Rows →

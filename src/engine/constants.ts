@@ -45,43 +45,55 @@ export const LIFT_LABEL: Record<Lift, string> = {
 }
 export const LIFT_SHORT: Record<Lift, string> = { deadlift: 'Deadlift', ohp: 'OHP', squat: 'Squat', dips: 'Dips' }
 
-// Days whose Giant Block antagonist carries a recorded per-cycle weight
-// (accessory_weights.item). B-stance RDL on DL day, one-arm DB row on OHP day;
-// squat (Copenhagen) and dips (pull-ups) are bodyweight → no entry.
-export const ANTAG_ITEM: Partial<Record<Lift, string>> = { deadlift: 'rdl_deadlift', ohp: 'row_ohp' }
+// Days whose Giant Block secondary carries a recorded per-cycle weight
+// (accessory_weights.item): Reverse Lunge (DL), one-arm DB row (OHP), B-stance RDL
+// (Squat). Dips (pull-ups) is bodyweight → no entry.
+export const SECONDARY_ITEM: Partial<Record<Lift, string>> = { deadlift: 'lunge_deadlift', ohp: 'row_ohp', squat: 'rdl_squat' }
 
-// Antagonist / core / carry per lift day.
+// Giant Block completion (adherence) categories. 'completed' = as prescribed (default);
+// the rest are fail reasons that drive the deload S6 signal. Stored categorically.
+export const BLOCK_COMPLETION: { id: string; label: string }[] = [
+  { id: 'failed_heavy', label: 'Failed reps — too heavy' },
+  { id: 'stopped_fatigue', label: 'Stopped early — fatigue' },
+  { id: 'stopped_form', label: 'Stopped early — form breakdown' },
+  { id: 'reduced_weight', label: 'Reduced weight mid-block' },
+  { id: 'cut_time', label: 'Cut short — time' },
+]
+
+// Secondary / core / carry per lift day. ("Secondary" = the Giant Block's second
+// movement; the lower-day ones aren't strict antagonists.)
 export const DAY_META: Record<Lift, DayMeta> = {
   deadlift: {
-    antag: 'B-Stance DB RDL',
-    antagType: 'rdl',
+    secondary: 'Reverse Lunge',
+    secondaryType: 'lunge',
     core: 'Ab Rollout',
-    carry: { name: "Farmer's Carry", load: '60 kg / hand', perHand: true, dist: '20–30 m', sets: '3–4' },
+    carry: { name: 'Bear-Hug Sandbag', load: '68 kg', perHand: false, dist: '20–30 m', sets: '3–4' },
   },
   ohp: {
-    antag: 'One-Arm DB Row',
-    antagType: 'dbrow',
+    secondary: 'One-Arm DB Row',
+    secondaryType: 'dbrow',
     core: 'GHD Abs',
-    carry: { name: 'Suitcase Carry', load: '50 kg / hand', perHand: true, dist: '20 m / side', sets: '3–4' },
+    carry: { name: "Farmer's Carry", load: '60 kg / hand', perHand: true, dist: '20–30 m', sets: '3–4' },
   },
   squat: {
-    antag: 'Copenhagen Plank',
-    antagType: 'hold20',
-    core: 'Leg Raises',
-    carry: { name: 'Sandbag Bear Hug', load: '68–80 kg', perHand: false, dist: '20–30 m', sets: '3–4' },
+    secondary: 'B-Stance DB RDL',
+    secondaryType: 'rdl',
+    core: 'Strict Toes-to-Bar',
+    carry: { name: 'Overhead Carry', load: '2 × 20 kg', perHand: true, dist: '20 m / side', sets: '3–4' },
   },
   dips: {
-    antag: 'Pull-ups',
-    antagType: 'pullup',
+    secondary: 'Pull-ups',
+    secondaryType: 'pullup',
     core: 'GHD Back Extension',
-    carry: { name: 'Overhead Carry', load: '2 × 25 kg', perHand: true, dist: '20 m / side', sets: '3–4' },
+    carry: { name: 'Suitcase Carry', load: '50 kg / hand', perHand: true, dist: '20 m / side', sets: '3–4' },
   },
 }
 
 // Reactive-deload signals (revised rule — brief §5; supersedes the v7 book §7).
-// S4 (Set 1 > R7) is notebook-only, not auto-detected, so it is not listed here.
+// S4 (Set 1 > R7) was retired. S6 is driven by the giant-block completion control.
 export const SIGNALS: { id: string; label: string }[] = [
   { id: 'S1', label: 'Any day, top set R9.5+' },
+  { id: 'S6', label: 'Giant block not completed as prescribed' },
   { id: 'S2', label: 'Volume block incomplete' },
   { id: 'S3', label: 'Carry skipped (fatigue)' },
   { id: 'S5', label: 'Bar speed ↓ on top set in 2+ sessions' },

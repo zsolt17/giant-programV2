@@ -18,6 +18,7 @@ const COLUMNS: { header: string; value: (s: Session, macroNumber: number | '') =
   { header: 'bar_speed', value: (s) => s.barSpeed },
   // Per-round cardio cals collapsed into one cell, e.g. "15/14/15/15" (blank round → "").
   { header: 'cardio_cals', value: (s) => s.cardioCals.map((c) => (c == null ? '' : c)).join('/') },
+  { header: 'block_completion', value: (s) => s.blockCompletion },
   { header: 'vol_done', value: (s) => s.volDone },
   { header: 'vol_rpe', value: (s) => s.volRpe },
   { header: 'vol_speed', value: (s) => s.volSpeed },

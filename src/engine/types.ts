@@ -19,8 +19,8 @@ export interface CarryMeta {
   sets: string
 }
 export interface DayMeta {
-  antag: string
-  antagType: 'hold20' | 'pullup' | 'rdl' | 'dbrow'
+  secondary: string
+  secondaryType: 'pullup' | 'rdl' | 'dbrow' | 'lunge'
   core: string
   carry: CarryMeta
 }
@@ -108,6 +108,9 @@ export interface Session {
   barSpeed: string
   // Per-round Giant Block cardio calories, ordered [R1..R4]; null entry = unfilled round.
   cardioCals: (number | null)[]
+  // Giant Block adherence: 'completed' (as prescribed) or a categorical fail reason.
+  // Empty/null on legacy rows → treated as completed. Drives a deload signal (S6).
+  blockCompletion: string
   volDone: boolean
   volRpe: string
   volSpeed: string
@@ -220,6 +223,7 @@ export interface TrendSession {
   S2: 0 | 1
   S3: 0 | 1
   S5: 0 | 1
+  S6: 0 | 1 // giant block not completed as prescribed
   volOk: boolean
   status: 'done' | 'deload'
   sets: number[] // per-round cardio kcal (cardio_cals)

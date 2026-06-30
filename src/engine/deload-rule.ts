@@ -1,8 +1,9 @@
 // Reactive deload rule (revised — brief §5; supersedes v7 book §7).
 // Signals across a training week:
-//   S1 any-day top set R9.5+        S2 volume block incomplete
-//   S3 carry skipped due to fatigue  S5 bar speed ↓ on top set in 2+ sessions
-//   (S4 Set1>R7 is notebook-only — the logger captures only the top set.)
+//   S1 any-day top set R9.5+         S6 giant block not completed as prescribed
+//   S2 volume block incomplete       S3 carry skipped due to fatigue
+//   S5 bar speed ↓ on top set in 2+ sessions
+//   (S4 Set1>R7 retired.)
 // TRIGGER: 3+ total occurrences spanning at least 2 different sessions.
 // (3 occurrences = severity; 2 sessions = a pattern, not one bad day.)
 import type { Session, WeekSignals } from './types'
@@ -22,6 +23,11 @@ export function computeWeekSignals(weekSessions: Session[]): WeekSignals {
     let hit = false
     if (rpeNum(s.rpe) >= 9.5) {
       types.add('S1')
+      occurrences++
+      hit = true
+    }
+    if (s.blockCompletion && s.blockCompletion !== 'completed') {
+      types.add('S6')
       occurrences++
       hit = true
     }

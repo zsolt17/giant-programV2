@@ -46,6 +46,7 @@ export function toTrendSessions(sessions: Session[], macros: Macro[], deloads: D
         S2: s.volDone === false ? 1 : 0,
         S3: s.carrySkipped && s.carrySkipReason === 'fatigue' ? 1 : 0,
         S5: s.barSpeed === 'down' ? 1 : 0,
+        S6: s.blockCompletion && s.blockCompletion !== 'completed' ? 1 : 0,
         volOk: s.volDone !== false,
         status: isDeload ? 'deload' : 'done',
         sets: (s.cardioCals || []).filter((c): c is number => c != null),
@@ -73,11 +74,13 @@ export function toAccessoryTrend(macros: Macro[], accessory: Record<string, Acce
 
 // Each training session has one carry, typed by the day's lift. Weight is the
 // per-cycle accessory load; distance is the session's logged metres/round.
+// Day → carry implement (reassigned in the program revision). Weight comes from the
+// per-cycle accessory item keyed by day (carry_<day>), so the keys are unchanged.
 const CARRY_OF: Record<string, { type: CarryType; item: string }> = {
-  deadlift: { type: 'Farmer', item: 'carry_deadlift' },
-  ohp: { type: 'Suitcase', item: 'carry_ohp' },
-  squat: { type: 'Sandbag', item: 'carry_squat' },
-  dips: { type: 'Overhead', item: 'carry_dips' },
+  deadlift: { type: 'Sandbag', item: 'carry_deadlift' },
+  ohp: { type: 'Farmer', item: 'carry_ohp' },
+  squat: { type: 'Overhead', item: 'carry_squat' },
+  dips: { type: 'Suitcase', item: 'carry_dips' },
 }
 export function toCarrySessions(sessions: Session[], macros: Macro[], accessory: Record<string, AccessoryByCycle>): TrendCarry[] {
   const numById: Record<string, number> = {}

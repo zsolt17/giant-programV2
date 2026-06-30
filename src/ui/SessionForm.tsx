@@ -1,7 +1,7 @@
 import { C, inp, lbl } from './theme'
 import { Card } from './components'
-import { blockTitle, Row, LogRpe, antagDesc } from './controls'
-import { SCHEMES, WU_PCT, WU_REPS, SET_LADDER, DAY_META, LIFT_LABEL, PULLUP } from '../engine/constants'
+import { blockTitle, Row, LogRpe, secondaryDesc } from './controls'
+import { SCHEMES, WU_PCT, WU_REPS, SET_LADDER, DAY_META, LIFT_LABEL, PULLUP, BLOCK_COMPLETION } from '../engine/constants'
 import { fmt, giantSets, warmupSets, volumeWeight, deloadTop } from '../engine/loading'
 import { clusterTotal, isUnbroken, meetsTarget } from '../engine/pullups'
 import type { Difficulty, Lift, WeekType, SessionDraft } from '../engine/types'
@@ -46,6 +46,7 @@ export function buildBlankSession({
     rpe: '',
     barSpeed: '',
     cardioCals: ['', '', '', ''],
+    blockCompletion: 'completed',
     volDone: true,
     volRpe: '',
     volSpeed: '',
@@ -73,25 +74,25 @@ interface SessionFormProps {
   // Per-cycle carry weight from Setup (accessory_weights). When set, it replaces the
   // hardcoded descriptive load in the carry prescription.
   carryLoad?: number | string | null
-  // Per-cycle recorded weight for the day's Giant Block antagonist accessory
-  // (B-stance RDL on DL day, one-arm DB row on OHP day). null for bodyweight days.
-  antagLoad?: number | string | null
+  // Per-cycle recorded weight for the day's Giant Block secondary accessory
+  // (Reverse Lunge DL, one-arm row OHP, B-stance RDL Squat). null for bodyweight days.
+  secondaryLoad?: number | string | null
 }
 
 // The prescription + log fields for a training-week session. Reused by Today
 // (inline) and SessionModal (overlay). The parent owns the draft + Save button;
 // it stamps the prescribed top weight/reps on save.
-export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, draft, setField, locked = false, carryLoad, antagLoad }: SessionFormProps) {
+export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, draft, setField, locked = false, carryLoad, secondaryLoad }: SessionFormProps) {
   const scheme = SCHEMES[difficulty]
   const meta = DAY_META[dayType]
   // Prefer the per-cycle carry weight set in Setup; fall back to the descriptive
   // default when it hasn't been configured for this cycle.
   const carryNum = carryLoad === '' || carryLoad == null ? null : Number(carryLoad)
   const carryDisplay = carryNum != null && !Number.isNaN(carryNum) ? `${fmt(carryNum)}${meta.carry.perHand ? ' / hand' : ''}` : meta.carry.load
-  // Recorded antagonist accessory weight (RDL / one-arm row days); 'BW' for bodyweight antagonists.
-  const antagNum = antagLoad === '' || antagLoad == null ? null : Number(antagLoad)
-  const antagWeighted = meta.antagType === 'rdl' || meta.antagType === 'dbrow'
-  const antagDisplay = antagWeighted ? (antagNum != null && !Number.isNaN(antagNum) ? fmt(antagNum) : '—') : 'BW'
+  // Recorded secondary accessory weight (lunge / row / RDL days); 'BW' for bodyweight (pull-ups).
+  const secondaryNum = secondaryLoad === '' || secondaryLoad == null ? null : Number(secondaryLoad)
+  const secondaryWeighted = meta.secondaryType === 'rdl' || meta.secondaryType === 'dbrow' || meta.secondaryType === 'lunge'
+  const secondaryDisplay = secondaryWeighted ? (secondaryNum != null && !Number.isNaN(secondaryNum) ? fmt(secondaryNum) : '—') : 'BW'
   const hasTop = hasWeight && top != null
   const wu = hasTop && top != null ? warmupSets(top) : null
   const gsets = hasTop ? giantSets(top, difficulty) : null
@@ -138,7 +139,7 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
             />
           )
         })}
-        <Row a={meta.antag} b={antagDesc(meta.antagType, difficulty)} c={antagDisplay} cls={antagWeighted ? C.off : C.muted} />
+        <Row a={meta.secondary} b={secondaryDesc(meta.secondaryType, difficulty)} c={secondaryDisplay} cls={secondaryWeighted ? C.off : C.muted} />
         <Row a={meta.core} b="10 reps" c="BW" cls={C.muted} />
         <Row a="Cardio" b="30 sec high effort" c="" cls={C.muted} />
         <CardioCals
@@ -147,6 +148,7 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
         />
         {dayType === 'dips' && <PullupCluster difficulty={difficulty} value={draft.pullupCluster} onChange={(v) => setField('pullupCluster', v)} />}
         <LogRpe label="Top set" rpe={draft.rpe} speed={draft.barSpeed} onRpe={(v) => setField('rpe', v)} onSpeed={(v) => setField('barSpeed', v)} />
+        <BlockCompletion value={draft.blockCompletion} onChange={(v) => setField('blockCompletion', v)} />
       </Card>
 
       {/* Volume (not on deload) */}
@@ -230,6 +232,33 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
           placeholder="Grip reset, technique cue, how it felt…"
         />
       </Card>
+    </div>
+  )
+}
+
+// Giant Block adherence: top set keeps full RPE/speed; the rest of the block gets a
+// one-tap "completed as prescribed" with a categorical reason dropdown when it wasn't.
+// Any non-'completed' state drives the deload S6 signal.
+function BlockCompletion({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const completed = value === 'completed' || value === ''
+  return (
+    <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: completed ? C.green : C.off }}>
+        <input type="checkbox" checked={completed} onChange={(e) => onChange(e.target.checked ? 'completed' : BLOCK_COMPLETION[0].id)} />
+        Giant block completed as prescribed ✓
+      </label>
+      {!completed && (
+        <div style={{ marginTop: 8 }}>
+          <label style={lbl}>What happened?</label>
+          <select style={inp} value={value} onChange={(e) => onChange(e.target.value)}>
+            {BLOCK_COMPLETION.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
     </div>
   )
 }

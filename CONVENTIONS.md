@@ -23,7 +23,7 @@ src/
     offline-queue.ts / cache.ts  offline write queue + last-known snapshot (PWA)
   engine/          pure domain logic, framework-agnostic, unit-tested
     types.ts       shared domain types (Difficulty, Lift, Position, Session, SessionDraft, …)
-    constants.ts   ROTATION, SCHEMES, DAY_SPREAD/SET_LADDER/VOLUME_PCT (anchor cascade), DAY_META, ANTAG_ITEM (day→recorded-accessory), PULLUP, SIGNALS, TESTING_SCHEDULE, MACRO_WEEKS
+    constants.ts   ROTATION, SCHEMES, DAY_SPREAD/SET_LADDER/VOLUME_PCT (anchor cascade), DAY_META, SECONDARY_ITEM (day→recorded-accessory), BLOCK_COMPLETION, PULLUP, SIGNALS, TESTING_SCHEDULE, MACRO_WEEKS
     date-engine.ts position math from the macro start date (see §7)
     loading.ts     single-anchor cascade (dayTop/expandDayTops/giantSets/volumeWeight), 2.5 kg rounding, fmt
     deload-rule.ts reactive-deload signals + trigger
@@ -321,8 +321,9 @@ See `ARCHITECTURE.md` §2–§6 for the full domain. In code:
   unchanged), and `weightsToRows` writes only `hard`. The `lift` arg on `dayTop` is a seam for a
   future dips-off-bodyweight path (identical for all lifts today). `fmt` is null-safe (returns `—`).
 - **Reactive deload — `src/engine/deload-rule.ts`.** The revised rule (brief §5,
-  supersedes the v7 book): `computeWeekSignals` (S1 R9.5+, S2 volume incomplete,
-  S3 carry skipped for fatigue, S5 bar-speed down in 2+ sessions; S4 is notebook-only).
+  supersedes the v7 book): `computeWeekSignals` (S1 R9.5+, S6 giant block not completed
+  as prescribed, S2 volume incomplete, S3 carry skipped for fatigue, S5 bar-speed down
+  in 2+ sessions; S4 Set-1>R7 retired).
   Trigger = 3+ occurrences across ≥2 sessions. `shouldRecommendDeload` adds the
   cap/already-deloaded/break-coming exemptions. Advise-and-confirm, never auto-forced.
 - **Constants — `src/engine/constants.ts`.** `ROTATION`, `DAY_META`, `PULLUP`,

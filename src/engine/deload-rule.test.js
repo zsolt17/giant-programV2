@@ -25,6 +25,12 @@ test('S1 needs R9.5+, R9 does not count', () => {
   assert.equal(computeWeekSignals([S('a', { rpe: 'R9.5' })]).types.has('S1'), true)
 })
 
+test('S6 fires when giant block not completed; completed/blank do not', () => {
+  assert.equal(computeWeekSignals([S('a', { blockCompletion: 'stopped_fatigue' })]).types.has('S6'), true)
+  assert.equal(computeWeekSignals([S('a', { blockCompletion: 'completed' })]).occurrences, 0)
+  assert.equal(computeWeekSignals([S('a', {})]).occurrences, 0) // legacy/unset -> no signal
+})
+
 test('one catastrophic day (3 occ, 1 session) never fires', () => {
   const r = computeWeekSignals([S('a', { rpe: 'R10', volDone: false, carrySkipped: true, carrySkipReason: 'fatigue' })])
   assert.equal(r.occurrences, 3)

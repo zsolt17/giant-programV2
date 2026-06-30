@@ -5,7 +5,7 @@ import { C, HEADING, inp, lbl, pillColor } from './theme'
 import { SessionForm, buildBlankSession } from './SessionForm'
 import { TestingResultForm } from './TestingResultForm'
 import { fmtClock, errMsg } from './controls'
-import { SCHEMES, LIFT_LABEL, ANTAG_ITEM } from '../engine/constants'
+import { SCHEMES, LIFT_LABEL, SECONDARY_ITEM } from '../engine/constants'
 import { deloadTop } from '../engine/loading'
 import { parseLocalDate } from '../engine/date-engine'
 import type {
@@ -67,8 +67,8 @@ export function SessionModal({
   const isDeload = !isSpecial && !!deloads[weekKey]
   const top = base != null ? (isDeload ? deloadTop(base) : base) : null
   const carryDefault = cycle != null && dayType ? accessory?.[cycle]?.[`carry_${dayType}`] ?? '' : ''
-  const antagItem = dayType ? ANTAG_ITEM[dayType] : undefined
-  const antagDefault = cycle != null && antagItem ? accessory?.[cycle]?.[antagItem] ?? '' : ''
+  const secondaryItem = dayType ? SECONDARY_ITEM[dayType] : undefined
+  const secondaryDefault = cycle != null && secondaryItem ? accessory?.[cycle]?.[secondaryItem] ?? '' : ''
 
   const [draft, setDraft] = useState<SessionDraft>(
     () =>
@@ -196,7 +196,7 @@ export function SessionModal({
           </div>
         ) : (
           <>
-            <SessionForm dayType={dayType!} difficulty={difficulty!} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} carryLoad={carryDefault} antagLoad={antagDefault} />
+            <SessionForm dayType={dayType!} difficulty={difficulty!} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} carryLoad={carryDefault} secondaryLoad={secondaryDefault} />
             {draft.startedAt && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
                 <div>
