@@ -88,11 +88,11 @@ test('toAccessoryTrend: skips cycles with no value', () => {
 })
 
 test('toCarrySessions joins per-cycle accessory weight with logged distance', () => {
-  const accessory = { m2: { 1: { carry_deadlift: 68 } } }
+  const accessory = { m2: { 1: { carry_deadlift: 60 } } }
   const rows = toCarrySessions([S({ dayType: 'deadlift', carryDistance: 40 })], MACROS, accessory)
   assert.equal(rows.length, 1)
-  assert.equal(rows[0].type, 'Sandbag') // deadlift day = bear-hug sandbag after the revision
-  assert.equal(rows[0].weight, 68)
+  assert.equal(rows[0].type, 'Farmer') // deadlift day = farmer's carry (final reassignment)
+  assert.equal(rows[0].weight, 60)
   assert.equal(rows[0].distance, 40)
 })
 

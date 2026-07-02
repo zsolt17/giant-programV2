@@ -93,6 +93,7 @@ export function App() {
   const [trends, setTrends] = useState<TrendsData | null>(null) // all-macro data, loaded on first Trends open
   const [trendsErr, setTrendsErr] = useState('')
   const [allSessions, setAllSessions] = useState<Session[] | null>(null) // all-macro sessions, loaded on first Data open
+  const [allAccessory, setAllAccessory] = useState<Record<string, AccessoryByCycle>>({}) // macroId -> per-cycle accessory (Data summary)
   const [dataErr, setDataErr] = useState('')
   // Recovery (Tendon Health) — independent of macros, loaded on first Recovery open.
   const [recovery, setRecovery] = useState<{ protocol: RecoveryProtocol | null; logs: RecoveryLogMap } | null>(null)
@@ -221,14 +222,18 @@ export function App() {
     }
   }, [tab, user, trends])
 
-  // Load all-macro sessions once, on first open of the Data tab (CSV export + picker).
+  // Load all-macro sessions + accessory weights once, on first open of the Data tab
+  // (CSV export + session-summary copy, which resolves secondary/carry per cycle).
   useEffect(() => {
     if (tab !== 'data' || !user || allSessions) return
     let cancelled = false
     setDataErr('')
-    repo
-      .getAllSessions()
-      .then((s) => !cancelled && setAllSessions(s))
+    Promise.all([repo.getAllSessions(), repo.getAllAccessoryWeights()])
+      .then(([s, acc]) => {
+        if (cancelled) return
+        setAllAccessory(acc)
+        setAllSessions(s)
+      })
       .catch((e) => !cancelled && setDataErr(errMsg(e)))
     return () => {
       cancelled = true
@@ -494,7 +499,7 @@ export function App() {
         (dataErr ? (
           <Card style={{ textAlign: 'center', color: C.red }}>Couldn't load data — {dataErr}.</Card>
         ) : allSessions ? (
-          <Data sessions={allSessions} macros={macros} />
+          <Data sessions={allSessions} macros={macros} accessory={allAccessory} />
         ) : (
           <Center>
             <Spinner /> Loading data…

@@ -75,6 +75,22 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-07-02
+- `feat(program/data)`: **final carry reassignment + expanded copy-session summary**. **Carries**
+  (config only, no schema change; keys stay `carry_<day>`, logged history untouched): DL → Farmer's
+  60/hand, OHP → Overhead 2×20, Squat → Sandbag Bear Hug 68, Dips → Suitcase 50/hand (unchanged) —
+  updated in `DAY_META`, the Carries trend `CARRY_OF`, and Setup labels; per-cycle stored carry
+  weights kept (review in Setup, they now belong to the new implement). **Copy-session summary**
+  (Data page) expanded to the complete session picture: Giant Block section with top set (R/arrow),
+  the **full computed set ladder** (`giantSets` — the same engine call Today renders, e.g.
+  `8@110 · 6@117.5 · 4@122.5 · 2@130`), completion label, weighted **secondary with its per-cycle
+  recorded weight** (`One-Arm DB Row 20kg × 10/arm`), pull-up cluster (dips), cardio; **Volume Block**
+  with computed 80% load (dips = push-ups BW); **Carry** with implement name + per-cycle weight +
+  rounds×distance + RPE (or skipped+reason); duration/notes as before. New repo read
+  `getAllAccessoryWeights()` (grouped by macro) feeds the Data page; `sessionSummary(s, macroNum,
+  accessory?)` degrades gracefully without it. Tests rewritten (9 summary tests incl. an exact
+  full-format match; 67 total). typecheck + build + smoke 42/42 green.
+
 ## 2026-06-30
 - `feat(recovery)`: **new Recovery section — Tendon Health** (drawer item, ordered **first**, above
   Deload). A joint-specific isometric loading protocol: pick a joint (wrist/elbow/shoulder/knee/ankle)

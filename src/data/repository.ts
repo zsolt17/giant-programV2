@@ -336,6 +336,20 @@ export async function loadTrends(): Promise<TrendsData> {
   }
 }
 
+// All accessory weights across every macro (RLS-scoped), grouped by macro id —
+// the Data page's session summary resolves secondary/carry weights per (macro, cycle).
+export async function getAllAccessoryWeights(): Promise<Record<string, AccessoryByCycle>> {
+  const { data, error } = await supabase.from('accessory_weights').select('*')
+  if (error) throw error
+  const byMacro: Record<string, Parameters<typeof M.rowsToAccessory>[0]> = {}
+  ;((data || []) as (Parameters<typeof M.rowsToAccessory>[0][number] & { macro_id: string })[]).forEach((r) => {
+    ;(byMacro[r.macro_id] ||= []).push(r)
+  })
+  const out: Record<string, AccessoryByCycle> = {}
+  for (const id of Object.keys(byMacro)) out[id] = M.rowsToAccessory(byMacro[id])
+  return out
+}
+
 // ---- recovery (Tendon Health) ----------------------------------------------
 export async function getActiveProtocol(): Promise<RecoveryProtocol | null> {
   const { data, error } = await supabase.from('recovery_protocols').select('*').eq('status', 'active').maybeSingle()

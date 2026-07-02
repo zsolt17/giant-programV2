@@ -67,19 +67,19 @@ export const DAY_META: Record<Lift, DayMeta> = {
     secondary: 'Reverse Lunge',
     secondaryType: 'lunge',
     core: 'Ab Rollout',
-    carry: { name: 'Bear-Hug Sandbag', load: '68 kg', perHand: false, dist: '20–30 m', sets: '3–4' },
+    carry: { name: "Farmer's Carry", load: '60 kg / hand', perHand: true, dist: '20–30 m', sets: '3–4' },
   },
   ohp: {
     secondary: 'One-Arm DB Row',
     secondaryType: 'dbrow',
     core: 'GHD Abs',
-    carry: { name: "Farmer's Carry", load: '60 kg / hand', perHand: true, dist: '20–30 m', sets: '3–4' },
+    carry: { name: 'Overhead Carry', load: '2 × 20 kg', perHand: true, dist: '20 m / side', sets: '3–4' },
   },
   squat: {
     secondary: 'B-Stance DB RDL',
     secondaryType: 'rdl',
     core: 'Strict Toes-to-Bar',
-    carry: { name: 'Overhead Carry', load: '2 × 20 kg', perHand: true, dist: '20 m / side', sets: '3–4' },
+    carry: { name: 'Sandbag Bear Hug', load: '68 kg', perHand: false, dist: '20–30 m', sets: '3–4' },
   },
   dips: {
     secondary: 'Pull-ups',

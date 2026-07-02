@@ -16,9 +16,9 @@ const ACC_LABEL: Record<string, string> = {
   lunge_deadlift: 'Reverse Lunge — DL day',
   rdl_squat: 'B-Stance DB RDL — Squat day',
   row_ohp: 'One-Arm DB Row — OHP day',
-  carry_deadlift: 'Bear-Hug Sandbag — DL day',
-  carry_ohp: "Farmer's Carry — OHP day",
-  carry_squat: 'Overhead Carry — Squat day',
+  carry_deadlift: "Farmer's Carry — DL day",
+  carry_ohp: 'Overhead Carry — OHP day',
+  carry_squat: 'Sandbag Bear Hug — Squat day',
   carry_dips: 'Suitcase Carry — Dips day',
 }
 const ACC_ITEMS = Object.keys(ACC_LABEL)

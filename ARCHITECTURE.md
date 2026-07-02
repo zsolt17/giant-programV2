@@ -112,7 +112,7 @@ Hard anchor (Medium = 95%, Light = 90% of the Hard top — §3). Round to neares
 - Each session: Giant Block only at 50–60%, hard rep scheme, no volume, no carries. Skill days kept.
 
 ### 2.9 Carry loads (per day, accessory effort)
-Deadlift = Bear-hug Sandbag 68kg · OHP = Farmer's 60kg/hand · Squat = Overhead 2×20kg · Dips = Suitcase 50kg/hand. Progression: once per mesocycle, position before load, distance before weight. **Carries are reward/accessory work — kept around RPE 6, never pushed to a fourth hard effort.** (Stored per cycle keyed by day — `carry_<day>` — so reassigning the implement doesn't move the key.)
+Deadlift = Farmer's 60kg/hand · OHP = Overhead 2×20kg · Squat = Sandbag bear hug 68kg · Dips = Suitcase 50kg/hand. Progression: once per mesocycle, position before load, distance before weight. **Carries are reward/accessory work — kept around RPE 6, never pushed to a fourth hard effort.** (Stored per cycle keyed by day — `carry_<day>` — so reassigning the implement doesn't move the key.)
 
 ### 2.10 Giant-block completion (adherence)
 The top set keeps full RPE + bar-speed logging; the rest of the block is captured by a single
@@ -451,8 +451,9 @@ repeated here. The two load-bearing domain invariants to preserve, wherever the 
   "antagonist." All three weighted secondaries carry a **recorded** per-cycle weight (Setup, like
   carries); pull-ups are bodyweight. *(Superseded & removed across this + the prior revision: Sørensen
   hold, ring rows, Copenhagen plank, leg-raise core, and the power-clean block.)*
-- **Carries reassigned (2026-06-30):** DL = bear-hug sandbag 68, OHP = farmer 60/hand, Squat = overhead
-  2×20, Dips = suitcase 50/hand. Stored per cycle keyed by day (`carry_<day>`), so the keys are stable.
+- **Carries reassigned — FINAL (2026-07-02):** DL = farmer 60/hand, OHP = overhead 2×20, Squat =
+  sandbag bear hug 68, Dips = suitcase 50/hand. *(Supersedes the 2026-06-30 assignment.)* Stored per
+  cycle keyed by day (`carry_<day>`), so the keys are stable; logged history untouched.
 - **Giant-block completion (2026-06-30):** adherence logged as one categorical control (§2.10), driving
   deload signal S6. S4 (Set-1 > R7) retired.
 - Push press: rejected. Sandbag lunges: parked (maybe later, via carry-block rotation).
