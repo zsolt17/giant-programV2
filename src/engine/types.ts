@@ -3,6 +3,9 @@
 
 export type Difficulty = 'hard' | 'medium' | 'light'
 export type Lift = 'deadlift' | 'ohp' | 'squat' | 'dips'
+// Lifts with a per-cycle Hard-top anchor in working_weights: the 4 day lifts +
+// pull-ups (the dips-day secondary, anchored since its weighted mode).
+export type AnchorLift = Lift | 'pullup'
 export type WeekType = 'training' | 'testing' | 'deload'
 export type TestRole = 'test' | 'light'
 
@@ -115,6 +118,8 @@ export interface Session {
   volRpe: string
   volSpeed: string
   pullupCluster: string
+  // Dips final-round cluster (dips day, bodyweight mode only — zero dips anchor).
+  dipsCluster: string
   carrySkipped: boolean
   carrySkipReason: string
   carryRounds: number | null

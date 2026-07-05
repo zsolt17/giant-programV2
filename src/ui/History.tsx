@@ -84,7 +84,8 @@ export function History({ sessions, testingResults = [], macroNumber, onDeleteSe
         </Card>
       )}
 
-      <PullupTrend sessions={sessions} />
+      <ClusterTrend sessions={sessions} field="pullupCluster" title="Pull-up Cluster Trend" />
+      <ClusterTrend sessions={sessions} field="dipsCluster" title="Dips Cluster Trend" />
       <CarryDistanceTrend sessions={sessions} />
 
       <Card>
@@ -181,20 +182,21 @@ function CarryDistanceTrend({ sessions }: { sessions: Session[] }) {
   )
 }
 
-// Phase-1 pull-up cluster trend (dips-day final-round clusters, oldest -> newest).
-function PullupTrend({ sessions }: { sessions: Session[] }) {
+// Bodyweight-mode cluster trend (dips-day final-round clusters, oldest -> newest).
+// Shared by pull-ups and dips — each logs its own cluster field while its anchor is 0.
+function ClusterTrend({ sessions, field, title }: { sessions: Session[]; field: 'pullupCluster' | 'dipsCluster'; title: string }) {
   const items = sessions
-    .filter((s) => s.dayType === 'dips' && s.pullupCluster)
+    .filter((s) => s.dayType === 'dips' && s[field])
     .slice()
     .sort((a, b) => (a.date < b.date ? -1 : 1))
   if (!items.length) return null
   return (
     <Card>
-      {blockTitle('Pull-up Cluster Trend', 'Dips day · toward unbroken')}
+      {blockTitle(title, 'Dips day · toward unbroken')}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         {items.map((s, i) => {
-          const total = clusterTotal(s.pullupCluster)
-          const unbroken = isUnbroken(s.pullupCluster)
+          const total = clusterTotal(s[field])
+          const unbroken = isUnbroken(s[field])
           return (
             <Fragment key={s.id}>
               {i > 0 && <span style={{ color: C.muted }}>→</span>}
@@ -209,7 +211,7 @@ function PullupTrend({ sessions }: { sessions: Session[] }) {
                   fontVariantNumeric: 'tabular-nums',
                 }}
               >
-                {s.pullupCluster}
+                {s[field]}
                 <span style={{ color: C.muted, fontSize: 11 }}> ={total}</span>
               </span>
             </Fragment>
@@ -218,7 +220,7 @@ function PullupTrend({ sessions }: { sessions: Session[] }) {
       </div>
       <div style={{ fontSize: 11, color: C.muted, marginTop: 10, lineHeight: 1.5 }}>
         Targets per round: Hard {PULLUP.hard} · Medium {PULLUP.medium} · Light {PULLUP.light}. Consolidate from the front —
-        a bigger first cluster each session — until the round is unbroken, then switch to weighted (a later update).
+        a bigger first cluster each session — until the round is unbroken, then set a weight in Setup to go weighted.
       </div>
     </Card>
   )

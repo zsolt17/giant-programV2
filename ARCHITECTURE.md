@@ -131,7 +131,17 @@ else computes off it:
 - **Day tops:** Hard = the anchor (100%), Medium = anchor × 0.95, Light = anchor × 0.90.
 - **Giant Block sets:** 85 / 90 / 95 / 100% of that day's top (uniform ladder — §2.4).
 - **Volume:** 80% of that day's top.
-- All loads **rounded to the nearest 2.5 kg**.
+- Derived loads round **per lift**: DL/OHP/Squat at **2.5 kg**; dips and pull-ups at **0.5 kg**
+  (`LOAD_INCREMENT`). The **anchor itself is never rounded** — user input stays exactly as entered.
+
+**Two-mode dips & pull-ups** (identical logic, decided purely by the cycle's anchor — no toggle):
+- **Anchor 0/empty → bodyweight/unbroken mode:** no load cascade; targets 10/8/6 reps/round by
+  difficulty (§4); final-round cluster logging + trend (dips log `dips_cluster`, pull-ups
+  `pullup_cluster`).
+- **Anchor > 0 → weighted mode:** the full standard cascade at 0.5 kg — day spread, ladder, day rep
+  scheme, 80% volume. Weighted pull-ups are treated like a primary lift across the four Giant Block
+  rounds; weight display replaces cluster logging. The dips warm-up build-up also rounds at 0.5 kg
+  (small values may round to 0 = shown as BW).
 
 A logged session reads its own **(macro, cycle)** anchor and recomputes — essential for correct
 retroactive logging (the bug that motivated the rebuild: a C1 session must not use C3's heavier
@@ -153,10 +163,12 @@ goes stale). Solved relationally — see §9.
 
 Pull-ups don't fit the weights model in their first phase.
 - **Phase 1 (bodyweight, chasing unbroken):** progress measured by the **cluster shape on the final Giant Block round**, not load. Target reps per round: Hard 10, Medium 8, Light 6. Log the final-round cluster, e.g. `6+4` → `7+3` → `8+2` → `10`, tracked as a trend tightening toward unbroken. (Log final-set cluster only, not all four rounds.)
-- **Phase 2 (weighted):** once consistently unbroken at the target, pull-ups become a normal weighted lift and join the per-cycle weights grid; reps fix at 6/8/10.
+- **Phase 2 (weighted):** once consistently unbroken at the target, set a pull-up anchor in Setup —
+  pull-ups then run the full standard cascade (day spread + ladder + descending day reps, 0.5 kg
+  rounding) like a primary lift. *(Supersedes the earlier "reps fix at 6/8/10" note.)*
 
-**Status:** phase-1 cluster logging + trend are built — pull-ups are the **dips-day** Giant Block
-secondary. Phase-2 weighted switchover is deferred until the athlete is consistently unbroken.
+**Status:** both phases are built (§3 two-mode) — pull-ups are the **dips-day** Giant Block
+secondary; the mode flips purely on the per-cycle anchor (0 = phase 1, weight = phase 2).
 
 ---
 
@@ -280,7 +292,8 @@ Block cardio cals), `carry_rounds`, `carry_distance`; `0005_anchor_weights.sql` 
 `working_weights.medium`/`light` for the single-anchor model — §3; `0006_remove_cleans.sql` drops the
 `sessions.clean_*` columns and retires the `clean` accessory item, adding `rdl_deadlift`/`row_ohp`;
 `0007_program_revision.sql` reassigns secondaries (`rdl_deadlift`→`rdl_squat`, adds `lunge_deadlift`)
-and adds `sessions.block_completion`; `0008_recovery.sql` adds the Recovery tables — §12).
+and adds `sessions.block_completion`; `0008_recovery.sql` adds the Recovery tables — §12; `0009_dips_pullup_modes.sql` adds the
+`pullup` anchor lift + `sessions.dips_cluster` for the two-mode logic — §3).
 See `supabase/MIGRATIONS.md` for how migrations are applied and the DB kept reproducible.
 Tables:
 
@@ -303,8 +316,9 @@ working_weights (
   id            uuid primary key default gen_random_uuid(),
   macro_id      uuid references macros not null,
   cycle         int not null,              -- 1, 2, 3
-  lift          text not null,             -- deadlift | ohp | squat | dips
+  lift          text not null,             -- deadlift | ohp | squat | dips | pullup
   hard          numeric,                   -- the Hard top set (anchor); everything cascades off it
+                                           -- dips/pullup: 0/empty = bodyweight mode (§3 two-mode)
   unique (macro_id, cycle, lift)
 )
 
@@ -353,8 +367,9 @@ sessions (
   vol_done      boolean default true,
   vol_rpe       text,
   vol_speed     text,
-  -- pull-up cluster (OHP day, phase 1) e.g. "6+4"
+  -- bodyweight-mode final-round clusters (dips day) e.g. "6+4"
   pullup_cluster text,
+  dips_cluster  text,
   -- carry
   carry_skipped boolean default false,
   carry_skip_reason text,                  -- fatigue | schedule
@@ -456,6 +471,9 @@ repeated here. The two load-bearing domain invariants to preserve, wherever the 
   cycle keyed by day (`carry_<day>`), so the keys are stable; logged history untouched.
 - **Giant-block completion (2026-06-30):** adherence logged as one categorical control (§2.10), driving
   deload signal S6. S4 (Set-1 > R7) retired.
+- **Per-lift rounding + two-mode dips/pull-ups (2026-07-05):** derived loads round 2.5 kg (barbell) /
+  0.5 kg (dips, pull-ups); the anchor is never rounded. Dips and pull-ups flip between bodyweight
+  (cluster) and weighted (full cascade) purely on the cycle's anchor value (§3) — no toggle.
 - Push press: rejected. Sandbag lunges: parked (maybe later, via carry-block rotation).
 - GOWOD handles warm-up activation + cooldown; barbell build-up sets stay in-app.
 - Carries are accessory/reward effort, ~RPE 6, never pushed.

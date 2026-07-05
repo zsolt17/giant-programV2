@@ -8,6 +8,7 @@ import type {
   Session,
   WeekType,
   Lift,
+  AnchorLift,
   Difficulty,
   SessionDraft,
   WeightsByCycle,
@@ -66,6 +67,7 @@ export interface SessionRow {
   vol_rpe: string | null
   vol_speed: string | null
   pullup_cluster: string | null
+  dips_cluster: string | null
   carry_skipped: boolean | null
   carry_skip_reason: string | null
   carry_rounds: number | null
@@ -102,7 +104,7 @@ export function rowsToWeights(rows: WorkingWeightRow[]): WeightsByCycle {
   ;(rows || []).forEach((r) => {
     out[r.cycle] = out[r.cycle] || {}
     const anchor = toNum(r.hard)
-    out[r.cycle][r.lift] = anchor == null ? { hard: null, medium: null, light: null } : expandDayTops(anchor, r.lift as Lift)
+    out[r.cycle][r.lift] = anchor == null ? { hard: null, medium: null, light: null } : expandDayTops(anchor, r.lift as AnchorLift)
   })
   return out
 }
@@ -170,6 +172,7 @@ export function rowToSession(r: SessionRow): Session {
     volRpe: r.vol_rpe || '',
     volSpeed: r.vol_speed || '',
     pullupCluster: r.pullup_cluster || '',
+    dipsCluster: r.dips_cluster || '',
     carrySkipped: !!r.carry_skipped,
     carrySkipReason: r.carry_skip_reason || '',
     carryRounds: r.carry_rounds ?? null,
@@ -201,6 +204,7 @@ export function sessionToRow(s: SessionDraft): SessionRow {
     vol_rpe: blankToNull(s.volRpe),
     vol_speed: blankToNull(s.volSpeed),
     pullup_cluster: blankToNull(s.pullupCluster),
+    dips_cluster: blankToNull(s.dipsCluster),
     carry_skipped: !!s.carrySkipped,
     carry_skip_reason: blankToNull(s.carrySkipReason),
     carry_rounds: toNum(s.carryRounds),

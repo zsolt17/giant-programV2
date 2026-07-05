@@ -2,9 +2,9 @@ import { C, inp, lbl } from './theme'
 import { Card } from './components'
 import { blockTitle, Row, LogRpe, secondaryDesc } from './controls'
 import { SCHEMES, WU_PCT, WU_REPS, SET_LADDER, DAY_META, LIFT_LABEL, PULLUP, BLOCK_COMPLETION } from '../engine/constants'
-import { fmt, giantSets, warmupSets, volumeWeight, deloadTop } from '../engine/loading'
+import { fmt, giantSets, warmupSets, volumeWeight, deloadTop, liftMode } from '../engine/loading'
 import { clusterTotal, isUnbroken, meetsTarget } from '../engine/pullups'
-import type { Difficulty, Lift, WeekType, SessionDraft } from '../engine/types'
+import type { Difficulty, Lift, WeekType, SessionDraft, LiftWeights } from '../engine/types'
 
 interface BlankSessionArgs {
   date: string
@@ -31,7 +31,7 @@ export function buildBlankSession({
   isDeload,
 }: BlankSessionArgs): SessionDraft {
   const scheme = difficulty ? SCHEMES[difficulty] : null
-  const top = baseTop != null && isDeload ? deloadTop(baseTop) : baseTop ?? null
+  const top = baseTop != null && isDeload ? deloadTop(baseTop, dayType ?? undefined) : baseTop ?? null
   return {
     id: `${date}-${dayType || 'x'}-${difficulty ? difficulty[0].toUpperCase() : 'X'}`,
     macroId,
@@ -51,6 +51,7 @@ export function buildBlankSession({
     volRpe: '',
     volSpeed: '',
     pullupCluster: '',
+    dipsCluster: '',
     carrySkipped: false,
     carrySkipReason: '',
     carryRounds: 3,
@@ -77,14 +78,23 @@ interface SessionFormProps {
   // Per-cycle recorded weight for the day's Giant Block secondary accessory
   // (Reverse Lunge DL, one-arm row OHP, B-stance RDL Squat). null for bodyweight days.
   secondaryLoad?: number | string | null
+  // The cycle's pull-up day-top cell (dips day only): hard = the anchor (exact).
+  // Anchor > 0 → weighted pull-ups (full cascade); 0/absent → bodyweight clusters.
+  pullupCell?: LiftWeights | null
 }
 
 // The prescription + log fields for a training-week session. Reused by Today
 // (inline) and SessionModal (overlay). The parent owns the draft + Save button;
 // it stamps the prescribed top weight/reps on save.
-export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, draft, setField, locked = false, carryLoad, secondaryLoad }: SessionFormProps) {
+export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, draft, setField, locked = false, carryLoad, secondaryLoad, pullupCell }: SessionFormProps) {
   const scheme = SCHEMES[difficulty]
   const meta = DAY_META[dayType]
+  // Two-mode dips: a zero/empty anchor = bodyweight mode (cluster targets, no ladder).
+  const dipsBW = dayType === 'dips' && liftMode(top) === 'bodyweight'
+  // Two-mode pull-ups (dips-day secondary): anchor > 0 = weighted (full cascade at 0.5 kg).
+  const pullupWeighted = dayType === 'dips' && liftMode(pullupCell?.hard) === 'weighted'
+  const pullupTop = pullupWeighted ? pullupCell?.[difficulty] ?? null : null
+  const pullupSets = pullupTop != null ? giantSets(pullupTop, difficulty, 'pullup') : null
   // Prefer the per-cycle carry weight set in Setup; fall back to the descriptive
   // default when it hasn't been configured for this cycle.
   const carryNum = carryLoad === '' || carryLoad == null ? null : Number(carryLoad)
@@ -93,9 +103,11 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
   const secondaryNum = secondaryLoad === '' || secondaryLoad == null ? null : Number(secondaryLoad)
   const secondaryWeighted = meta.secondaryType === 'rdl' || meta.secondaryType === 'dbrow' || meta.secondaryType === 'lunge'
   const secondaryDisplay = secondaryWeighted ? (secondaryNum != null && !Number.isNaN(secondaryNum) ? fmt(secondaryNum) : '—') : 'BW'
-  const hasTop = hasWeight && top != null
-  const wu = hasTop && top != null ? warmupSets(top) : null
-  const gsets = hasTop ? giantSets(top, difficulty) : null
+  const hasTop = hasWeight && top != null && !dipsBW
+  const wu = hasTop && top != null ? warmupSets(top, dayType) : null
+  const gsets = hasTop && top != null ? giantSets(top, difficulty, dayType) : null
+  // Tiny dips build-up loads can round to 0 — that's bodyweight.
+  const wuCell = (w: number): string => (w === 0 ? 'BW' : fmt(w))
   // Every day is now A Warm-Up · B Giant Block · C Volume · D Carry (no clean block).
   const giantLetter = 'B'
   const volLetter = 'C'
@@ -104,7 +116,8 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
   // When locked (timer not started), the prescription is readable but inert.
   return (
     <div style={locked ? { opacity: 0.5, pointerEvents: 'none' } : undefined}>
-      {!hasWeight && (
+      {/* Dips with a 0/empty anchor is bodyweight MODE, not missing data — no warning. */}
+      {!hasWeight && !dipsBW && (
         <Card style={{ border: `1px solid ${C.red}` }}>
           <div style={{ fontSize: 13, color: C.red, lineHeight: 1.5 }}>
             No working weight set for <strong>{LIFT_LABEL[dayType]} · {difficulty}</strong> in Cycle {draft.cycle}. Enter it
@@ -120,33 +133,66 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
           GOWOD Activate flow (3/6/10 min) — then barbell build-up:
         </div>
         {WU_PCT.map((p, i) => (
-          <Row key={i} a={`WU${i + 1}`} b={`${WU_REPS[i]} reps @ ~${Math.round(p * 100)}%`} c={wu ? fmt(wu[i].weight) : '—'} cls={C.muted} />
+          <Row key={i} a={`WU${i + 1}`} b={`${WU_REPS[i]} reps @ ~${Math.round(p * 100)}%`} c={dipsBW ? 'BW' : wu ? wuCell(wu[i].weight) : '—'} cls={C.muted} />
         ))}
       </Card>
 
       {/* Giant Block */}
       <Card>
         {blockTitle(`${giantLetter}. Giant Block`, '4 rounds · 2 min')}
-        {SET_LADDER.map((p, i) => {
-          const isTop = i === SET_LADDER.length - 1
-          return (
-            <Row
-              key={i}
-              a={isTop ? 'Set 4 — top' : `Set ${i + 1}`}
-              b={`${scheme.sets[i]} reps @ ${Math.round(p * 100)}%`}
-              c={gsets ? fmt(gsets[i].weight) : '—'}
-              cls={isTop ? C.gold : C.off}
-            />
-          )
-        })}
-        <Row a={meta.secondary} b={secondaryDesc(meta.secondaryType, difficulty)} c={secondaryDisplay} cls={secondaryWeighted ? C.off : C.muted} />
+        {dipsBW ? (
+          // Bodyweight-mode dips: no load ladder — cluster targets by difficulty.
+          <Row a="Ring Dips" b={`${PULLUP[difficulty]} reps/round (clusters ok)`} c="BW" cls={C.gold} />
+        ) : (
+          SET_LADDER.map((p, i) => {
+            const isTop = i === SET_LADDER.length - 1
+            return (
+              <Row
+                key={i}
+                a={isTop ? 'Set 4 — top' : `Set ${i + 1}`}
+                b={`${scheme.sets[i]} reps @ ${Math.round(p * 100)}%`}
+                c={gsets ? fmt(gsets[i].weight) : '—'}
+                cls={isTop ? C.gold : C.off}
+              />
+            )
+          })
+        )}
+        {pullupWeighted && pullupSets ? (
+          // Weighted pull-ups: the full cascade across the four rounds, like a primary lift.
+          <Row
+            a="Pull-ups (wtd)"
+            b={pullupSets.map((g) => `${g.reps}@${g.weight % 1 === 0 ? g.weight : g.weight.toFixed(1)}`).join(' · ')}
+            c={fmt(pullupTop)}
+            cls={C.off}
+          />
+        ) : (
+          <Row a={meta.secondary} b={secondaryDesc(meta.secondaryType, difficulty)} c={secondaryDisplay} cls={secondaryWeighted ? C.off : C.muted} />
+        )}
         <Row a={meta.core} b="10 reps" c="BW" cls={C.muted} />
         <Row a="Cardio" b="30 sec high effort" c="" cls={C.muted} />
         <CardioCals
           values={draft.cardioCals}
           onChange={(i, v) => setField('cardioCals', draft.cardioCals.map((x, idx) => (idx === i ? v : x)))}
         />
-        {dayType === 'dips' && <PullupCluster difficulty={difficulty} value={draft.pullupCluster} onChange={(v) => setField('pullupCluster', v)} />}
+        {dipsBW && (
+          <ClusterInput
+            label={`Dips — final-round cluster (target ${PULLUP[difficulty]})`}
+            dataAttr="dips-cluster"
+            target={PULLUP[difficulty]}
+            value={draft.dipsCluster}
+            onChange={(v) => setField('dipsCluster', v)}
+          />
+        )}
+        {/* Weight logging replaces cluster logging in weighted pull-up mode. */}
+        {dayType === 'dips' && !pullupWeighted && (
+          <ClusterInput
+            label={`Pull-ups — final-round cluster (target ${PULLUP[difficulty]})`}
+            dataAttr="pullup-cluster"
+            target={PULLUP[difficulty]}
+            value={draft.pullupCluster}
+            onChange={(v) => setField('pullupCluster', v)}
+          />
+        )}
         <LogRpe label="Top set" rpe={draft.rpe} speed={draft.barSpeed} onRpe={(v) => setField('rpe', v)} onSpeed={(v) => setField('barSpeed', v)} />
         <BlockCompletion value={draft.blockCompletion} onChange={(v) => setField('blockCompletion', v)} />
       </Card>
@@ -158,7 +204,7 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
           {dayType === 'dips' ? (
             <Row a="Push-ups" b={`2 × ${scheme.vol} (BW — elbow protocol)`} c="BW" cls={C.blue} />
           ) : (
-            <Row a={LIFT_LABEL[dayType]} b={`2 × ${scheme.vol} @ 80%`} c={hasTop ? fmt(volumeWeight(top)) : '—'} cls={C.blue} />
+            <Row a={LIFT_LABEL[dayType]} b={`2 × ${scheme.vol} @ 80%`} c={hasTop && top != null ? fmt(volumeWeight(top, dayType)) : '—'} cls={C.blue} />
           )}
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.off, marginTop: 10 }}>
             <input type="checkbox" checked={draft.volDone} onChange={(e) => setField('volDone', e.target.checked)} /> Both sets
@@ -291,18 +337,17 @@ function CardioCals({ values, onChange }: { values: (number | string | null)[]; 
   )
 }
 
-// Phase-1 pull-up cluster input (OHP-day antagonist). Logs the final Giant Block
-// round's cluster, e.g. "6+4"; shows live total + unbroken/target feedback.
-function PullupCluster({ difficulty, value, onChange }: { difficulty: Difficulty; value: string; onChange: (v: string) => void }) {
-  const target = PULLUP[difficulty]
+// Bodyweight-mode cluster input (pull-ups and dips share it). Logs the final Giant
+// Block round's cluster, e.g. "6+4"; shows live total + unbroken/target feedback.
+function ClusterInput({ label, dataAttr, target, value, onChange }: { label: string; dataAttr: string; target: number; value: string; onChange: (v: string) => void }) {
   const total = clusterTotal(value)
   const unbroken = isUnbroken(value)
   const hit = meetsTarget(value, target)
   return (
     <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-      <label style={lbl}>Pull-ups — final-round cluster (target {target})</label>
+      <label style={lbl}>{label}</label>
       <input
-        data-pullup-cluster="1"
+        {...{ [`data-${dataAttr}`]: '1' }}
         style={inp}
         value={value}
         onChange={(e) => onChange(e.target.value)}

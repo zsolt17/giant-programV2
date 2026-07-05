@@ -5,7 +5,7 @@ import { sessionsToCsv } from '../engine/export-csv'
 import { sessionSummary } from '../engine/session-summary'
 import { todayISO } from '../engine/date-engine'
 import { LIFT_SHORT } from '../engine/constants'
-import type { Session, Macro, AccessoryByCycle } from '../engine/types'
+import type { Session, Macro, AccessoryByCycle, WeightsByCycle } from '../engine/types'
 
 const btn = (disabled = false) => ({
   background: disabled ? 'rgba(201,168,76,0.3)' : C.gold,
@@ -60,7 +60,7 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-export function Data({ sessions, macros, accessory = {} }: { sessions: Session[]; macros: Macro[]; accessory?: Record<string, AccessoryByCycle> }) {
+export function Data({ sessions, macros, accessory = {}, weights = {} }: { sessions: Session[]; macros: Macro[]; accessory?: Record<string, AccessoryByCycle>; weights?: Record<string, WeightsByCycle> }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [copyErr, setCopyErr] = useState('')
@@ -84,7 +84,7 @@ export function Data({ sessions, macros, accessory = {} }: { sessions: Session[]
   async function onCopy() {
     if (!selected) return
     setCopyErr('')
-    const text = sessionSummary(selected, numberById.get(selected.macroId) ?? 0, accessory[selected.macroId])
+    const text = sessionSummary(selected, numberById.get(selected.macroId) ?? 0, accessory[selected.macroId], weights[selected.macroId])
     const ok = await copyText(text)
     if (ok) {
       setCopied(true)
@@ -175,7 +175,7 @@ export function Data({ sessions, macros, accessory = {} }: { sessions: Session[]
               fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
             }}
           >
-            {sessionSummary(selected, numberById.get(selected.macroId) ?? 0, accessory[selected.macroId])}
+            {sessionSummary(selected, numberById.get(selected.macroId) ?? 0, accessory[selected.macroId], weights[selected.macroId])}
           </pre>
         )}
 

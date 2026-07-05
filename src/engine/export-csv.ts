@@ -23,6 +23,7 @@ const COLUMNS: { header: string; value: (s: Session, macroNumber: number | '') =
   { header: 'vol_rpe', value: (s) => s.volRpe },
   { header: 'vol_speed', value: (s) => s.volSpeed },
   { header: 'pullup_cluster', value: (s) => s.pullupCluster },
+  { header: 'dips_cluster', value: (s) => s.dipsCluster },
   { header: 'carry_skipped', value: (s) => s.carrySkipped },
   { header: 'carry_skip_reason', value: (s) => s.carrySkipReason },
   { header: 'carry_rounds', value: (s) => s.carryRounds },

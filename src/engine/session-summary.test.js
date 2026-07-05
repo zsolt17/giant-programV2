@@ -24,6 +24,7 @@ function base(over = {}) {
     volRpe: 'R8',
     volSpeed: 'normal',
     pullupCluster: '',
+    dipsCluster: '',
     carrySkipped: false,
     carrySkipReason: '',
     carryRounds: 3,
@@ -96,6 +97,26 @@ test('untimed omits Duration; empty notes omitted; no top weight omits Sets line
   const out = sessionSummary(base({ startedAt: null, endedAt: null, notes: '', topWeight: null, topReps: null }), 2, ACC)
   assert.doesNotMatch(out, /Duration:|Notes:|Sets:/)
   assert.match(out, /\n {2}Top set: —/)
+})
+
+test('bodyweight-mode dips (top 0): BW top set, no Sets line, dips cluster shown', () => {
+  const out = sessionSummary(base({ dayType: 'dips', topWeight: 0, topReps: null, dipsCluster: '7+3', pullupCluster: '6+4' }), 2, ACC)
+  assert.match(out, /\n {2}Top set: BW \| R9 \| ↑\n/)
+  assert.doesNotMatch(out, /Sets:/)
+  assert.match(out, /\n {2}Dips cluster: 7\+3\n/)
+  assert.match(out, /\n {2}Pull-ups: 6\+4\n/) // pull-ups still bodyweight (no anchor)
+})
+
+test('weighted dips ladder rounds at 0.5 kg (same engine call as Today)', () => {
+  const out = sessionSummary(base({ dayType: 'dips', topWeight: 10 }), 2, ACC)
+  assert.match(out, /\n {2}Sets: 8@8.5 · 6@9 · 4@9.5 · 2@10\n/)
+})
+
+test('weighted pull-ups (anchor in weights grid): ladder replaces the cluster line', () => {
+  const W = { 3: { pullup: { hard: 10, medium: 9.5, light: 9 } } }
+  const out = sessionSummary(base({ dayType: 'dips', topWeight: 10, pullupCluster: '6+4' }), 2, ACC, W)
+  assert.match(out, /\n {2}Pull-ups \(wtd\): 8@8.5 · 6@9 · 4@9.5 · 2@10\n/)
+  assert.doesNotMatch(out, /Pull-ups: 6\+4/)
 })
 
 test('testing week (null cycle/week/day) degrades: header only, no secondary/volume/carry', () => {

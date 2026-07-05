@@ -4,8 +4,8 @@
 // ladder comes from the SAME loading-engine computation Today renders (giantSets/
 // volumeWeight), never re-derived. Non-applicable / unlogged lines are omitted.
 import { LIFT_SHORT, SCHEMES, DAY_META, SECONDARY_ITEM, BLOCK_COMPLETION } from './constants'
-import { giantSets, volumeWeight, fmt } from './loading'
-import type { Session, Lift, AccessoryByCycle } from './types'
+import { giantSets, volumeWeight, liftMode, fmt } from './loading'
+import type { Session, Lift, AccessoryByCycle, WeightsByCycle } from './types'
 import type { DayMeta } from './types'
 
 // 'up' -> ↑, 'down' -> ↓, 'normal' -> →; blank -> '' (no stray arrow when unlogged).
@@ -48,11 +48,15 @@ function cardioStr(cals: (number | null)[]): string {
 const seg = (...parts: (string | null | undefined)[]): string => parts.filter(Boolean).join(' | ')
 
 // `accessory` = the per-cycle grid for the SESSION'S macro (cycle -> item -> weight);
-// resolves the recorded secondary + carry weights. Optional — lines degrade gracefully.
-export function sessionSummary(s: Session, macroNumber: number, accessory?: AccessoryByCycle): string {
+// resolves the recorded secondary + carry weights. `weights` = the same macro's
+// working-weight grid — resolves the weighted pull-up ladder. Both optional —
+// lines degrade gracefully without them.
+export function sessionSummary(s: Session, macroNumber: number, accessory?: AccessoryByCycle, weights?: WeightsByCycle): string {
   const lines: string[] = []
   const meta = s.dayType ? DAY_META[s.dayType] : null
   const acc = s.cycle != null ? accessory?.[s.cycle] : undefined
+  // Bodyweight-mode dips: no load — the session's stamped top is 0/null.
+  const dipsBW = s.dayType === 'dips' && liftMode(s.topWeight) === 'bodyweight'
 
   // Header: "Session — M2C1W1 — Squat Hard — 22.06.2026". Training weeks carry
   // cycle+week; testing/deload weeks (null cycle/week) degrade to the week type.
@@ -65,14 +69,17 @@ export function sessionSummary(s: Session, macroNumber: number, accessory?: Acce
 
   // ---- Giant Block ----------------------------------------------------------
   lines.push('Giant Block:')
-  const top = s.topWeight != null && s.topReps != null ? `${kg(s.topWeight)}×${s.topReps}` : '—'
+  const top = dipsBW ? 'BW' : s.topWeight != null && s.topReps != null ? `${kg(s.topWeight)}×${s.topReps}` : '—'
   lines.push(`  Top set: ${seg(top, rpeStr(s.rpe), arrow(s.barSpeed))}`)
 
-  // Full computed set ladder for the day (same engine call Today renders).
-  if (s.topWeight != null && s.difficulty) {
-    const sets = giantSets(s.topWeight, s.difficulty)
+  // Full computed set ladder for the day (same engine call Today renders, at the
+  // lift's own rounding increment). Bodyweight-mode dips have no ladder.
+  if (s.topWeight != null && s.topWeight > 0 && s.difficulty) {
+    const sets = giantSets(s.topWeight, s.difficulty, s.dayType ?? undefined)
     lines.push(`  Sets: ${sets.map((g) => `${g.reps}@${kg(g.weight)}`).join(' · ')}`)
   }
+  // Bodyweight-mode dips log a final-round cluster instead of loads.
+  if (dipsBW && s.dipsCluster) lines.push(`  Dips cluster: ${s.dipsCluster}`)
 
   // Adherence (legacy null was mapped to 'completed' by the data layer).
   const completion =
@@ -92,8 +99,18 @@ export function sessionSummary(s: Session, macroNumber: number, accessory?: Acce
     }
   }
 
-  // Pull-ups (dips day only — the dips-day Giant Block secondary).
-  if (s.dayType === 'dips' && s.pullupCluster) lines.push(`  Pull-ups: ${s.pullupCluster}`)
+  // Pull-ups (dips day only — the dips-day Giant Block secondary). Weighted mode
+  // (anchor > 0 for the session's cycle) shows the computed ladder; bodyweight
+  // mode shows the logged final-round cluster.
+  if (s.dayType === 'dips') {
+    const pullupCell = s.cycle != null ? weights?.[s.cycle]?.pullup : undefined
+    if (pullupCell && liftMode(pullupCell.hard) === 'weighted' && s.difficulty && pullupCell[s.difficulty] != null) {
+      const sets = giantSets(pullupCell[s.difficulty] as number, s.difficulty, 'pullup')
+      lines.push(`  Pull-ups (wtd): ${sets.map((g) => `${g.reps}@${kg(g.weight)}`).join(' · ')}`)
+    } else if (s.pullupCluster) {
+      lines.push(`  Pull-ups: ${s.pullupCluster}`)
+    }
+  }
 
   const cardio = cardioStr(s.cardioCals)
   if (cardio) lines.push(`  Cardio: ${cardio}`)
@@ -104,7 +121,7 @@ export function sessionSummary(s: Session, macroNumber: number, accessory?: Acce
     const rx =
       s.dayType === 'dips'
         ? `Push-ups 2×${scheme.vol} (BW)`
-        : `2×${scheme.vol}${s.topWeight != null ? ` @ ${kg(volumeWeight(s.topWeight))}` : ''}`
+        : `2×${scheme.vol}${s.topWeight != null ? ` @ ${kg(volumeWeight(s.topWeight, s.dayType ?? undefined))}` : ''}`
     lines.push(`Volume Block: ${seg(rx, rpeStr(s.volRpe), arrow(s.volSpeed), s.volDone === false ? 'incomplete' : '')}`)
   }
 

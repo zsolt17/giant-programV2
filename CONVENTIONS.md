@@ -318,7 +318,10 @@ See `ARCHITECTURE.md` §2–§6 for the full domain. In code:
   for all days, `VOLUME_PCT` = 0.80) — no magic numbers at call sites. `dayTop(anchor, difficulty,
   lift?)` → a day's top; `expandDayTops(anchor)` → the three day tops; `giantSets(dayTop, difficulty)`
   uses `SET_LADDER` (reps still per-difficulty from `SCHEMES`); `volumeWeight`, `set1Weight`,
-  `warmupSets`; `round` to 2.5 kg; `deloadTop` (70%). The computed grid is **never persisted** —
+  `warmupSets`; `round(w, inc)` at the **lift's increment** (`LOAD_INCREMENT`: barbell 2.5 kg,
+  dips/pullup 0.5 kg — the anchor itself is never rounded); `deloadTop` (70%); `liftMode(anchor)`
+  (dips/pull-ups two-mode: 0/empty anchor = bodyweight, else weighted). Every derived-load call site
+  passes the lift so nothing re-rounds independently. The computed grid is **never persisted** —
   `mappers.rowsToWeights` expands the stored anchor on every read (so Today/Calendar consumers are
   unchanged), and `weightsToRows` writes only `hard`. The `lift` arg on `dayTop` is a seam for a
   future dips-off-bodyweight path (identical for all lifts today). `fmt` is null-safe (returns `—`).

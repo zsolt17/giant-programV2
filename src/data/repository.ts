@@ -336,6 +336,20 @@ export async function loadTrends(): Promise<TrendsData> {
   }
 }
 
+// All working-weight anchors across every macro (RLS-scoped), grouped by macro id —
+// the Data page's session summary resolves the weighted pull-up ladder per (macro, cycle).
+export async function getAllWorkingWeights(): Promise<Record<string, WeightsByCycle>> {
+  const { data, error } = await supabase.from('working_weights').select('*')
+  if (error) throw error
+  const byMacro: Record<string, Parameters<typeof M.rowsToWeights>[0]> = {}
+  ;((data || []) as (Parameters<typeof M.rowsToWeights>[0][number] & { macro_id: string })[]).forEach((r) => {
+    ;(byMacro[r.macro_id] ||= []).push(r)
+  })
+  const out: Record<string, WeightsByCycle> = {}
+  for (const id of Object.keys(byMacro)) out[id] = M.rowsToWeights(byMacro[id])
+  return out
+}
+
 // All accessory weights across every macro (RLS-scoped), grouped by macro id —
 // the Data page's session summary resolves secondary/carry weights per (macro, cycle).
 export async function getAllAccessoryWeights(): Promise<Record<string, AccessoryByCycle>> {

@@ -61,7 +61,8 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 - **Recovery → Tendon Health** — joint-specific isometric loading protocol: pick a joint, phase
   auto-advances (Acute/Build/Maintenance, overridable), per-tendon 30s hold timer + light per-day
   "done" logging, position diagrams. One active protocol at a time. (Burger menu → Recovery; first item.)
-- **Pull-ups** — phase-1 bodyweight cluster logging (**dips day** Giant Block antagonist) + trend. *(Phase-2 weighted: deferred.)*
+- **Pull-ups & dips** — two-mode (dips day): a 0/empty per-cycle anchor = bodyweight cluster logging
+  (10/8/6 targets) + trend; any anchor = the full weighted cascade at 0.5 kg rounding. Mode flips in Setup.
 - **Testing weeks** — record 2–3RM results per lift.
 - **Global loading states** — branded pre-React splash (home-screen-icon mark + shimmer bar);
   **first login is held** (sign-in button spinner spans auth + the first data fetch, then Today
@@ -74,6 +75,23 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ---
 
 ## Change log
+
+## 2026-07-05
+- `feat(loading)`: **per-lift rounding + two-mode dips & pull-ups**. Derived loads now round at the
+  lift's increment (`LOAD_INCREMENT`: DL/OHP/Squat 2.5 kg; **dips + pull-ups 0.5 kg**); the **anchor
+  is never rounded** (fixes a latent bug where a 1 kg dips anchor snapped its Hard day-top to 0).
+  Dips and pull-ups share **two-mode logic** decided purely by the cycle's anchor: 0/empty =
+  **bodyweight mode** (no cascade; 10/8/6 targets; final-round cluster logging + History trend —
+  dips log the new `dips_cluster`, pull-ups keep `pullup_cluster`); anchor > 0 = the **full standard
+  cascade** at 0.5 kg (day spread, 85/90/95/100 ladder, day rep scheme, 80% volume) — weighted
+  pull-ups render the 4-round ladder in place of the cluster input, like a primary lift. Pull-ups
+  join `working_weights` (Setup gains a 5th anchor row; `AnchorLift` type); the dips warm-up
+  build-up rounds at 0.5 (0 → "BW"). Setup's cascade preview is mode-aware (bodyweight-mode note ↔
+  weighted ladder). Copy-session summary: BW dips top set, dips-cluster line, weighted pull-up
+  ladder (via a new `getAllWorkingWeights()` read). Every computed-load call site passes the lift —
+  nothing re-rounds independently. Migration `0009_dips_pullup_modes.sql` (applied): widens the
+  `working_weights.lift` CHECK + adds `sessions.dips_cluster`. typecheck + **76 tests** + build
+  green; smoke **46/46** (pullup anchor 0.5-kg cascade, anchor exactness, dips-cluster round-trip).
 
 ## 2026-07-02
 - `feat(program/data)`: **final carry reassignment + expanded copy-session summary**. **Carries**

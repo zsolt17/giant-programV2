@@ -65,10 +65,11 @@ export function SessionModal({
   const hasWeight = base != null
   const weekKey = `M${macroNumber}C${cycle}W${cell.week}`
   const isDeload = !isSpecial && !!deloads[weekKey]
-  const top = base != null ? (isDeload ? deloadTop(base) : base) : null
+  const top = base != null ? (isDeload ? deloadTop(base, dayType ?? undefined) : base) : null
   const carryDefault = cycle != null && dayType ? accessory?.[cycle]?.[`carry_${dayType}`] ?? '' : ''
   const secondaryItem = dayType ? SECONDARY_ITEM[dayType] : undefined
   const secondaryDefault = cycle != null && secondaryItem ? accessory?.[cycle]?.[secondaryItem] ?? '' : ''
+  const pullupCell = dayType === 'dips' && cycle != null ? weights?.[cycle]?.pullup ?? null : null
 
   const [draft, setDraft] = useState<SessionDraft>(
     () =>
@@ -211,7 +212,7 @@ export function SessionModal({
           </div>
         ) : (
           <>
-            <SessionForm dayType={dayType!} difficulty={difficulty!} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} carryLoad={carryDefault} secondaryLoad={secondaryDefault} />
+            <SessionForm dayType={dayType!} difficulty={difficulty!} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} carryLoad={carryDefault} secondaryLoad={secondaryDefault} pullupCell={pullupCell} />
             {draft.startedAt && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
                 <div>

@@ -1,6 +1,6 @@
 // Program constants — ported verbatim from the working index.html. These encode
 // the fixed structure of The Giant Program and must not drift.
-import type { Difficulty, Lift, Scheme, DayMeta } from './types'
+import type { Difficulty, Lift, AnchorLift, Scheme, DayMeta } from './types'
 
 // 4 lifts across 3 weekly slots (Mon=hard, Wed=medium, Fri=light), repeating
 // every 4 weeks (one mesocycle). Index = (weekInMeso - 1).
@@ -29,6 +29,17 @@ export const DAY_SPREAD: Record<Difficulty, number> = { hard: 1.0, medium: 0.95,
 export const SET_LADDER: number[] = [0.85, 0.9, 0.95, 1.0]
 // Volume block = this fraction of the day's top set.
 export const VOLUME_PCT = 0.8
+// Per-lift rounding increment for DERIVED loads (the anchor itself is never
+// rounded — user input stays exactly as entered). Barbell lifts move in 2.5 kg
+// plates; dips/pull-ups added weight moves in 0.5 kg.
+export const DEFAULT_INCREMENT = 2.5
+export const LOAD_INCREMENT: Record<AnchorLift, number> = {
+  deadlift: 2.5,
+  ohp: 2.5,
+  squat: 2.5,
+  dips: 0.5,
+  pullup: 0.5,
+}
 
 // Barbell build-up sets: 8-5-3-2 reps at ~40/55/70/85% of Giant Block Set 1.
 export const WU_PCT: number[] = [0.4, 0.55, 0.7, 0.85]

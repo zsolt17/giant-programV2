@@ -70,6 +70,13 @@ async function main() {
     ok('upsert updates C1 deadlift hard -> 162.5', w?.[1]?.deadlift?.hard === 162.5, w?.[1]?.deadlift?.hard)
     ok('cascade follows edit: C1 deadlift medium -> 155', w?.[1]?.deadlift?.medium === 155, w?.[1]?.deadlift?.medium)
 
+    // Pull-up anchor (0009): stored like any lift; cascade rounds at 0.5, anchor exact.
+    await repo.saveWorkingWeights(id, 1, { pullup: { hard: 10 }, dips: { hard: 1 } })
+    w = await repo.getWorkingWeights(id)
+    ok('C1 pullup anchor = 10', w?.[1]?.pullup?.hard === 10, w?.[1]?.pullup)
+    ok('pullup medium computed at 0.5 kg = 9.5', w?.[1]?.pullup?.medium === 9.5, w?.[1]?.pullup?.medium)
+    ok('dips 1 kg anchor stays exact (never rounded)', w?.[1]?.dips?.hard === 1, w?.[1]?.dips?.hard)
+
     console.log('Accessory weights (recorded per-cycle secondaries: lunge / RDL / row / carries)')
     await repo.saveAccessoryWeights(id, 1, { lunge_deadlift: 24, rdl_squat: 30, row_ohp: 22.5, carry_deadlift: 68 })
     const acc = await repo.getAccessoryWeights(id)
@@ -84,7 +91,7 @@ async function main() {
       id: sid, macroId: id, date: '2099-01-04', cycle: 1, week: 1, weekType: 'training',
       dayType: 'deadlift', difficulty: 'hard', topReps: 2, topWeight: 160, rpe: 'R8', barSpeed: 'normal',
       cardioCals: [15, 14, '', 15], blockCompletion: 'stopped_fatigue',
-      volDone: true, volRpe: '', volSpeed: '', pullupCluster: '',
+      volDone: true, volRpe: '', volSpeed: '', pullupCluster: '', dipsCluster: '7+3',
       carrySkipped: false, carrySkipReason: '', carryRounds: 3, carryDistance: 40, carryRpe: '', notes: 'smoke test',
       startedAt: '2099-01-04T08:00:00Z', endedAt: '2099-01-04T08:45:00Z',
     })
@@ -93,6 +100,7 @@ async function main() {
 
     // Extra logging fields round-trip (per-round cardio cals, carry rounds+distance).
     ok('blockCompletion round-trips = stopped_fatigue', saved.blockCompletion === 'stopped_fatigue', saved.blockCompletion)
+    ok('dipsCluster round-trips = 7+3', saved.dipsCluster === '7+3', saved.dipsCluster)
     ok('carryRounds round-trips = 3', saved.carryRounds === 3, saved.carryRounds)
     ok('carryDistance round-trips = 40', saved.carryDistance === 40, saved.carryDistance)
     ok('cardioCals = [15,14,null,15] (blank round -> NULL, length 4)',

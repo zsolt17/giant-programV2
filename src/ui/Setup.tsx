@@ -4,12 +4,17 @@ import { C, cardStyle, inp, lbl, pillColor } from './theme'
 import { Card, BlockTitle } from './components'
 import * as repo from '../data/repository'
 import { computePosition, parseLocalDate, mondayOf, isoLocal } from '../engine/date-engine'
-import { LIFT_LABEL, SET_LADDER, VOLUME_PCT } from '../engine/constants'
-import { expandDayTops, giantSets, volumeWeight } from '../engine/loading'
+import { LIFT_LABEL, SET_LADDER, VOLUME_PCT, PULLUP } from '../engine/constants'
+import { expandDayTops, giantSets, volumeWeight, liftMode } from '../engine/loading'
 import { errMsg } from './controls'
-import type { Macro, WeightsByCycle, AccessoryByCycle, Lift, Difficulty } from '../engine/types'
+import type { Macro, WeightsByCycle, AccessoryByCycle, Lift, AnchorLift, Difficulty } from '../engine/types'
 
 const LIFTS: Lift[] = ['deadlift', 'ohp', 'squat', 'dips']
+// Anchor rows in the weights card: the 4 day lifts + pull-ups (dips-day secondary,
+// anchored for its weighted mode). Dips + pull-ups are two-mode: 0/empty = bodyweight.
+const ANCHORS: AnchorLift[] = [...LIFTS, 'pullup']
+const ANCHOR_LABEL: Record<AnchorLift, string> = { ...LIFT_LABEL, pullup: 'Pull-ups' }
+const TWO_MODE: AnchorLift[] = ['dips', 'pullup']
 const DIFFS: Difficulty[] = ['hard', 'medium', 'light']
 const CYCLES: number[] = [1, 2, 3]
 const ACC_LABEL: Record<string, string> = {
@@ -35,12 +40,12 @@ type WeightCell = { hard: number | string; medium: number | string; light: numbe
 type EditWeights = Record<number, Record<string, WeightCell>>
 type EditAcc = Record<number, Record<string, number | string>>
 
-// Build editable state: every cycle/lift/difficulty present, blank if unset.
+// Build editable state: every cycle/anchor-lift present, blank if unset.
 function initWeights(loaded?: WeightsByCycle): EditWeights {
   const w: EditWeights = {}
   for (const c of CYCLES) {
     w[c] = {}
-    for (const l of LIFTS) {
+    for (const l of ANCHORS) {
       const s = loaded?.[c]?.[l]
       w[c][l] = { hard: s?.hard ?? '', medium: s?.medium ?? '', light: s?.light ?? '' }
     }
@@ -75,9 +80,23 @@ interface SetupProps {
 
 // Read-only live preview of the full cascade from one Hard anchor: the three day
 // tops (Hard/Med/Light) and, per day, the four Giant Block sets + the Volume load.
-// kg prominent, % secondary. Computed via the engine — never stored.
-function CascadePreview({ anchor, lift }: { anchor: number | string; lift: Lift }) {
+// kg prominent, % secondary. Computed via the engine — never stored. Dips and
+// pull-ups are two-mode: a 0/empty anchor = bodyweight mode (cluster targets),
+// any weight = the full cascade at 0.5 kg rounding.
+function CascadePreview({ anchor, lift }: { anchor: number | string; lift: AnchorLift }) {
   const a = anchor === '' || anchor == null ? NaN : Number(anchor)
+  const twoMode = TWO_MODE.includes(lift)
+  if (twoMode && liftMode(Number.isFinite(a) ? a : null) === 'bodyweight') {
+    return (
+      <div style={{ marginTop: 10, background: 'rgba(0,0,0,0.18)', border: `1px solid ${C.border}`, borderRadius: 2, padding: 10 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.green, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 4 }}>Bodyweight mode</div>
+        <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.5 }}>
+          No load cascade. Targets {PULLUP.hard}/{PULLUP.medium}/{PULLUP.light} reps/round (H/M/L); log the final-round
+          cluster (e.g. 6+4). Enter a weight to switch to the full cascade (0.5 kg steps).
+        </div>
+      </div>
+    )
+  }
   if (!Number.isFinite(a) || a <= 0) {
     return <div style={{ fontSize: 11, color: C.muted, fontStyle: 'italic', marginTop: 8 }}>Enter the Hard top to preview the computed loads.</div>
   }
@@ -97,8 +116,8 @@ function CascadePreview({ anchor, lift }: { anchor: number | string; lift: Lift 
           </div>
         ))}
         {DIFFS.map((d) => {
-          const sets = giantSets(tops[d], d)
-          const vals = [sets[0].weight, sets[1].weight, sets[2].weight, sets[3].weight, volumeWeight(tops[d])]
+          const sets = giantSets(tops[d], d, lift)
+          const vals = [sets[0].weight, sets[1].weight, sets[2].weight, sets[3].weight, volumeWeight(tops[d], lift)]
           return (
             <Fragment key={d}>
               <span style={{ fontSize: 10, fontWeight: 700, color: pillColor(d), textTransform: 'uppercase' }}>{d === 'medium' ? 'Med' : d}</span>
@@ -262,20 +281,21 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>{CYCLES.map(cycleBtn)}</div>
 
         {/* One Hard-top anchor per lift, with a read-only computed cascade below it */}
-        {LIFTS.map((lift) => (
+        {ANCHORS.map((lift) => (
           <div key={lift} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${C.border}` }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: 8, alignItems: 'center' }}>
               <label htmlFor={`hard-${cycle}-${lift}`} style={{ fontSize: 13, color: C.off, fontWeight: 600 }}>
-                {LIFT_LABEL[lift]} <span style={{ color: pillColor('hard') }}>· Hard top</span>
+                {ANCHOR_LABEL[lift]} <span style={{ color: pillColor('hard') }}>· Hard top</span>
+                {TWO_MODE.includes(lift) && <span style={{ fontSize: 10, color: C.muted, fontWeight: 400 }}> (added wt · 0 = BW)</span>}
               </label>
               <input
                 id={`hard-${cycle}-${lift}`}
                 data-lift={lift}
                 data-diff="hard"
-                aria-label={`${LIFT_LABEL[lift]} Hard top, cycle ${cycle} (kg)`}
+                aria-label={`${ANCHOR_LABEL[lift]} Hard top, cycle ${cycle} (kg)`}
                 style={{ ...inp, padding: '6px', textAlign: 'center' }}
                 type="number"
-                step="2.5"
+                step={TWO_MODE.includes(lift) ? '0.5' : '2.5'}
                 inputMode="decimal"
                 value={weights[cycle][lift].hard}
                 onChange={(e) => setW(cycle, lift, 'hard', e.target.value)}

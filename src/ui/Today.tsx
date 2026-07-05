@@ -15,6 +15,7 @@ import type {
   Session,
   SessionDraft,
   WeightsByCycle,
+  LiftWeights,
   AccessoryByCycle,
   DeloadMap,
   BreakDayMap,
@@ -185,10 +186,11 @@ export function Today({
   const hasWeight = base != null
   const weekKey = weekKeyFor(macro, cycle, week)
   const isDeload = !!deloads[weekKey]
-  const top = base != null ? (isDeload ? deloadTop(base) : base) : null
+  const top = base != null ? (isDeload ? deloadTop(base, dayType) : base) : null
   const carryDefault = accessory?.[cycle]?.[`carry_${dayType}`] ?? ''
   const secondaryItem = SECONDARY_ITEM[dayType]
   const secondaryDefault = secondaryItem ? accessory?.[cycle]?.[secondaryItem] ?? '' : ''
+  const pullupCell = dayType === 'dips' ? weights?.[cycle]?.pullup ?? null : null
   const sessionId = `${todayISO()}-${dayType}-${difficulty[0].toUpperCase()}`
   const existing = sessions.find((s) => s.id === sessionId)
   const currentWeekSessions = sessions.filter((s) => s.cycle === cycle && s.week === week)
@@ -250,6 +252,7 @@ export function Today({
         isDeload={isDeload}
         carryLoad={carryDefault}
         secondaryLoad={secondaryDefault}
+        pullupCell={pullupCell}
         currentWeekSessions={currentWeekSessions}
         stamp={{ macroId, cycle, week, weekType: 'training', dayType, difficulty, topReps: SCHEMES[difficulty].sets[3], topWeight: top, date: todayISO(), id: sessionId }}
         onSaveSession={onSaveSession}
@@ -275,6 +278,7 @@ interface SessionEditorProps {
   isDeload: boolean
   carryLoad?: number | string | null
   secondaryLoad?: number | string | null
+  pullupCell?: LiftWeights | null
   currentWeekSessions: Session[]
   stamp: Stamp
   onSaveSession: (record: SessionDraft) => Promise<Session>
@@ -285,7 +289,7 @@ interface SessionEditorProps {
   setSaved: (b: boolean) => void
 }
 
-function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, carryLoad, secondaryLoad, currentWeekSessions, stamp, onSaveSession, onRunningChange, saving, setSaving, saved, setSaved }: SessionEditorProps) {
+function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, carryLoad, secondaryLoad, pullupCell, currentWeekSessions, stamp, onSaveSession, onRunningChange, saving, setSaving, saved, setSaved }: SessionEditorProps) {
   const [draft, setDraft] = useState<SessionDraft>(() => existing || blank())
   const [err, setErr] = useState('')
   const [nowTs, setNowTs] = useState(() => Date.now())
@@ -409,7 +413,7 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
         />
       )}
 
-      <SessionForm dayType={dayType} difficulty={difficulty} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} locked={notStarted} carryLoad={carryLoad} secondaryLoad={secondaryLoad} />
+      <SessionForm dayType={dayType} difficulty={difficulty} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} locked={notStarted} carryLoad={carryLoad} secondaryLoad={secondaryLoad} pullupCell={pullupCell} />
 
       {completed && (
         <button

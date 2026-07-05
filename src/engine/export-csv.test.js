@@ -27,6 +27,7 @@ function session(over = {}) {
     volRpe: 'R8',
     volSpeed: 'normal',
     pullupCluster: '',
+    dipsCluster: '',
     carrySkipped: false,
     carrySkipReason: '',
     carryRounds: 3,
@@ -43,7 +44,7 @@ test('header row lists all columns in order', () => {
   const csv = sessionsToCsv([], macros)
   assert.equal(
     csv,
-    'date,macro,cycle,week,week_type,day_type,difficulty,top_weight,top_reps,rpe,bar_speed,cardio_cals,block_completion,vol_done,vol_rpe,vol_speed,pullup_cluster,carry_skipped,carry_skip_reason,carry_rounds,carry_distance,carry_rpe,started_at,ended_at,notes'
+    'date,macro,cycle,week,week_type,day_type,difficulty,top_weight,top_reps,rpe,bar_speed,cardio_cals,block_completion,vol_done,vol_rpe,vol_speed,pullup_cluster,dips_cluster,carry_skipped,carry_skip_reason,carry_rounds,carry_distance,carry_rpe,started_at,ended_at,notes'
   )
 })
 
@@ -53,7 +54,7 @@ test('serializes a row, resolves macro number, collapses cardio, renders nulls a
   // date,macro,cycle,week,week_type,day_type,difficulty,top_weight,top_reps,rpe,bar_speed,cardio_cals,...
   assert.equal(
     row,
-    '2026-06-22,2,3,3,training,squat,hard,145,2,R9.5,up,15/14//15,completed,true,R8,normal,,false,,3,30,R6,,,felt strong'
+    '2026-06-22,2,3,3,training,squat,hard,145,2,R9.5,up,15/14//15,completed,true,R8,normal,,,false,,3,30,R6,,,felt strong'
   )
 })
 
