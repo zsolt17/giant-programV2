@@ -76,6 +76,20 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-07-06
+- `feat(testing)`: **full-structure test-day view** (Today tab, testing weeks) — replaces the bare
+  result recorder. A test day now renders like a normal hard day **computed off the C3 Hard anchor**
+  (exact, never rounded) via the loading engine at each lift's increment: Warm-Up build-up
+  (8-5-3-2 @ ~40/55/70/85% of Set 1), Giant Block sets 1–3 prescribed (85/90/95%), **Set 4 = the
+  test** with open weight+reps inputs and a muted guidance hint ("anything from C3 top upward at
+  1 RIR is valid; ceiling ~+5% — new engine helper `testCeiling`, +1 test; no grinders"), Volume
+  2×6 @ 80% with RPE/bar-speed (persisted into the result notes as a "Vol: …" suffix, replaced on
+  re-save, since `testing_results` has no structured fields), and a "No carry — testing week" note.
+  Record Result / Update / Delete keep the existing `testing_results` save path. Degrades gracefully
+  with no usable C3 anchor (loads "—", generic hint). New `TestingSessionView` in
+  `TestingResultForm.tsx`; the Calendar's testing-cell modal keeps the compact form. No schema
+  change. typecheck + **77 tests** + build green.
+
 ## 2026-07-05
 - `feat(loading)`: **per-lift rounding + two-mode dips & pull-ups**. Derived loads now round at the
   lift's increment (`LOAD_INCREMENT`: DL/OHP/Squat 2.5 kg; **dips + pull-ups 0.5 kg**); the **anchor

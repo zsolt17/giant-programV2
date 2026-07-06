@@ -82,3 +82,9 @@ export function volumeWeight(top: number, lift?: AnchorLift): number {
 export function deloadTop(top: number, lift?: AnchorLift): number {
   return round(top * 0.7, incFor(lift))
 }
+
+// Testing-day guidance ceiling: ~+5% over the C3 Hard anchor, at the lift's
+// increment. Guidance only — test results are recorded, never prescribed.
+export function testCeiling(anchor: number, lift?: AnchorLift): number {
+  return round(anchor * 1.05, incFor(lift))
+}

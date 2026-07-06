@@ -5,7 +5,7 @@ import { Card } from './components'
 import { PositionHeader, fmtClock, errMsg } from './controls'
 import { useWakeLock } from './useWakeLock'
 import { SessionForm, buildBlankSession } from './SessionForm'
-import { TestingResultForm } from './TestingResultForm'
+import { TestingSessionView } from './TestingResultForm'
 import { ROTATION, SCHEMES, LIFT_LABEL, SIGNALS, SECONDARY_ITEM } from '../engine/constants'
 import { deloadTop } from '../engine/loading'
 import { todayISO, mondayOf, parseLocalDate, isoLocal } from '../engine/date-engine'
@@ -114,12 +114,15 @@ export function Today({
     )
   if (computed.weekType === 'testing') {
     if (computed.isSessionDay && computed.testRole === 'test' && computed.testLift) {
+      // Full session structure computed off the C3 Hard anchor (exact, never rounded);
+      // Set 4 is the open recording field. Result still saves to testing_results.
       return (
         <div>
           <PositionHeader computed={computed} label="Testing Week" />
-          <TestingResultForm
+          <TestingSessionView
             macroId={macroId}
             lift={computed.testLift}
+            c3Hard={weights?.[3]?.[computed.testLift]?.hard ?? null}
             testedOn={todayISO()}
             results={testingResults}
             onSave={onSaveTestingResult}

@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { round, fmt, schemeFor, dayTop, expandDayTops, giantSets, set1Weight, warmupSets, volumeWeight, deloadTop, liftMode, incFor } from './loading'
+import { round, fmt, schemeFor, dayTop, expandDayTops, giantSets, set1Weight, warmupSets, volumeWeight, deloadTop, testCeiling, liftMode, incFor } from './loading'
 
 test('round: nearest 2.5 kg', () => {
   assert.equal(round(120), 120)
@@ -111,6 +111,12 @@ test('dips build-up rounds at 0.5; tiny loads may hit 0 (= BW)', () => {
   assert.deepEqual(warmupSets(1, 'dips').map((s) => s.weight), [0.5, 0.5, 0.5, 1])
   // top 0.5 → set1 = 0.5; first build-up rounds to 0 → bodyweight
   assert.equal(warmupSets(0.5, 'dips')[0].weight, 0)
+})
+
+test('testCeiling: ~+5% of the anchor at the lift increment', () => {
+  assert.equal(testCeiling(160, 'deadlift'), 167.5) // round(168, 2.5)
+  assert.equal(testCeiling(67.5, 'ohp'), 70) // round(70.875, 2.5)
+  assert.equal(testCeiling(10, 'dips'), 10.5) // round(10.5, 0.5)
 })
 
 test('liftMode: 0/null/undefined = bodyweight, any weight = weighted', () => {
