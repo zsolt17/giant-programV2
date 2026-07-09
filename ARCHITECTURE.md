@@ -109,6 +109,11 @@ Hard anchor (Medium = 95%, Light = 90% of the Hard top — §3). Round to neares
   session computed off the C3 Hard anchor** like a normal hard day (build-up, ladder sets 1–3, 80%
   volume); Set 4 is the open recording field with guidance only: anything from the C3 top upward at
   1 RIR is valid, ceiling ~+5% (`testCeiling`), no grinders.
+- Test days also log **deload-signal data** like any session: test-attempt RPE + bar speed, the
+  giant-block completion control ("prescribed" = ramp sets 1–3 + a recorded attempt), and volume
+  completion. These save to a **companion sessions row** (`weekType 'testing'`, id
+  `{date}-{lift}-TEST`) alongside the `testing_results` record — same fields/mechanism as normal
+  sessions, so `computeWeekSignals` needs no special casing (§5).
 
 ### 2.8 End-of-macro deload (week 15)
 - **Fixed layout: Mon = Deadlift, Wed = OHP, Fri = Dips** (NOT the normal rotation).
@@ -192,6 +197,11 @@ rule supersedes the version in the v7 program book.**
 **Trigger:** fires when there are **3+ total signal occurrences spanning at least 2 different
 sessions** in the week. (Three occurrences = severity; two sessions = it's a pattern, not one
 bad day. One catastrophic single day never fires it.)
+
+**Testing weeks (W13–14):** signals from test sessions are captured and shown in the Deload tab
+(as `W13/W14 · Testing` buckets), but the reactive recommendation **never fires** there — the
+scheduled W15 deload is already next. This is structural: the recommendation only renders on
+training-week session days, and test rows (null cycle/week) can't enter its week filter.
 
 **Behaviour:** the rule **advises, the athlete decides** — it recommends a deload via a confirm
 prompt; the athlete taps Apply. Never auto-forced.

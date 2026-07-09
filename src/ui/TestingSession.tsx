@@ -5,7 +5,8 @@ import { blockTitle, Row, LogRpe, speedArrow, errMsg } from './controls'
 import { LIFT_LABEL, SCHEMES, WU_PCT, WU_REPS, SET_LADDER } from '../engine/constants'
 import { fmt, warmupSets, giantSets, volumeWeight, testCeiling } from '../engine/loading'
 import { splitVolNote } from '../engine/session-summary'
-import type { Lift, TestingResult } from '../engine/types'
+import { BlockCompletion, buildBlankSession } from './SessionForm'
+import type { Lift, TestingResult, Session, SessionDraft } from '../engine/types'
 
 // Number-input value -> number | null ('' and blanks become null, like the
 // mappers' toNum). Keeps weight and reps consistent on the way to the DB.
@@ -21,6 +22,13 @@ interface TestingSessionViewProps {
   results: TestingResult[]
   onSave: (r: TestingResult) => Promise<TestingResult>
   onDelete?: (id: string) => void
+  // Companion sessions row (weekType 'testing', id "{date}-{lift}-TEST"): carries the
+  // test attempt's RPE/bar-speed, block completion, and volume completion so deload
+  // signals derive from test days like any other session. Saved/deleted alongside
+  // the result through the normal session mechanism.
+  companion?: Session | null
+  onSaveSession: (record: SessionDraft) => Promise<Session>
+  onDeleteSession: (id: string) => Promise<void>
 }
 
 // Full-structure test day — the SINGLE test-session surface, shared by the Today
@@ -29,27 +37,37 @@ interface TestingSessionViewProps {
 // build-up, Giant Block sets 1–3 prescribed, Set 4 as the open test-recording
 // field, normal volume, no carry. All loads come from the loading engine at the
 // lift's own rounding increment. Saves to testing_results (recorded, not prescribed).
-export function TestingSessionView({ macroId, lift, c3Hard, testedOn, results, onSave, onDelete }: TestingSessionViewProps) {
+export function TestingSessionView({ macroId, lift, c3Hard, testedOn, results, onSave, onDelete, companion, onSaveSession, onDeleteSession }: TestingSessionViewProps) {
   const existing = results.find((r) => r.lift === lift) || null
   const [weight, setWeight] = useState<number | string>(existing?.weight ?? '')
   const [reps, setReps] = useState<number | string>(existing?.reps ?? '')
   const [notes, setNotes] = useState(existing?.notes ?? '')
-  const [volRpe, setVolRpe] = useState('')
-  const [volSpeed, setVolSpeed] = useState('')
+  const [rpe, setRpe] = useState(companion?.rpe ?? '')
+  const [barSpeed, setBarSpeed] = useState(companion?.barSpeed ?? '')
+  const [blockCompletion, setBlockCompletion] = useState(companion?.blockCompletion ?? 'completed')
+  const [volDone, setVolDone] = useState(companion?.volDone ?? true)
+  const [volRpe, setVolRpe] = useState(companion?.volRpe ?? '')
+  const [volSpeed, setVolSpeed] = useState(companion?.volSpeed ?? '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [err, setErr] = useState('')
+
+  const companionId = `${testedOn}-${lift}-TEST`
 
   // Re-sync when the target lift/result changes (the two test days differ).
   useEffect(() => {
     setWeight(existing?.weight ?? '')
     setReps(existing?.reps ?? '')
     setNotes(existing?.notes ?? '')
-    setVolRpe('')
-    setVolSpeed('')
+    setRpe(companion?.rpe ?? '')
+    setBarSpeed(companion?.barSpeed ?? '')
+    setBlockCompletion(companion?.blockCompletion ?? 'completed')
+    setVolDone(companion?.volDone ?? true)
+    setVolRpe(companion?.volRpe ?? '')
+    setVolSpeed(companion?.volSpeed ?? '')
     setSaved(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lift, existing?.id])
+  }, [lift, existing?.id, companion?.id])
 
   const hasAnchor = c3Hard != null && c3Hard > 0
   const scheme = SCHEMES.hard
@@ -61,11 +79,28 @@ export function TestingSessionView({ macroId, lift, c3Hard, testedOn, results, o
     setSaving(true)
     setErr('')
     try {
-      // Volume RPE/speed persist inside the result notes (testing_results has no
-      // structured fields for them) — replace any prior "Vol:" suffix, don't stack.
+      // Volume RPE/speed persist inside the result notes (feeds the copy-summary) —
+      // replace any prior "Vol:" suffix, don't stack.
       const volNote = volRpe || volSpeed ? `Vol: ${volRpe}${volSpeed ? speedArrow(volSpeed) : ''}` : ''
       const finalNotes = volNote ? [splitVolNote(notes).rest, volNote].filter(Boolean).join(' · ') : notes
       await onSave({ id: existing?.id, macroId, lift, weight: numOrNull(weight), reps: numOrNull(reps), notes: finalNotes, testedOn })
+      // Companion sessions row: the structured signal fields (test-attempt RPE/speed,
+      // block completion, volume completion) via the normal idempotent session upsert.
+      await onSaveSession({
+        ...buildBlankSession({ date: testedOn, macroId, weekType: 'testing', dayType: lift, difficulty: null }),
+        id: companionId,
+        topWeight: numOrNull(weight),
+        topReps: numOrNull(reps),
+        rpe,
+        barSpeed,
+        blockCompletion,
+        volDone,
+        volRpe,
+        volSpeed,
+        carryRounds: null, // no carry on testing week
+        startedAt: companion?.startedAt ?? null,
+        endedAt: companion?.endedAt ?? null,
+      })
       setNotes(finalNotes)
       setSaved(true)
       setTimeout(() => setSaved(false), 1600)
@@ -73,6 +108,17 @@ export function TestingSessionView({ macroId, lift, c3Hard, testedOn, results, o
       setErr(errMsg(e))
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!existing?.id || !onDelete) return
+    setErr('')
+    try {
+      await onDeleteSession(companionId) // no-op if the companion row doesn't exist
+      onDelete(existing.id as string)
+    } catch (e) {
+      setErr(errMsg(e))
     }
   }
 
@@ -111,14 +157,23 @@ export function TestingSessionView({ macroId, lift, c3Hard, testedOn, results, o
             ? `Anything from C3 top (${fmt(c3Hard)}) upward, moving cleanly at 1 RIR, is a valid result. Ceiling: ~+5% (${fmt(testCeiling(c3Hard, lift))}). No grinders.`
             : 'No C3 Hard anchor set for this lift — find a clean 2–3RM with 1 rep in reserve; no grinders. Record what you hit (not a target).'}
         </div>
+        <LogRpe label="Test attempt" rpe={rpe} speed={barSpeed} onRpe={setRpe} onSpeed={setBarSpeed} />
+        <BlockCompletion value={blockCompletion} onChange={setBlockCompletion} />
+        <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.5, marginTop: 6 }}>
+          “Prescribed” here = ramp sets 1–3 plus a recorded test attempt. Abandoning the block or skipping the test set
+          counts as not completed.
+        </div>
       </Card>
 
       {/* C. Volume — normal 2×6 @ 80% of the C3 anchor */}
       <Card>
         {blockTitle('C. Volume Block', '2 sets · 80%')}
         <Row a={LIFT_LABEL[lift]} b={`2 × ${scheme.vol} @ 80%`} c={hasAnchor ? fmt(volumeWeight(c3Hard, lift)) : '—'} cls={C.blue} />
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.off, marginTop: 10 }}>
+          <input type="checkbox" checked={volDone} onChange={(e) => setVolDone(e.target.checked)} /> Both sets completed
+        </label>
         <LogRpe label="Volume" rpe={volRpe} speed={volSpeed} onRpe={setVolRpe} onSpeed={setVolSpeed} />
-        <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>Saved into the result notes as “Vol: …”.</div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>RPE/speed also lands in the result notes as “Vol: …”.</div>
       </Card>
 
       {/* D. Carry — off on testing week */}
@@ -139,7 +194,7 @@ export function TestingSessionView({ macroId, lift, c3Hard, testedOn, results, o
             {saving ? 'Saving…' : saved ? 'Saved ✓' : existing ? 'Update result' : 'Record result'}
           </button>
           {existing && onDelete && existing.id && (
-            <button onClick={() => onDelete(existing.id as string)} style={{ background: 'transparent', color: C.red, border: `1px solid ${C.red}`, borderRadius: 2, padding: '12px 16px', fontSize: 13, cursor: 'pointer' }}>
+            <button onClick={handleDelete} style={{ background: 'transparent', color: C.red, border: `1px solid ${C.red}`, borderRadius: 2, padding: '12px 16px', fontSize: 13, cursor: 'pointer' }}>
               Delete
             </button>
           )}

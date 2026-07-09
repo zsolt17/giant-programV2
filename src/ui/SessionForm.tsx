@@ -284,8 +284,9 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
 
 // Giant Block adherence: top set keeps full RPE/speed; the rest of the block gets a
 // one-tap "completed as prescribed" with a categorical reason dropdown when it wasn't.
-// Any non-'completed' state drives the deload S6 signal.
-function BlockCompletion({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+// Any non-'completed' state drives the deload S6 signal. Exported: the testing-day
+// view (TestingSession.tsx) reuses it so test sessions capture the same signal.
+export function BlockCompletion({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const completed = value === 'completed' || value === ''
   return (
     <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>

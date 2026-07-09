@@ -79,6 +79,21 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ## Change log
 
 ## 2026-07-09
+- `feat(testing/deload)`: **test days now capture deload signals**. The shared test view (Today +
+  Calendar modal) gains the **test-attempt RPE/bar-speed**, the **giant-block completion control**
+  (same exported `BlockCompletion` component; helper copy: "prescribed" = ramp sets 1–3 + a recorded
+  attempt), and the **volume "both sets completed"** checkbox. Record Result now also upserts a
+  **companion sessions row** (`weekType 'testing'`, id `{date}-{lift}-TEST`) through the normal
+  idempotent `saveSession` path carrying the structured signal fields — **no migration** (all
+  columns existed); Delete removes both rows. The **Deload tab** buckets testing-week sessions as
+  `W13/W14 · Testing` (week derived from the macro start date; new `startISO` prop) with signals
+  computed by the unchanged `computeWeekSignals`; the red "DELOAD TRIGGERED" label is suppressed for
+  testing buckets (gold note: scheduled W15 deload is next) — the recommendation itself was verified
+  structurally unable to fire in/from testing weeks (Today's recommendation only renders on
+  training-week days; test rows have null cycle/week). Side effects: test cells now turn **green
+  (logged)** in the Calendar and count as done in Trends attendance once recorded; the Data list
+  filters out companion rows (the richer Test entries represent them); companion rows do appear in
+  the sessions CSV. typecheck + 84 tests + build green; smoke 48/48.
 - `feat(data)`: **copy-session covers ALL session types + CSV completeness**. Confirmed data-model
   gap: tests live only in `testing_results` (no sessions row), so they never appeared in the Data
   list. The selector now merges **sessions + testing results** date-sorted, with visible type

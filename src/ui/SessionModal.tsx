@@ -206,6 +206,11 @@ export function SessionModal({
               onDeleteTestingResult(id)
               onClose()
             }}
+            // Calendar keys sessions by date, so the cell's `existing` IS the companion
+            // row on a test cell (id "{date}-{lift}-TEST").
+            companion={existing ?? null}
+            onSaveSession={onSaveSession}
+            onDeleteSession={onDeleteSession}
           />
         ) : isSpecial ? (
           <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>

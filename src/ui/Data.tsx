@@ -98,8 +98,10 @@ export function Data({ sessions, macros, accessory = {}, weights = {}, testing =
   const startById = new Map(macros.map((m) => [m.id, m.startISO]))
 
   // Unified, date-sorted entries: sessions (deload weeks marked) + test results.
+  // weekType 'testing' rows are companion signal-carriers for test days — the
+  // richer Test entries (from testing_results) represent those sessions here.
   const entries: Entry[] = [
-    ...sessions.map((s): Entry => {
+    ...sessions.filter((s) => s.weekType !== 'testing').map((s): Entry => {
       const n = numberById.get(s.macroId)
       const isDeload =
         s.weekType === 'deload' ||

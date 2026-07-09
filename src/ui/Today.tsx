@@ -71,6 +71,7 @@ interface TodayProps {
   breakDays?: BreakDayMap
   testingResults?: TestingResult[]
   onSaveSession: (record: SessionDraft) => Promise<Session>
+  onDeleteSession: (id: string) => Promise<void>
   onApplyDeload: (weekKey: string, on: boolean) => Promise<void>
   onSaveTestingResult: (r: TestingResult) => Promise<TestingResult>
   onDeleteTestingResult: (id: string) => void
@@ -87,6 +88,7 @@ export function Today({
   breakDays = {},
   testingResults = [],
   onSaveSession,
+  onDeleteSession,
   onApplyDeload,
   onSaveTestingResult,
   onDeleteTestingResult,
@@ -127,6 +129,9 @@ export function Today({
             results={testingResults}
             onSave={onSaveTestingResult}
             onDelete={onDeleteTestingResult}
+            companion={sessions.find((s) => s.id === `${todayISO()}-${computed.testLift}-TEST`) ?? null}
+            onSaveSession={onSaveSession}
+            onDeleteSession={onDeleteSession}
           />
         </div>
       )

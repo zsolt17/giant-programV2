@@ -446,6 +446,7 @@ export function App() {
           breakDays={breakDays}
           testingResults={testing}
           onSaveSession={onSaveSession}
+          onDeleteSession={onDeleteSession}
           onApplyDeload={onApplyDeload}
           onSaveTestingResult={onSaveTestingResult}
           onDeleteTestingResult={onDeleteTestingResult}
@@ -488,7 +489,7 @@ export function App() {
         <History sessions={sessions} testingResults={testing} macroNumber={macro.number} onDeleteSession={onDeleteSession} />
       )}
 
-      {tab === 'deload' && macro && <Deload sessions={sessions} deloads={deloads} macroNumber={macro.number} />}
+      {tab === 'deload' && macro && <Deload sessions={sessions} deloads={deloads} macroNumber={macro.number} startISO={macro.startISO} />}
 
       {tab === 'trends' &&
         (trendsErr ? (
