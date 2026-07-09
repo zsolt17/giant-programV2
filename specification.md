@@ -56,8 +56,10 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 - **Setup** — per-cycle (C1/C2/C3) **Hard-top anchor** per lift (Medium/Light, the Giant Block
   ladder and Volume all compute live, with a read-only preview) + recorded accessories (RDL/row, auto-seeded) & carries, macro anchor,
   macro picker, and "start next macro" archiving (carries C3→C1).
-- **Data** — export all sessions (across every macro) to CSV, and copy a plain-text per-session
-  summary to the clipboard for sharing into a coaching conversation. (Burger menu → Data.)
+- **Data** — export all data as CSV (sessions incl. a deload_week column + a separate
+  testing-results file), and copy a plain-text summary of **any** logged session — training, test,
+  or deload, each with a type-appropriate format — to the clipboard for coaching conversations.
+  (Burger menu → Data.)
 - **Recovery → Tendon Health** — joint-specific isometric loading protocol: pick a joint, phase
   auto-advances (Acute/Build/Maintenance, overridable), per-tendon 30s hold timer + light per-day
   "done" logging, position diagrams. One active protocol at a time. (Burger menu → Recovery; first item.)
@@ -77,6 +79,22 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ## Change log
 
 ## 2026-07-09
+- `feat(data)`: **copy-session covers ALL session types + CSV completeness**. Confirmed data-model
+  gap: tests live only in `testing_results` (no sessions row), so they never appeared in the Data
+  list. The selector now merges **sessions + testing results** date-sorted, with visible type
+  markers: tests as `M2 · Test W13 · Deadlift · date` (blue), reactive-deload-week sessions
+  suffixed `· DELOAD` (flag from the all-macro deloads map). New summary formats (engine, tested):
+  **`testSummary`** — header `Test — M2 W13 — …`, ramp (sets 1–3 off the C3 anchor, per-lift
+  rounding), `TEST RESULT: w×r`, Volume line reconstructed by parsing the notes' `Vol:` suffix (new
+  shared `splitVolNote`, also reused by the test view), `No carry (testing week)`, notes (no
+  Duration — `testing_results` has no timestamps); **reactive-deload sessions** keep the full body
+  with a `Deload — …` header + `~70%` context line; hypothetical `weekType 'deload'` rows get the
+  minimal W15 format. **W15 + optional-light Wednesday sessions are not loggable in-app** (note
+  cards only) — nothing exists to list; generic paths cover any legacy rows. **CSV:** sessions
+  export gains a `deload_week` column; testing results export as a **second CSV file**
+  (`giant-program-testing-results-…`, own button — two auto-downloads from one tap are unreliable
+  on iOS). New repo reads `getAllTestingResults()` / `getAllDeloads()`. typecheck + **84 tests** +
+  build green; smoke **48/48** (new reads assert against the throwaway macro).
 - `feat(calendar)`: **Calendar test-cell modal now renders the full-structure test view** — the same
   shared component as the Today tab (`TestingSessionView`), so the two surfaces can't drift: warm-up
   build-up, Giant Block sets 1–3 off the C3 Hard anchor, Set 4 as the open test input with the

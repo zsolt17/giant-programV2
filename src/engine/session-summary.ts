@@ -5,7 +5,7 @@
 // volumeWeight), never re-derived. Non-applicable / unlogged lines are omitted.
 import { LIFT_SHORT, SCHEMES, DAY_META, SECONDARY_ITEM, BLOCK_COMPLETION } from './constants'
 import { giantSets, volumeWeight, liftMode, fmt } from './loading'
-import type { Session, Lift, AccessoryByCycle, WeightsByCycle } from './types'
+import type { Session, Lift, AccessoryByCycle, WeightsByCycle, TestingResult } from './types'
 import type { DayMeta } from './types'
 
 // 'up' -> ↑, 'down' -> ↓, 'normal' -> →; blank -> '' (no stray arrow when unlogged).
@@ -47,28 +47,43 @@ function cardioStr(cals: (number | null)[]): string {
 // Join present segments with " | " (drops blanks so unlogged RPE/speed leave no residue).
 const seg = (...parts: (string | null | undefined)[]): string => parts.filter(Boolean).join(' | ')
 
+// Split the "Vol: R8→" suffix the test view appends to result notes (it has no
+// structured volume fields) back out of the free text: { vol, rest }.
+export function splitVolNote(notes: string): { vol: string | null; rest: string } {
+  const m = /(?:\s*·\s*)?Vol:\s*([^·]*)$/.exec(notes || '')
+  if (!m) return { vol: null, rest: (notes || '').trim() }
+  return { vol: m[1].trim() || null, rest: (notes || '').slice(0, m.index).trim() }
+}
+
 // `accessory` = the per-cycle grid for the SESSION'S macro (cycle -> item -> weight);
 // resolves the recorded secondary + carry weights. `weights` = the same macro's
 // working-weight grid — resolves the weighted pull-up ladder. Both optional —
-// lines degrade gracefully without them.
-export function sessionSummary(s: Session, macroNumber: number, accessory?: AccessoryByCycle, weights?: WeightsByCycle): string {
+// lines degrade gracefully without them. `deloadWeek` marks a reactive-deload
+// training week (from the deloads map): the header flips to "Deload — …" and a
+// ~70% context line is added; the full logged body is kept.
+export function sessionSummary(s: Session, macroNumber: number, accessory?: AccessoryByCycle, weights?: WeightsByCycle, deloadWeek?: boolean): string {
+  // Legacy/hypothetical weekType 'deload' rows (W15): minimal format — the app
+  // never writes these today, but the schema allows them.
+  if (s.weekType === 'deload') return w15DeloadSummary(s, macroNumber)
+
   const lines: string[] = []
   const meta = s.dayType ? DAY_META[s.dayType] : null
   const acc = s.cycle != null ? accessory?.[s.cycle] : undefined
   // Bodyweight-mode dips: no load — the session's stamped top is 0/null.
   const dipsBW = s.dayType === 'dips' && liftMode(s.topWeight) === 'bodyweight'
 
-  // Header: "Session — M2C1W1 — Squat Hard — 22.06.2026". Training weeks carry
-  // cycle+week; testing/deload weeks (null cycle/week) degrade to the week type.
+  // Header: "Session — M2C1W1 — Squat Hard — 22.06.2026" ("Deload — …" on a
+  // reactive-deload week). Testing rows (null cycle/week) degrade to the week type.
   const pos =
     s.cycle != null && s.week != null
       ? `M${macroNumber}C${s.cycle}W${s.week}`
       : `M${macroNumber} · ${s.weekType.charAt(0).toUpperCase() + s.weekType.slice(1)}`
   const diff = s.difficulty ? ` ${s.difficulty.charAt(0).toUpperCase() + s.difficulty.slice(1)}` : ''
-  lines.push(`Session — ${pos} — ${liftLabel(s.dayType)}${diff} — ${fmtDate(s.date)}`)
+  lines.push(`${deloadWeek ? 'Deload' : 'Session'} — ${pos} — ${liftLabel(s.dayType)}${diff} — ${fmtDate(s.date)}`)
 
   // ---- Giant Block ----------------------------------------------------------
   lines.push('Giant Block:')
+  if (deloadWeek) lines.push('  (reactive deload week — loads ~70%)')
   const top = dipsBW ? 'BW' : s.topWeight != null && s.topReps != null ? `${kg(s.topWeight)}×${s.topReps}` : '—'
   lines.push(`  Top set: ${seg(top, rpeStr(s.rpe), arrow(s.barSpeed))}`)
 
@@ -145,5 +160,56 @@ export function sessionSummary(s: Session, macroNumber: number, accessory?: Acce
   // Notes (omitted when empty).
   if (s.notes && s.notes.trim()) lines.push(`Notes: ${s.notes.trim()}`)
 
+  return lines.join('\n')
+}
+
+// Minimal W15 end-of-macro deload format (Giant Block only at 50–60%, no volume,
+// no carry). Only reachable for weekType 'deload' session rows.
+function w15DeloadSummary(s: Session, macroNumber: number): string {
+  const lines: string[] = []
+  const diff = s.difficulty ? ` ${s.difficulty.charAt(0).toUpperCase() + s.difficulty.slice(1)}` : ''
+  lines.push(`Deload — M${macroNumber} W15 — ${liftLabel(s.dayType)}${diff} — ${fmtDate(s.date)}`)
+  const top = s.topWeight != null && s.topReps != null ? `top ${kg(s.topWeight)}×${s.topReps}` : ''
+  const detail = seg(top, rpeStr(s.rpe), arrow(s.barSpeed))
+  lines.push(`Giant Block @ ~50–60%${detail ? `: ${detail}` : ''}`)
+  lines.push('No volume, no carry (deload)')
+  const dur = durationMin(s)
+  if (dur != null) lines.push(`Duration: ${dur} min`)
+  if (s.notes && s.notes.trim()) lines.push(`Notes: ${s.notes.trim()}`)
+  return lines.join('\n')
+}
+
+// Testing-day summary, built from a testing_results row (tests never create a
+// sessions row). The ramp comes from the C3 Hard anchor via the same engine calls
+// the test view renders; the volume line is reconstructed from the "Vol:" suffix
+// the test view stores inside the notes. No Duration line — testing_results has
+// no timestamps. `week` = the macro-relative week number (13/14), null to omit.
+export function testSummary(r: TestingResult, macroNumber: number, week: number | null, weights?: WeightsByCycle): string {
+  const lines: string[] = []
+  const lift = r.lift as Lift
+  const label = LIFT_SHORT[lift] || r.lift
+  lines.push(`Test — M${macroNumber}${week != null ? ` W${week}` : ''} — ${label} — ${fmtDate(r.testedOn || '')}`)
+
+  // Ramp = sets 1–3 of the hard ladder off the C3 anchor (per-lift rounding).
+  const c3Hard = weights?.[3]?.[r.lift]?.hard
+  if (c3Hard != null && c3Hard > 0) {
+    const ramp = giantSets(c3Hard, 'hard', lift)
+      .slice(0, 3)
+      .map((g) => `${g.reps}@${kg(g.weight)}`)
+      .join(' · ')
+    lines.push(`Warm-up + Giant Block ramp: ${ramp}`)
+  }
+
+  const result = r.weight != null || r.reps != null ? `${r.weight != null ? kg(r.weight) : '—'}×${r.reps ?? '—'}` : '—'
+  lines.push(`TEST RESULT: ${result}`)
+
+  const { vol, rest } = splitVolNote(r.notes || '')
+  if (vol) {
+    const volRx = c3Hard != null && c3Hard > 0 ? `2×6 @ ${kg(volumeWeight(c3Hard, lift))}` : '2×6 @ 80%'
+    lines.push(`Volume Block: ${volRx} | ${vol}`)
+  }
+
+  lines.push('No carry (testing week)')
+  if (rest) lines.push(`Notes: ${rest}`)
   return lines.join('\n')
 }

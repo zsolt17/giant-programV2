@@ -95,6 +95,8 @@ export function App() {
   const [allSessions, setAllSessions] = useState<Session[] | null>(null) // all-macro sessions, loaded on first Data open
   const [allAccessory, setAllAccessory] = useState<Record<string, AccessoryByCycle>>({}) // macroId -> per-cycle accessory (Data summary)
   const [allWeights, setAllWeights] = useState<Record<string, WeightsByCycle>>({}) // macroId -> per-cycle anchors (Data summary: weighted pull-ups)
+  const [allTesting, setAllTesting] = useState<TestingResult[]>([]) // all-macro test results (Data list + copy)
+  const [allDeloads, setAllDeloads] = useState<DeloadMap>({}) // all-macro deload week flags (Data labels)
   const [dataErr, setDataErr] = useState('')
   // Recovery (Tendon Health) — independent of macros, loaded on first Recovery open.
   const [recovery, setRecovery] = useState<{ protocol: RecoveryProtocol | null; logs: RecoveryLogMap } | null>(null)
@@ -229,11 +231,13 @@ export function App() {
     if (tab !== 'data' || !user || allSessions) return
     let cancelled = false
     setDataErr('')
-    Promise.all([repo.getAllSessions(), repo.getAllAccessoryWeights(), repo.getAllWorkingWeights()])
-      .then(([s, acc, w]) => {
+    Promise.all([repo.getAllSessions(), repo.getAllAccessoryWeights(), repo.getAllWorkingWeights(), repo.getAllTestingResults(), repo.getAllDeloads()])
+      .then(([s, acc, w, t, d]) => {
         if (cancelled) return
         setAllAccessory(acc)
         setAllWeights(w)
+        setAllTesting(t)
+        setAllDeloads(d)
         setAllSessions(s)
       })
       .catch((e) => !cancelled && setDataErr(errMsg(e)))
@@ -501,7 +505,7 @@ export function App() {
         (dataErr ? (
           <Card style={{ textAlign: 'center', color: C.red }}>Couldn't load data — {dataErr}.</Card>
         ) : allSessions ? (
-          <Data sessions={allSessions} macros={macros} accessory={allAccessory} weights={allWeights} />
+          <Data sessions={allSessions} macros={macros} accessory={allAccessory} weights={allWeights} testing={allTesting} deloads={allDeloads} />
         ) : (
           <Center>
             <Spinner /> Loading data…

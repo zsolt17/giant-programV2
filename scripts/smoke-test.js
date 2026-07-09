@@ -131,10 +131,12 @@ async function main() {
     await repo.saveTestingResult({ macroId: id, lift: 'deadlift', weight: 185, reps: 2, notes: '', testedOn: '2099-01-15' })
     tr = await repo.getTestingResults(id)
     ok('different date = separate row (2 deadlift results)', tr.filter((t) => t.lift === 'deadlift').length === 2)
+    ok('getAllTestingResults spans macros (includes throwaway rows)', (await repo.getAllTestingResults()).some((t) => t.macroId === id))
 
     console.log('Deloads')
     await repo.setDeload(id, 'SMOKE-WEEK', true)
     ok('deload set', (await repo.getDeloads(id))['SMOKE-WEEK'] === true)
+    ok('getAllDeloads spans macros (includes throwaway week)', (await repo.getAllDeloads())['SMOKE-WEEK'] === true)
     await repo.setDeload(id, 'SMOKE-WEEK', false)
     ok('deload unset', !(await repo.getDeloads(id))['SMOKE-WEEK'])
 

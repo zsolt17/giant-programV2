@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { C } from './theme'
 import { Card, BlockTitle } from './components'
-import { sessionsToCsv } from '../engine/export-csv'
-import { sessionSummary } from '../engine/session-summary'
+import { sessionsToCsv, testingToCsv } from '../engine/export-csv'
+import { sessionSummary, testSummary } from '../engine/session-summary'
 import { todayISO } from '../engine/date-engine'
+import { daysSinceStart } from '../engine/recovery'
+import { weekKeyFor } from '../engine/deload-rule'
 import { LIFT_SHORT } from '../engine/constants'
-import type { Session, Macro, AccessoryByCycle, WeightsByCycle } from '../engine/types'
+import type { Session, Macro, Lift, AccessoryByCycle, WeightsByCycle, TestingResult, DeloadMap } from '../engine/types'
 
 const btn = (disabled = false) => ({
   background: disabled ? 'rgba(201,168,76,0.3)' : C.gold,
@@ -34,6 +36,12 @@ function sessionLabel(s: Session, macroNumber: number | undefined): string {
   return `M${macroNumber ?? '?'} · ${pos} · ${lift}${diff} · ${fmtDate(s.date)}`
 }
 
+// One selectable row in the unified list: a logged session (training/deload) or a
+// testing_results row (tests never create a sessions row — see ARCHITECTURE §2.7).
+type Entry =
+  | { key: string; date: string; label: string; kind: 'session'; s: Session; isDeload: boolean }
+  | { key: string; date: string; label: string; kind: 'test'; r: TestingResult; week: number | null }
+
 async function copyText(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard?.writeText) {
@@ -60,32 +68,73 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-export function Data({ sessions, macros, accessory = {}, weights = {} }: { sessions: Session[]; macros: Macro[]; accessory?: Record<string, AccessoryByCycle>; weights?: Record<string, WeightsByCycle> }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+function downloadCsv(csv: string, filename: string) {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+interface DataProps {
+  sessions: Session[]
+  macros: Macro[]
+  accessory?: Record<string, AccessoryByCycle>
+  weights?: Record<string, WeightsByCycle>
+  testing?: TestingResult[]
+  deloads?: DeloadMap
+}
+
+export function Data({ sessions, macros, accessory = {}, weights = {}, testing = [], deloads = {} }: DataProps) {
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [copyErr, setCopyErr] = useState('')
 
   const numberById = new Map(macros.map((m) => [m.id, m.number]))
-  const selected = sessions.find((s) => s.id === selectedId) || null
+  const startById = new Map(macros.map((m) => [m.id, m.startISO]))
 
-  function onDownload() {
-    const csv = sessionsToCsv(sessions, macros)
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `giant-program-export-${todayISO()}.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+  // Unified, date-sorted entries: sessions (deload weeks marked) + test results.
+  const entries: Entry[] = [
+    ...sessions.map((s): Entry => {
+      const n = numberById.get(s.macroId)
+      const isDeload =
+        s.weekType === 'deload' ||
+        (n != null && s.cycle != null && s.week != null && !!deloads[weekKeyFor(n, s.cycle, s.week)])
+      return { key: `s:${s.id}`, date: s.date, kind: 'session', s, isDeload, label: `${sessionLabel(s, n)}${isDeload ? ' · DELOAD' : ''}` }
+    }),
+    ...testing.map((r): Entry => {
+      const n = numberById.get(r.macroId)
+      // Macro-relative week (13/14) from the start date — local math, engine helper.
+      const start = startById.get(r.macroId)
+      const w = start && r.testedOn ? Math.floor(daysSinceStart(start, r.testedOn) / 7) + 1 : null
+      const week = w != null && w >= 1 && w <= 15 ? w : null
+      const lift = LIFT_SHORT[r.lift as Lift] || r.lift
+      return {
+        key: `t:${r.id ?? `${r.macroId}-${r.lift}-${r.testedOn}`}`,
+        date: r.testedOn || '',
+        kind: 'test',
+        r,
+        week,
+        label: `M${n ?? '?'} · Test${week != null ? ` W${week}` : ''} · ${lift} · ${fmtDate(r.testedOn || '')}`,
+      }
+    }),
+  ].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+
+  const selected = entries.find((e) => e.key === selectedKey) || null
+
+  function summaryFor(e: Entry): string {
+    if (e.kind === 'test') return testSummary(e.r, numberById.get(e.r.macroId) ?? 0, e.week, weights[e.r.macroId])
+    return sessionSummary(e.s, numberById.get(e.s.macroId) ?? 0, accessory[e.s.macroId], weights[e.s.macroId], e.isDeload)
   }
 
   async function onCopy() {
     if (!selected) return
     setCopyErr('')
-    const text = sessionSummary(selected, numberById.get(selected.macroId) ?? 0, accessory[selected.macroId], weights[selected.macroId])
-    const ok = await copyText(text)
+    const ok = await copyText(summaryFor(selected))
     if (ok) {
       setCopied(true)
       window.setTimeout(() => setCopied(false), 2000)
@@ -100,11 +149,25 @@ export function Data({ sessions, macros, accessory = {}, weights = {} }: { sessi
       <Card>
         <BlockTitle tag="CSV">Download all data</BlockTitle>
         <p style={{ fontSize: 13, color: C.muted, margin: '0 0 14px' }}>
-          Exports every logged session across all macros as a CSV file.
+          Sessions (with a deload_week column) and testing results export as two CSV files — tests live in their own
+          table.
         </p>
-        <button onClick={onDownload} style={btn(sessions.length === 0)} disabled={sessions.length === 0}>
-          Download CSV
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            onClick={() => downloadCsv(sessionsToCsv(sessions, macros, deloads), `giant-program-export-${todayISO()}.csv`)}
+            style={btn(sessions.length === 0)}
+            disabled={sessions.length === 0}
+          >
+            Sessions CSV
+          </button>
+          <button
+            onClick={() => downloadCsv(testingToCsv(testing, macros), `giant-program-testing-results-${todayISO()}.csv`)}
+            style={btn(testing.length === 0)}
+            disabled={testing.length === 0}
+          >
+            Testing results CSV
+          </button>
+        </div>
         {sessions.length === 0 && (
           <p style={{ fontSize: 12, color: C.muted, margin: '10px 0 0' }}>No sessions logged yet.</p>
         )}
@@ -114,7 +177,7 @@ export function Data({ sessions, macros, accessory = {}, weights = {} }: { sessi
       <Card>
         <BlockTitle tag="Clipboard">Copy session summary</BlockTitle>
         <p style={{ fontSize: 13, color: C.muted, margin: '0 0 12px' }}>
-          Pick a session, then copy a plain-text summary to share.
+          Pick any logged session — training, test, or deload — and copy a plain-text summary to share.
         </p>
 
         <div
@@ -128,17 +191,17 @@ export function Data({ sessions, macros, accessory = {}, weights = {} }: { sessi
             marginBottom: 14,
           }}
         >
-          {sessions.length === 0 && (
+          {entries.length === 0 && (
             <div style={{ padding: 14, fontSize: 13, color: C.muted, textAlign: 'center' }}>No sessions logged yet.</div>
           )}
-          {sessions.map((s) => {
-            const active = s.id === selectedId
+          {entries.map((e) => {
+            const active = e.key === selectedKey
             return (
               <button
-                key={s.id}
+                key={e.key}
                 role="option"
                 aria-selected={active}
-                onClick={() => setSelectedId(s.id)}
+                onClick={() => setSelectedKey(e.key)}
                 style={{
                   display: 'block',
                   width: '100%',
@@ -146,14 +209,14 @@ export function Data({ sessions, macros, accessory = {}, weights = {} }: { sessi
                   background: active ? 'rgba(201,168,76,0.14)' : 'transparent',
                   border: 'none',
                   borderBottom: '1px solid rgba(255,255,255,0.05)',
-                  color: active ? C.gold : C.off,
+                  color: active ? C.gold : e.kind === 'test' ? C.blue : C.off,
                   fontSize: 13,
                   fontWeight: active ? 600 : 400,
                   padding: '10px 12px',
                   cursor: 'pointer',
                 }}
               >
-                {sessionLabel(s, numberById.get(s.macroId))}
+                {e.label}
               </button>
             )
           })}
@@ -175,7 +238,7 @@ export function Data({ sessions, macros, accessory = {}, weights = {} }: { sessi
               fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
             }}
           >
-            {sessionSummary(selected, numberById.get(selected.macroId) ?? 0, accessory[selected.macroId], weights[selected.macroId])}
+            {summaryFor(selected)}
           </pre>
         )}
 

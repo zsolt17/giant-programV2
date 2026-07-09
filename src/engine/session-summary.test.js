@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { sessionSummary } from './session-summary'
+import { sessionSummary, testSummary, splitVolNote } from './session-summary'
 
 // A fully-populated squat-hard session (top 130 → clean 85/90/95/100 ladder);
 // tests override fields as needed. Accessory grid = the session's macro, keyed by cycle.
@@ -123,4 +123,49 @@ test('testing week (null cycle/week/day) degrades: header only, no secondary/vol
   const out = sessionSummary(base({ cycle: null, week: null, weekType: 'testing', difficulty: null, dayType: null }), 2, ACC)
   assert.match(out, /^Session — M2 · Testing — — — 22.06.2026/)
   assert.doesNotMatch(out, /Secondary:|Volume Block:|Carry:|Sets:/)
+})
+
+test('reactive-deload week: Deload header + ~70% context line, full body kept', () => {
+  const out = sessionSummary(base(), 2, ACC, undefined, true)
+  assert.match(out, /^Deload — M2C3W3 — Squat Hard — 22.06.2026\nGiant Block:\n {2}\(reactive deload week — loads ~70%\)\n/)
+  assert.match(out, /Sets: 8@110/) // full logged body still present
+  assert.match(out, /Carry: Sandbag Bear Hug/)
+})
+
+test('weekType deload row (W15): minimal format', () => {
+  const out = sessionSummary(base({ weekType: 'deload', cycle: null, week: null, topWeight: 80, topReps: 2, notes: 'easy' }), 2, ACC)
+  assert.equal(
+    out,
+    ['Deload — M2 W15 — Squat Hard — 22.06.2026', 'Giant Block @ ~50–60%: top 80×2 | R9 | ↑', 'No volume, no carry (deload)', 'Duration: 72 min', 'Notes: easy'].join('\n')
+  )
+})
+
+// ---- test summaries (testing_results rows — tests never create sessions) ----
+
+test('splitVolNote: extracts and strips the Vol suffix; passthrough without one', () => {
+  assert.deepEqual(splitVolNote('felt strong · Vol: R8→'), { vol: 'R8→', rest: 'felt strong' })
+  assert.deepEqual(splitVolNote('Vol: R7'), { vol: 'R7', rest: '' })
+  assert.deepEqual(splitVolNote('clean, 1 RIR'), { vol: null, rest: 'clean, 1 RIR' })
+})
+
+test('testSummary: full format with ramp off the C3 anchor, parsed volume, notes stripped', () => {
+  const W = { 3: { deadlift: { hard: 170, medium: 162.5, light: 152.5 } } }
+  const r = { macroId: 'm2', lift: 'deadlift', weight: 180, reps: 2, notes: 'clean, 1 RIR · Vol: R8→', testedOn: '2026-07-06' }
+  assert.equal(
+    testSummary(r, 2, 13, W),
+    [
+      'Test — M2 W13 — Deadlift — 06.07.2026',
+      'Warm-up + Giant Block ramp: 8@145 · 6@152.5 · 4@162.5', // giantSets(170, hard) sets 1–3
+      'TEST RESULT: 180×2',
+      'Volume Block: 2×6 @ 135 | R8→', // volumeWeight(170) = 135
+      'No carry (testing week)',
+      'Notes: clean, 1 RIR',
+    ].join('\n')
+  )
+})
+
+test('testSummary: degrades without an anchor or vol note; week omitted when null', () => {
+  const r = { macroId: 'm2', lift: 'dips', weight: 12.5, reps: 3, notes: '', testedOn: '2026-07-10' }
+  const out = testSummary(r, 2, null)
+  assert.equal(out, ['Test — M2 — Dips — 10.07.2026', 'TEST RESULT: 12.5×3', 'No carry (testing week)'].join('\n'))
 })

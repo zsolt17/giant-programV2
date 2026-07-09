@@ -336,6 +336,22 @@ export async function loadTrends(): Promise<TrendsData> {
   }
 }
 
+// All testing results across every macro (RLS-scoped) — tests live only in
+// testing_results (no sessions row), so the Data page merges these into its list.
+export async function getAllTestingResults(): Promise<TestingResult[]> {
+  const { data, error } = await supabase.from('testing_results').select('*')
+  if (error) throw error
+  return (data || []).map(M.rowToTesting)
+}
+
+// All reactive-deload week flags across every macro (weekKey "M2C3W2" is
+// globally unique, so one map spans macros) — labels deload sessions in Data.
+export async function getAllDeloads(): Promise<DeloadMap> {
+  const { data, error } = await supabase.from('deloads').select('*')
+  if (error) throw error
+  return M.rowsToDeloads(data || [])
+}
+
 // All working-weight anchors across every macro (RLS-scoped), grouped by macro id —
 // the Data page's session summary resolves the weighted pull-up ladder per (macro, cycle).
 export async function getAllWorkingWeights(): Promise<Record<string, WeightsByCycle>> {

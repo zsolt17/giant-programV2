@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { sessionsToCsv } from './export-csv'
+import { sessionsToCsv, testingToCsv } from './export-csv'
 
 const macros = [
   { id: 'm1', number: 1, startISO: '2026-01-05', weeks: 15, status: 'completed' },
@@ -44,24 +44,48 @@ test('header row lists all columns in order', () => {
   const csv = sessionsToCsv([], macros)
   assert.equal(
     csv,
-    'date,macro,cycle,week,week_type,day_type,difficulty,top_weight,top_reps,rpe,bar_speed,cardio_cals,block_completion,vol_done,vol_rpe,vol_speed,pullup_cluster,dips_cluster,carry_skipped,carry_skip_reason,carry_rounds,carry_distance,carry_rpe,started_at,ended_at,notes'
+    'date,macro,cycle,week,week_type,day_type,difficulty,top_weight,top_reps,rpe,bar_speed,cardio_cals,block_completion,vol_done,vol_rpe,vol_speed,pullup_cluster,dips_cluster,carry_skipped,carry_skip_reason,carry_rounds,carry_distance,carry_rpe,started_at,ended_at,notes,deload_week'
   )
 })
 
 test('serializes a row, resolves macro number, collapses cardio, renders nulls as empty', () => {
   const csv = sessionsToCsv([session()], macros)
   const row = csv.split('\n')[1]
-  // date,macro,cycle,week,week_type,day_type,difficulty,top_weight,top_reps,rpe,bar_speed,cardio_cals,...
+  // date,macro,cycle,week,week_type,day_type,difficulty,top_weight,top_reps,rpe,bar_speed,cardio_cals,...,deload_week
   assert.equal(
     row,
-    '2026-06-22,2,3,3,training,squat,hard,145,2,R9.5,up,15/14//15,completed,true,R8,normal,,,false,,3,30,R6,,,felt strong'
+    '2026-06-22,2,3,3,training,squat,hard,145,2,R9.5,up,15/14//15,completed,true,R8,normal,,,false,,3,30,R6,,,felt strong,'
   )
+})
+
+test('deload_week column: true/false from the deloads map, blank without week key', () => {
+  const deloads = { M2C3W3: true }
+  const rows = sessionsToCsv([session(), session({ cycle: 3, week: 2 }), session({ cycle: null, week: null, weekType: 'testing' })], macros, deloads)
+    .split('\n')
+    .slice(1)
+  assert.match(rows[0], /,true$/) // M2C3W3 flagged
+  assert.match(rows[1], /,false$/) // M2C3W2 not flagged
+  assert.match(rows[2], /,$/) // no computable week key -> blank
+})
+
+test('testingToCsv: header + rows sorted by date, macro number resolved', () => {
+  const csv = testingToCsv(
+    [
+      { macroId: 'm2', lift: 'deadlift', weight: 180, reps: 2, notes: 'clean, 1 RIR', testedOn: '2026-07-06' },
+      { macroId: 'm2', lift: 'dips', weight: 12.5, reps: 3, notes: '', testedOn: '2026-07-10' },
+    ],
+    macros
+  )
+  const lines = csv.split('\n')
+  assert.equal(lines[0], 'tested_on,macro,lift,weight,reps,notes')
+  assert.equal(lines[1], '2026-07-06,2,deadlift,180,2,"clean, 1 RIR"')
+  assert.equal(lines[2], '2026-07-10,2,dips,12.5,3,')
 })
 
 test('escapes fields containing commas, quotes, or newlines', () => {
   const csv = sessionsToCsv([session({ notes: 'hard, "very" hard\nday' })], macros)
   const row = csv.split('\n').slice(1).join('\n')
-  assert.match(row, /,"hard, ""very"" hard\nday"$/)
+  assert.match(row, /,"hard, ""very"" hard\nday",$/) // trailing blank deload_week cell
 })
 
 test('unknown macroId yields a blank macro cell, not a crash', () => {

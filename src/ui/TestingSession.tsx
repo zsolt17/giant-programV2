@@ -4,16 +4,12 @@ import { Card } from './components'
 import { blockTitle, Row, LogRpe, speedArrow, errMsg } from './controls'
 import { LIFT_LABEL, SCHEMES, WU_PCT, WU_REPS, SET_LADDER } from '../engine/constants'
 import { fmt, warmupSets, giantSets, volumeWeight, testCeiling } from '../engine/loading'
+import { splitVolNote } from '../engine/session-summary'
 import type { Lift, TestingResult } from '../engine/types'
 
 // Number-input value -> number | null ('' and blanks become null, like the
 // mappers' toNum). Keeps weight and reps consistent on the way to the DB.
 const numOrNull = (v: number | string): number | null => (v === '' || v == null ? null : Number(v))
-
-// Strip a previously-appended "Vol: …" suffix so a re-save doesn't stack them.
-function stripVolNote(notes: string): string {
-  return notes.replace(/(?:\s*·\s*)?Vol:[^·]*$/, '').trim()
-}
 
 interface TestingSessionViewProps {
   macroId: string
@@ -68,7 +64,7 @@ export function TestingSessionView({ macroId, lift, c3Hard, testedOn, results, o
       // Volume RPE/speed persist inside the result notes (testing_results has no
       // structured fields for them) — replace any prior "Vol:" suffix, don't stack.
       const volNote = volRpe || volSpeed ? `Vol: ${volRpe}${volSpeed ? speedArrow(volSpeed) : ''}` : ''
-      const finalNotes = volNote ? [stripVolNote(notes), volNote].filter(Boolean).join(' · ') : notes
+      const finalNotes = volNote ? [splitVolNote(notes).rest, volNote].filter(Boolean).join(' · ') : notes
       await onSave({ id: existing?.id, macroId, lift, weight: numOrNull(weight), reps: numOrNull(reps), notes: finalNotes, testedOn })
       setNotes(finalNotes)
       setSaved(true)

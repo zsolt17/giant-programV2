@@ -1,7 +1,8 @@
-// Pure CSV serialization of all logged sessions, for the Data page's "Download
-// all data" export. Framework-agnostic and unit-tested. The macro NUMBER is
-// resolved from the macros list (sessions only carry macroId).
-import type { Session, Macro } from './types'
+// Pure CSV serialization of all logged sessions (+ a separate testing-results
+// CSV — tests live in testing_results, not sessions), for the Data page's
+// export. Framework-agnostic and unit-tested. The macro NUMBER is resolved from
+// the macros list (rows only carry macroId).
+import type { Session, Macro, TestingResult, DeloadMap } from './types'
 
 // Column order = header order. Each entry maps a Session to its cell value.
 const COLUMNS: { header: string; value: (s: Session, macroNumber: number | '') => unknown }[] = [
@@ -42,12 +43,28 @@ function csvCell(v: unknown): string {
   return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str
 }
 
-export function sessionsToCsv(sessions: Session[], macros: Macro[]): string {
+// `deloads` (weekKey -> true) marks reactive-deload weeks in a trailing
+// deload_week column (blank when the row has no computable week key).
+export function sessionsToCsv(sessions: Session[], macros: Macro[], deloads?: DeloadMap): string {
   const numberById = new Map(macros.map((m) => [m.id, m.number]))
-  const header = COLUMNS.map((c) => c.header).join(',')
+  const header = [...COLUMNS.map((c) => c.header), 'deload_week'].join(',')
   const rows = sessions.map((s) => {
     const n = numberById.get(s.macroId) ?? ''
-    return COLUMNS.map((c) => csvCell(c.value(s, n))).join(',')
+    const deloadCell =
+      deloads && n !== '' && s.cycle != null && s.week != null ? String(!!deloads[`M${n}C${s.cycle}W${s.week}`]) : ''
+    return [...COLUMNS.map((c) => csvCell(c.value(s, n))), deloadCell].join(',')
   })
+  return [header, ...rows].join('\n')
+}
+
+// Testing results live in their own table — exported as a second CSV file so the
+// export's promise ("all data") holds.
+export function testingToCsv(results: TestingResult[], macros: Macro[]): string {
+  const numberById = new Map(macros.map((m) => [m.id, m.number]))
+  const header = 'tested_on,macro,lift,weight,reps,notes'
+  const rows = results
+    .slice()
+    .sort((a, b) => ((a.testedOn || '') < (b.testedOn || '') ? -1 : 1))
+    .map((r) => [r.testedOn, numberById.get(r.macroId) ?? '', r.lift, r.weight, r.reps, r.notes].map(csvCell).join(','))
   return [header, ...rows].join('\n')
 }
