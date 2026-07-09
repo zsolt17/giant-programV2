@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 import { useFocusTrap } from './useFocusTrap'
 import { C, HEADING, inp, lbl, pillColor } from './theme'
 import { SessionForm, buildBlankSession } from './SessionForm'
-import { TestingResultForm } from './TestingResultForm'
+import { TestingSessionView } from './TestingSession'
 import { fmtClock, errMsg } from './controls'
 import { SCHEMES, LIFT_LABEL, SECONDARY_ITEM } from '../engine/constants'
 import { deloadTop } from '../engine/loading'
@@ -193,9 +193,12 @@ export function SessionModal({
         </label>
 
         {cell.weekType === 'testing' && cell.testRole === 'test' && cell.testLift ? (
-          <TestingResultForm
+          // Same full-structure test view as the Today tab (shared component):
+          // computed off the C3 Hard anchor; testedOn = the cell's date (backfill-safe).
+          <TestingSessionView
             macroId={macroId}
             lift={cell.testLift}
+            c3Hard={weights?.[3]?.[cell.testLift]?.hard ?? null}
             testedOn={cell.date}
             results={testingResults}
             onSave={onSaveTestingResult}

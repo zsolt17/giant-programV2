@@ -105,9 +105,10 @@ Hard anchor (Medium = 95%, Light = 90% of the Hard top — §3). Round to neares
 - **Mon & Fri = test sessions:** Warm-Up → Giant Block (hard rep scheme) → Volume Block (normal) → **no carry**.
 - **Wed = optional light/recovery day** (blank placeholder; keep easy or skip).
 - Test results are **recorded, not prescribed** — no pre-set target; discover the clean 2–3RM with 1 rep in reserve and log it.
-- The Today test-day view renders the **full session computed off the C3 Hard anchor** like a normal
-  hard day (build-up, ladder sets 1–3, 80% volume); Set 4 is the open recording field with guidance
-  only: anything from the C3 top upward at 1 RIR is valid, ceiling ~+5% (`testCeiling`), no grinders.
+- Test days (Today tab AND the Calendar's test-cell modal — one shared view) render the **full
+  session computed off the C3 Hard anchor** like a normal hard day (build-up, ladder sets 1–3, 80%
+  volume); Set 4 is the open recording field with guidance only: anything from the C3 top upward at
+  1 RIR is valid, ceiling ~+5% (`testCeiling`), no grinders.
 
 ### 2.8 End-of-macro deload (week 15)
 - **Fixed layout: Mon = Deadlift, Wed = OHP, Fri = Dips** (NOT the normal rotation).

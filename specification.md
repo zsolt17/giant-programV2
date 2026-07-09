@@ -76,6 +76,18 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-07-09
+- `feat(calendar)`: **Calendar test-cell modal now renders the full-structure test view** — the same
+  shared component as the Today tab (`TestingSessionView`), so the two surfaces can't drift: warm-up
+  build-up, Giant Block sets 1–3 off the C3 Hard anchor, Set 4 as the open test input with the
+  1-RIR/+5%-ceiling hint, Volume 2×6 @ 80% with RPE/bar-speed (→ result-notes "Vol:" suffix), and
+  the "No carry — testing week" note. `testedOn` = the cell's date, so backfilling a past test day
+  round-trips to `testing_results` on the existing `(macro, lift, tested_on)` upsert; break toggle +
+  Record/Update/Delete unchanged (delete still closes the modal). The Wednesday optional-light cell
+  keeps its simple note modal. The now-unused compact `TestingResultForm` was deleted and the file
+  renamed `TestingResultForm.tsx` → `TestingSession.tsx` (one component, two callers). No schema
+  change. typecheck + 77 tests + build green.
+
 ## 2026-07-06
 - `feat(testing)`: **full-structure test-day view** (Today tab, testing weeks) — replaces the bare
   result recorder. A test day now renders like a normal hard day **computed off the C3 Hard anchor**

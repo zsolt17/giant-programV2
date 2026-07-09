@@ -38,8 +38,8 @@ src/
     App.tsx        shell: auth gate, top-level state, tab routing, all handlers
     Today.tsx, Calendar.tsx, History.tsx, Deload.tsx, Setup.tsx, Trends.tsx, Data.tsx, Recovery.tsx, Auth.tsx
     SessionForm.tsx     shared prescription + log fields (Today + SessionModal)
-    SessionModal.tsx    calendar-cell overlay wrapping SessionForm / TestingResultForm
-    TestingResultForm.tsx
+    SessionModal.tsx    calendar-cell overlay wrapping SessionForm / TestingSessionView
+    TestingSession.tsx  full-structure test-day view (shared by Today + SessionModal)
     Trends.tsx      charts/analytics tab (recharts); renders engine/trends.ts view-models
     nav.tsx         BottomNav + MenuDrawer + inline SVG icon set
     components.tsx  shared shell bits (Shell, Card, BlockTitle, Center, Spinner)

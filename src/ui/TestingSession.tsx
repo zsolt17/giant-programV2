@@ -10,105 +10,29 @@ import type { Lift, TestingResult } from '../engine/types'
 // mappers' toNum). Keeps weight and reps consistent on the way to the DB.
 const numOrNull = (v: number | string): number | null => (v === '' || v == null ? null : Number(v))
 
-interface TestingResultFormProps {
+// Strip a previously-appended "Vol: …" suffix so a re-save doesn't stack them.
+function stripVolNote(notes: string): string {
+  return notes.replace(/(?:\s*·\s*)?Vol:[^·]*$/, '').trim()
+}
+
+interface TestingSessionViewProps {
   macroId: string
-  lift: string
+  lift: Lift
+  // The C3 Hard anchor for the test lift (exact — never rounded). null/0 = no
+  // usable anchor (e.g. bodyweight-mode dips): computed loads degrade to "—".
+  c3Hard: number | null
   testedOn: string
   results: TestingResult[]
   onSave: (r: TestingResult) => Promise<TestingResult>
   onDelete?: (id: string) => void
 }
 
-// Records a testing-week result (recorded, not prescribed): the discovered clean
-// 2–3RM with 1 rep in reserve. Saved to testing_results, one per lift per macro.
-export function TestingResultForm({ macroId, lift, testedOn, results, onSave, onDelete }: TestingResultFormProps) {
-  const existing = results.find((r) => r.lift === lift) || null
-  const [weight, setWeight] = useState<number | string>(existing?.weight ?? '')
-  const [reps, setReps] = useState<number | string>(existing?.reps ?? '')
-  const [notes, setNotes] = useState(existing?.notes ?? '')
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-
-  // Re-sync when the target lift/result changes (e.g. switching calendar cells).
-  useEffect(() => {
-    setWeight(existing?.weight ?? '')
-    setReps(existing?.reps ?? '')
-    setNotes(existing?.notes ?? '')
-    setSaved(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lift, existing?.id])
-
-  const [err, setErr] = useState('')
-  async function save() {
-    setSaving(true)
-    setErr('')
-    try {
-      await onSave({ id: existing?.id, macroId, lift, weight: numOrNull(weight), reps: numOrNull(reps), notes, testedOn })
-      setSaved(true)
-      setTimeout(() => setSaved(false), 1600)
-    } catch (e) {
-      setErr(errMsg(e))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <Card style={{ border: `1px solid ${C.gold}` }}>
-      {blockTitle('Test Result', LIFT_LABEL[lift as Lift] || lift)}
-      <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 10 }}>
-        Warm-up → Giant Block (hard scheme) → Volume Block — no carry. Find a clean 2–3RM with 1 rep in reserve; no grinders.
-        Record what you hit (not a target).
-      </div>
-      <div style={{ display: 'flex', gap: 10 }}>
-        <div style={{ flex: 1 }}>
-          <label style={lbl}>Weight (kg)</label>
-          <input style={inp} type="number" step="2.5" value={weight} onChange={(e) => setWeight(e.target.value)} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <label style={lbl}>Reps</label>
-          <input style={inp} type="number" min="1" max="5" value={reps} onChange={(e) => setReps(e.target.value)} placeholder="2–3" />
-        </div>
-      </div>
-      <div style={{ marginTop: 10 }}>
-        <label style={lbl}>Notes</label>
-        <textarea style={{ ...inp, minHeight: 50, resize: 'vertical' }} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Bar speed, how it felt, 1 RIR?" />
-      </div>
-      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-        <button
-          onClick={save}
-          disabled={saving}
-          style={{ flex: 1, background: saved ? C.green : C.gold, color: C.dark, border: 'none', borderRadius: 2, padding: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: 13, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}
-        >
-          {saving ? 'Saving…' : saved ? 'Saved ✓' : existing ? 'Update result' : 'Record result'}
-        </button>
-        {existing && onDelete && existing.id && (
-          <button onClick={() => onDelete(existing.id as string)} style={{ background: 'transparent', color: C.red, border: `1px solid ${C.red}`, borderRadius: 2, padding: '12px 16px', fontSize: 13, cursor: 'pointer' }}>
-            Delete
-          </button>
-        )}
-      </div>
-      {err && <div style={{ marginTop: 10, fontSize: 12, color: C.red }}>Couldn't save — {err}. Check your connection and try again.</div>}
-    </Card>
-  )
-}
-
-// Strip a previously-appended "Vol: …" suffix so a re-save doesn't stack them.
-function stripVolNote(notes: string): string {
-  return notes.replace(/(?:\s*·\s*)?Vol:[^·]*$/, '').trim()
-}
-
-interface TestingSessionViewProps extends TestingResultFormProps {
-  lift: Lift
-  // The C3 Hard anchor for the test lift (exact — never rounded). null/0 = no
-  // usable anchor (e.g. bodyweight-mode dips): computed loads degrade to "—".
-  c3Hard: number | null
-}
-
-// Full-structure test day (Today tab): renders like a normal HARD day computed
-// off the C3 Hard anchor — warm-up build-up, Giant Block sets 1–3 prescribed,
-// Set 4 as the open test-recording field, normal volume, no carry. All loads
-// come from the loading engine at the lift's own rounding increment.
+// Full-structure test day — the SINGLE test-session surface, shared by the Today
+// tab and the Calendar's SessionModal (test cells) so the two can't drift apart.
+// Renders like a normal HARD day computed off the C3 Hard anchor: warm-up
+// build-up, Giant Block sets 1–3 prescribed, Set 4 as the open test-recording
+// field, normal volume, no carry. All loads come from the loading engine at the
+// lift's own rounding increment. Saves to testing_results (recorded, not prescribed).
 export function TestingSessionView({ macroId, lift, c3Hard, testedOn, results, onSave, onDelete }: TestingSessionViewProps) {
   const existing = results.find((r) => r.lift === lift) || null
   const [weight, setWeight] = useState<number | string>(existing?.weight ?? '')
