@@ -65,6 +65,14 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
   "done" logging, position diagrams. One active protocol at a time. (Burger menu → Recovery; first item.)
 - **Pull-ups & dips** — two-mode (dips day): a 0/empty per-cycle anchor = bodyweight cluster logging
   (10/8/6 targets) + trend; any anchor = the full weighted cascade at 0.5 kg rounding. Mode flips in Setup.
+- **The Giant Run** — Tue/Thu/Sat companion running program (ARCHITECTURE §13): date-computed
+  schedule (Thu quality runs easy in meso 1; testing Sat = 5k TT; W15 optional short easy),
+  two-mode pace engine off a per-macro reference pace P (talk-test when unset; Easy P+75s /
+  Quality P+15–40s, 5 s/km rounding, P never rounded), per-cycle distance targets (Setup,
+  seeded forward), run logging on Today + a second Calendar row (log/edit/delete retroactively,
+  breaks work, optional days never "missed"), TT → explicit-confirm "set as new P", run deload
+  signals (R1/R2/R3) pooled into the weekly trigger, runs in Data list/copy/CSV + a Trends
+  pace-over-time view.
 - **Testing weeks** — record 2–3RM results per lift.
 - **Global loading states** — branded pre-React splash (home-screen-icon mark + shimmer bar);
   **first login is held** (sign-in button spinner spans auth + the first data fetch, then Today
@@ -77,6 +85,37 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ---
 
 ## Change log
+
+## 2026-07-12
+- `feat(run)`: **The Giant Run — companion running program**, built in six verified stages
+  (engine → data/Setup → Today → Calendar → signals → Data/Trends).
+  **Schema:** migration `0010_giant_run.sql` — `macros.ref_pace_s` (reference pace P, s/km;
+  NULL = talk-test), `runs` (one row per logged run, id `{date}-run-{E|Q|L|T}`, macro-scoped
+  RLS, `updated_at` trigger), `run_targets` (per-cycle km per slot). **Engine:** new
+  `engine/runs.ts` — Tue/Thu/Sat schedule via `corePosition` (Thu quality slot runs easy in
+  mesocycle 1; testing Sat = 5k TT, Tue/Thu optional; W15 all optional short easy), two-mode
+  pace cascade (Easy P+75 / Quality P+15–40, `roundPace` 5 s/km, **P never rounded**), pace
+  always derived from distance+duration, min:sec parse/format, run signals. **Setup:** Running
+  card — P as min:sec with live pace preview; per-cycle distance targets seeded forward like the
+  recorded secondaries; saved in the normal save flow; `rollToNextMacro` carries C3 targets →
+  new C1 and copies P. **Today:** run days render prescription + log form (distance, duration →
+  live derived pace, optional avg HR, categorical completion, notes; no timer); testing-Sat TT
+  fixes distance at 5 km and, once saved, offers the **explicit-confirm** "Set as new reference
+  pace P" chip (updates the current macro's P). **Calendar (Option B):** a second Tue/Thu/Sat
+  run row per week block (grows vertically); same state colours with optional days never
+  "missed"; logged cells show distance + pace; tap opens the new `RunModal` (focus-trapped,
+  break toggle, log/edit/delete incl. retroactive, TT chip shared with Today). **Deload:**
+  `computeWeekSignals(sessions, runs, priorRuns)` pools R1 (cut short – fatigue), R2 (felt
+  heavy / talk-test failed), R3 (pace-at-HR degraded on 2+ runs vs the previous same-type run,
+  ≥10 s/km at same-or-higher HR; skipped without HR) — trigger/suppression/cap unchanged;
+  reactive-deload weeks collapse runs to short-easy-only; Deload tab buckets runs (incl.
+  W13/14 testing) and lists the R signals. **Data/Trends:** runs in the unified list (`· RUN`,
+  green) with a dedicated copy-summary format; third CSV export (derived `pace_s_per_km`
+  column); Trends gains a **Runs** view — pace over time per run type, reversed mm:ss axis
+  (up = faster), run-type filter. Offline: run writes ride the same idempotent offline queue;
+  runs/targets cached in the bundle snapshot. typecheck + **109 tests** + build green; smoke
+  extended (run round-trip incl. ""→NULL + idempotent upsert, target per-cycle isolation +
+  upsert, ref-pace set/clear, roll-forward carry) — **run it after applying 0010**.
 
 ## 2026-07-09
 - `feat(testing/deload)`: **test days now capture deload signals**. The shared test view (Today +

@@ -288,6 +288,9 @@ Capabilities, in domain terms:
   per-session summary to the clipboard for pasting into a coaching conversation.
 - **Recovery → Tendon Health** (§12) — joint isometric-loading protocols with phase-based dosing,
   per-tendon hold timers, and light per-day "done" logging. Macro-independent.
+- **The Giant Run** (§13) — Tue/Thu/Sat companion running program: date-computed schedule,
+  two-mode pace engine off a per-macro reference pace, per-cycle distance targets, run
+  logging (Today + Calendar run row), pooled deload signals, Data/CSV/Trends coverage.
 - **Single-user auth** (Supabase + Row Level Security), installable PWA with offline logging.
 
 Deferred: pull-up **phase-2 weighted** switchover (§4) — waiting until the athlete is consistently
@@ -307,7 +310,8 @@ Block cardio cals), `carry_rounds`, `carry_distance`; `0005_anchor_weights.sql` 
 `sessions.clean_*` columns and retires the `clean` accessory item, adding `rdl_deadlift`/`row_ohp`;
 `0007_program_revision.sql` reassigns secondaries (`rdl_deadlift`→`rdl_squat`, adds `lunge_deadlift`)
 and adds `sessions.block_completion`; `0008_recovery.sql` adds the Recovery tables — §12; `0009_dips_pullup_modes.sql` adds the
-`pullup` anchor lift + `sessions.dips_cluster` for the two-mode logic — §3).
+`pullup` anchor lift + `sessions.dips_cluster` for the two-mode logic — §3; `0010_giant_run.sql` adds
+`macros.ref_pace_s` + the `runs` and `run_targets` tables — §13).
 See `supabase/MIGRATIONS.md` for how migrations are applied and the DB kept reproducible.
 Tables:
 
@@ -320,6 +324,7 @@ macros (
   start_date    date not null,             -- anchored to a Monday
   weeks         int not null default 15,
   status        text not null default 'active',  -- active | completed
+  ref_pace_s    int,                       -- Giant Run reference pace P (s/km); NULL = talk-test mode (§13)
   created_at    timestamptz default now()
 )
 
@@ -439,6 +444,34 @@ recovery_tendon_logs (
   log_date      date not null default current_date,
   unique (protocol_id, tendon_key, log_date)
 )
+
+-- The Giant Run (§13): one row per logged run. Pace is always DERIVED
+-- (duration_s / distance_km), never stored.
+runs (
+  id            text primary key,          -- "2026-07-14-run-E" (date + run-type letter)
+  macro_id      uuid references macros not null,
+  date          date not null,             -- the SCHEDULED slot date (strict-date model)
+  cycle         int,                       -- null for testing/deload weeks
+  week          int,                       -- week within meso (1..4), null for special weeks
+  week_type     text not null,             -- training | testing | deload
+  run_type      text not null,             -- easy | quality | long | tt
+  distance_km   numeric,
+  duration_s    int,
+  avg_hr        int,
+  completion    text,                      -- completed | cut_fatigue | cut_schedule | felt_heavy (null = completed)
+  notes         text,
+  updated_at    timestamptz default now()
+)
+
+-- Per-cycle run distance targets (guidance; accessory-weights pattern — §13)
+run_targets (
+  id            uuid primary key default gen_random_uuid(),
+  macro_id      uuid references macros not null,
+  cycle         int not null,              -- 1, 2, 3
+  run_type      text not null,             -- easy | quality | long (the weekday slot)
+  km            numeric,
+  unique (macro_id, cycle, run_type)
+)
 ```
 
 Notes:
@@ -488,6 +521,14 @@ repeated here. The two load-bearing domain invariants to preserve, wherever the 
 - **Per-lift rounding + two-mode dips/pull-ups (2026-07-05):** derived loads round 2.5 kg (barbell) /
   0.5 kg (dips, pull-ups); the anchor is never rounded. Dips and pull-ups flip between bodyweight
   (cluster) and weighted (full cascade) purely on the cycle's anchor value (§3) — no toggle.
+- **The Giant Run (2026-07-12, settled):** one run anchor per macro — the reference pace P,
+  never rounded (derived paces round to 5 s/km); two-mode on the anchor like dips/pull-ups
+  (null = talk-test, the mesocycle-1 state). Distance targets follow the accessory model
+  (recorded per cycle, seeded forward — guidance, not prescription). The TT confirm updates
+  the **current** macro's P and rolls forward with the macro (C3→C1 mechanism). Run deload
+  signals pool with the lift signals under the unchanged weekly trigger; R3 (pace-at-HR)
+  compares against the most recent prior same-type run (≥10 s/km slower at same-or-higher HR)
+  and is skipped without HR data. Optional run days are never marked missed.
 - Push press: rejected. Sandbag lunges: parked (maybe later, via carry-block rotation).
 - GOWOD handles warm-up activation + cooldown; barbell build-up sets stay in-app.
 - Carries are accessory/reward effort, ~RPE 6, never pushed.
@@ -518,7 +559,50 @@ A separate tool (not part of the training program above), reached from the burge
   (tendon, day); the row's existence is the "done" signal (no set/rep detail). Completing 3/3 auto-logs
   done; the per-tendon checkbox also toggles it manually.
 
-## 13. Related documents
+## 13. The Giant Run — companion running program
+
+Three runs a week on the lift off-days, fully integrated (date engine, calendar,
+logging, deload signals, data export). Engine: `src/engine/runs.ts`.
+
+- **Schedule (strict-date, from the same macro anchor):** Tue = Easy · Thu = Quality
+  (**Easy during mesocycle 1**) · Sat = Long easy. Testing weeks: Sat = **5k time
+  trial**, Tue/Thu optional easy. Week 15: all runs optional, short easy only. Runs
+  are computed via `corePosition` — never positioned manually.
+- **One anchor per macro: the reference pace P** (stored `macros.ref_pace_s`,
+  seconds/km; entered/edited in Setup as min:sec). **Two-mode**, same pattern as
+  dips/pull-ups: no anchor → **talk-test mode** (type + distance only, no paces — the
+  mesocycle-1 state); anchor set → **pace mode**: Easy = P + 75 s/km, Quality =
+  P + 15…P + 40 s/km (a range), time trial = no prescribed pace. Derived paces round
+  to 5 s/km; **P itself is never rounded**. Constants live in `engine/constants.ts`.
+- **Distance targets = the accessory model** (guidance, not prescription):
+  per-cycle editable km per weekday slot (`run_targets`), seeded forward from the
+  previous cycle in Setup; the log records actual distance independently.
+- **Logging:** distance (km) + duration (min:sec) → **pace always derived, never
+  stored**; optional avg HR; categorical completion (Completed ✓ default / cut
+  short – fatigue / cut short – schedule / felt heavy – talk test failed); notes.
+  One `runs` row per day, human-readable id `{date}-run-{E|Q|L|T}`, idempotent
+  upsert, offline-queued like sessions. Editable/deletable retroactively from the
+  Calendar's run modal.
+- **Time trial → P:** after saving the TT, an **explicit confirm chip** offers "Set
+  as new reference pace P" (never silent). It updates the **current** macro's P;
+  "Start next macro" carries P forward (same mechanism as C3→C1 weights), and C3
+  run targets seed the new C1.
+- **Calendar (Option B):** each program-week block renders two rows — the Mon/Wed/Fri
+  lift row and a Tue/Thu/Sat run row beneath it (block grows vertically). Same state
+  colours; break days work identically; **optional run days (testing Tue/Thu, all of
+  W15) are never marked missed** — deliberate rest isn't a miss.
+- **Deload signals (pooled):** R1 run cut short (fatigue), R2 felt heavy / talk test
+  failed, R3 pace-at-HR degraded on 2+ runs — R3 only when avg HR is logged
+  (a run is *degraded* when ≥10 s/km slower than the most recent prior same-type run
+  at same-or-higher HR; week-level occurrence like S5). Lifts and runs pool into one
+  weekly count; the trigger, testing-week suppression, cap and exemptions are
+  unchanged (§5). A reactive-deload week collapses the run prescription to
+  short-easy-only in Today + Calendar.
+- **Data:** runs appear in the Data list (marked `· RUN`) with their own copy-summary
+  format, export as a third CSV (with a derived `pace_s_per_km` column), and get a
+  pace-over-time Trends view (per run type, up = faster).
+
+## 14. Related documents
 
 - **`The_Giant_Program_v7_Book`** (`.pdf` / `.docx`) — the authoritative *training program*. Read
   for full domain detail. Kept in the separate documentation folder (`The Giant Program/`), **not**

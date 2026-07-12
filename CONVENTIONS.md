@@ -26,7 +26,9 @@ src/
     constants.ts   ROTATION, SCHEMES, DAY_SPREAD/SET_LADDER/VOLUME_PCT (anchor cascade), DAY_META, SECONDARY_ITEM (day→recorded-accessory), BLOCK_COMPLETION, PULLUP, SIGNALS, TESTING_SCHEDULE, MACRO_WEEKS
     date-engine.ts position math from the macro start date (see §7)
     loading.ts     single-anchor cascade (dayTop/expandDayTops/giantSets/volumeWeight), 2.5 kg rounding, fmt
-    deload-rule.ts reactive-deload signals + trigger
+    runs.ts        Giant Run: Tue/Thu/Sat schedule (via corePosition), two-mode pace engine
+                   (talk-test vs P+offset cascade), pace/duration parse+format, run signals R1/R2/R3
+    deload-rule.ts reactive-deload signals + trigger (lift signals + pooled run signals)
     trends.ts      pure derivations: Session/accessory/deload -> Trends chart view-models
     export-csv.ts  pure Session[] -> CSV string (Data page "Download all data")
     session-summary.ts  pure Session -> plain-text share summary (Data page "Copy")
@@ -40,6 +42,8 @@ src/
     SessionForm.tsx     shared prescription + log fields (Today + SessionModal)
     SessionModal.tsx    calendar-cell overlay wrapping SessionForm / TestingSessionView
     TestingSession.tsx  full-structure test-day view (shared by Today + SessionModal)
+    RunForm.tsx         Giant Run shared prescription + log fields + SetPaceChip (Today + RunModal)
+    RunModal.tsx        calendar run-cell overlay wrapping RunForm (log/edit/delete + break toggle)
     Trends.tsx      charts/analytics tab (recharts); renders engine/trends.ts view-models
     nav.tsx         BottomNav + MenuDrawer + inline SVG icon set
     components.tsx  shared shell bits (Shell, Card, BlockTitle, Center, Spinner)
@@ -325,6 +329,20 @@ See `ARCHITECTURE.md` §2–§6 for the full domain. In code:
   `mappers.rowsToWeights` expands the stored anchor on every read (so Today/Calendar consumers are
   unchanged), and `weightsToRows` writes only `hard`. The `lift` arg on `dayTop` is a seam for a
   future dips-off-bodyweight path (identical for all lifts today). `fmt` is null-safe (returns `—`).
+- **The Giant Run — `src/engine/runs.ts` (single-anchor, two-mode — mirrors the lift engine).**
+  `runSlotFor`/`runSlotsForWeek` compute the Tue/Thu/Sat schedule strictly through
+  `corePosition` (never duplicate the position math): Tue easy · Thu quality (easy in meso 1) ·
+  Sat long; testing Sat = 5k TT; W15 optional short easy. One anchor per macro — the reference
+  pace P (`macros.ref_pace_s`, s/km): `runMode` (null/0 = talk-test, no paces anywhere),
+  `easyPace` (P+75), `qualityRange` (P+15…P+40), all derived paces `roundPace`d to 5 s/km —
+  **P itself is never rounded** (the TT confirm stores whole seconds only because the column is
+  int). Logged pace is always **derived** (`derivedPaceS` = duration/distance), never stored.
+  Run ids are `{date}-run-{E|Q|L|T}` (idempotent upsert; any new run mutation must stay
+  offline-queue-safe). Distance targets are the accessory model — recorded per cycle
+  (`run_targets`), seeded forward in Setup, never computed. Run signals (R1 cut-fatigue,
+  R2 felt-heavy, R3 pace-at-HR degraded — skipped without HR data) pool into
+  `computeWeekSignals(sessions, runs, priorRuns)`; keep the additive signature so lift-only
+  callers/tests stay valid. Optional run days (testing Tue/Thu, W15) are never marked missed.
 - **Reactive deload — `src/engine/deload-rule.ts`.** The revised rule (brief §5,
   supersedes the v7 book): `computeWeekSignals` (S1 R9.5+, S6 giant block not completed
   as prescribed, S2 volume incomplete, S3 carry skipped for fatigue, S5 bar-speed down
