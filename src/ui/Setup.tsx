@@ -168,7 +168,7 @@ function PacePreview({ pace }: { pace: string }) {
     const invalid = t !== '' && parseClock(t) == null
     return (
       <div style={{ fontSize: 11, color: invalid ? C.red : C.muted, fontStyle: 'italic', marginTop: 4 }}>
-        {invalid ? 'Enter as min:sec per km, e.g. 5:35.' : 'Talk-test mode — prescriptions show run type + distance only.'}
+        {invalid ? 'Enter as min:sec per km — 5:35, 5.35 or 535 all work.' : 'Talk-test mode — prescriptions show run type + distance only.'}
       </div>
     )
   }
@@ -419,7 +419,9 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
             aria-label="Reference pace P (min:sec per km)"
             style={{ ...inp, padding: '6px', textAlign: 'center' }}
             type="text"
-            inputMode="numeric"
+            // decimal keypad: iOS's numeric pad has no colon — "." works as the
+            // separator (5.35 = 5:35), and bare digits parse too (535 = 5:35).
+            inputMode="decimal"
             placeholder="5:35"
             value={pace}
             onChange={(e) => setPace(e.target.value)}

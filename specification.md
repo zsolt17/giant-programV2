@@ -86,6 +86,15 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-07-12 (later)
+- `fix(run/mobile)`: **pace & duration typeable on the iPhone keypad**. The reference-pace and
+  run-duration inputs used `inputMode="numeric"`, whose iOS keypad has no colon — seconds were
+  untypeable. Both now use `inputMode="decimal"`, and `parseClock` additionally accepts "." / ","
+  as the min:sec separator ("5.35" = 5:35) and bare digit strings of 3+ digits with the last two
+  as seconds ("535" = 5:35, "4230" = 42:30, "10230" = 1:02:30); 1–2 bare digits stay whole
+  minutes. Invalid-pace hint updated. typecheck + **110 tests** + build green; verified live
+  (preview + derived pace correct for "535" / "5.35" / "30.45").
+
 ## 2026-07-12
 - `feat(run)`: **The Giant Run — companion running program**, built in six verified stages
   (engine → data/Setup → Today → Calendar → signals → Data/Trends).

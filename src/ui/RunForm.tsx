@@ -119,7 +119,9 @@ export function RunForm({ slot, refPaceS, targetKm, deloadWeek, draft, setField 
               data-run-duration="1"
               style={inp}
               type="text"
-              inputMode="numeric"
+              // decimal keypad: iOS's numeric pad has no colon — "." works as the
+              // separator (42.30 = 42:30), and bare digits parse too (4230 = 42:30).
+              inputMode="decimal"
               placeholder="42:30"
               value={durText}
               aria-label="Duration as minutes and seconds"

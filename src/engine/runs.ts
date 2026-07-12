@@ -122,14 +122,26 @@ export function fmtRunDuration(s: number | null | undefined): string {
 }
 
 // "5:35" -> 335 · "1:02:10" -> 3730 · "42" -> 2520 (bare minutes) · junk -> null.
-// Used for both the Setup pace input and the run-log duration input.
+// Used for both the Setup pace input and the run-log duration input. Those render
+// the iOS DECIMAL keypad (digits + . only — the numeric pad has no colon), so the
+// separator also accepts "." / "," ("5.35" -> 5:35), and a bare digit string of
+// 3+ digits reads its last two digits as seconds ("535" -> 5:35, "4530" -> 45:30,
+// "10230" -> 1:02:30). 1–2 bare digits stay whole minutes.
 export function parseClock(text: string | null | undefined): number | null {
-  const t = (text || '').trim()
+  const t = (text || '').trim().replace(/[.,]/g, ':')
   if (!t) return null
-  if (!/^\d+(:[0-5]?\d){0,2}$/.test(t)) return null
+  if (/^\d+$/.test(t)) {
+    if (t.length <= 2) return Number(t) * 60 // bare minutes
+    const sec = Number(t.slice(-2))
+    if (sec > 59) return null
+    const rest = t.slice(0, -2)
+    if (rest.length <= 2) return Number(rest) * 60 + sec
+    const min = Number(rest.slice(-2))
+    if (min > 59) return null
+    return Number(rest.slice(0, -2)) * 3600 + min * 60 + sec
+  }
+  if (!/^\d+(:[0-5]?\d){1,2}$/.test(t)) return null
   const parts = t.split(':').map(Number)
-  if (parts.some((n) => !Number.isFinite(n))) return null
-  if (parts.length === 1) return parts[0] * 60
   if (parts.length === 2) return parts[0] * 60 + parts[1]
   return parts[0] * 3600 + parts[1] * 60 + parts[2]
 }

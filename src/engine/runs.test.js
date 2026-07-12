@@ -207,3 +207,15 @@ test('R3 needs 2+ degraded runs, and skips runs without HR data', () => {
   )
   assert.equal(lowerHr.occurrences, 0)
 })
+
+test('parseClock: iOS decimal-keypad forms — "." "," separators + bare digits', () => {
+  assert.equal(parseClock('5.35'), 335)
+  assert.equal(parseClock('5,35'), 335)
+  assert.equal(parseClock('535'), 335) // last two digits = seconds
+  assert.equal(parseClock('4230'), 2550) // 42:30
+  assert.equal(parseClock('10230'), 3750) // 1:02:30
+  assert.equal(parseClock('120'), 80) // 1:20 (3+ digits are m:ss, not minutes)
+  assert.equal(parseClock('6'), 360) // 1–2 bare digits stay whole minutes
+  assert.equal(parseClock('575'), null) // "75 seconds" is invalid
+  assert.equal(parseClock('5.75'), null)
+})
