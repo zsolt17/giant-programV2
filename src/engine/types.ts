@@ -147,6 +147,64 @@ export interface WeekSignals {
   fired: boolean
 }
 
+// ---- The Giant Run ----------------------------------------------------------
+// The run performed on a day. The SLOT (weekday → easy/quality/long, what the
+// per-cycle distance targets key off) is a RunSlotKey; the TYPE adds 'tt' and
+// can differ from the slot (the Thu quality slot runs easy during mesocycle 1).
+export type RunSlotKey = 'easy' | 'quality' | 'long'
+export type RunType = RunSlotKey | 'tt'
+
+// A logged run (app-object shape; mappers convert to/from DB rows). Pace is
+// always DERIVED (durationS / distanceKm), never stored.
+export interface Run {
+  id: string // "2026-07-14-run-E" (date + run-type letter)
+  macroId: string
+  date: string // the SCHEDULED slot date (strict-date model, like sessions)
+  cycle: number | null
+  week: number | null
+  weekType: WeekType
+  runType: RunType
+  distanceKm: number | null
+  durationS: number | null
+  avgHr: number | null
+  // 'completed' (default) or a categorical reason (RUN_COMPLETION); legacy
+  // null → treated as completed. Drives the run deload signals (R1/R2).
+  completion: string
+  notes: string
+  updatedAt?: string
+}
+
+// A run as held in UI form state (numeric inputs hold raw strings until the
+// mappers coerce them — same pattern as SessionDraft).
+export interface RunDraft extends Omit<Run, 'distanceKm' | 'durationS' | 'avgHr'> {
+  distanceKm: number | string | null
+  durationS: number | string | null
+  avgHr: number | string | null
+}
+
+// The computed run schedule for one date (from engine/runs.ts runSlotFor).
+export interface RunSlot {
+  date: string
+  weekIndex: number
+  weekType: WeekType
+  cycle: number | null // meso (training weeks only)
+  week: number | null // week within meso (training weeks only)
+  slot: RunSlotKey // weekday slot — what the distance target keys off
+  runType: RunType // what is actually prescribed (meso-1 Thu = easy; testing Sat = tt)
+  optional: boolean // testing Tue/Thu + all of deload W15 — never marked missed
+}
+
+// cycle (1|2|3) -> slot ('easy'|'quality'|'long') -> target km (guidance only)
+export type RunTargetsByCycle = Record<number, Partial<Record<RunSlotKey, number | null>>>
+
+// Result of computeRunSignalHits: run-derived signal occurrences for one week,
+// pooled into computeWeekSignals alongside the lift signals.
+export interface RunSignalHits {
+  types: Set<string>
+  occurrences: number
+  runIds: Set<string>
+}
+
 // ---- data-layer domain types ----------------------------------------------
 export type MacroStatus = 'active' | 'completed'
 export interface Macro {

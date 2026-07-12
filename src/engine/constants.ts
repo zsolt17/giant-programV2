@@ -1,6 +1,6 @@
 // Program constants — ported verbatim from the working index.html. These encode
 // the fixed structure of The Giant Program and must not drift.
-import type { Difficulty, Lift, AnchorLift, Scheme, DayMeta } from './types'
+import type { Difficulty, Lift, AnchorLift, Scheme, DayMeta, RunType, RunSlotKey } from './types'
 
 // 4 lifts across 3 weekly slots (Mon=hard, Wed=medium, Fri=light), repeating
 // every 4 weeks (one mesocycle). Index = (weekInMeso - 1).
@@ -120,3 +120,42 @@ export const TESTING_SCHEDULE: Record<number, Record<number, Lift>> = {
   12: { 1: 'deadlift', 5: 'dips' },
   13: { 1: 'squat', 5: 'ohp' },
 }
+
+// ---- The Giant Run (companion running program) -----------------------------
+// Three runs a week on the lift off-days. The SLOT is fixed by weekday (targets
+// key off it); the run TYPE performed in the Thu slot is easy during mesocycle 1.
+export const RUN_SLOT_BY_DOW: Record<number, RunSlotKey> = { 2: 'easy', 4: 'quality', 6: 'long' } // Tue/Thu/Sat
+// Pace cascade off the single per-macro reference pace P (seconds/km).
+// P itself is never rounded — user input (or a TT result) stays exactly as set;
+// rounding applies only to DERIVED prescription paces.
+export const EASY_OFFSET_S = 75 // Easy pace = P + 75 s/km
+export const QUALITY_OFFSET_MIN_S = 15 // Quality pace range = P + 15 … P + 40 s/km
+export const QUALITY_OFFSET_MAX_S = 40
+export const PACE_ROUND_S = 5 // derived paces round to the nearest 5 s/km
+export const TT_KM = 5 // testing-week Saturday time trial is a fixed 5 km
+// R3 (pace-at-HR degraded): a run counts as degraded when it is at least this much
+// slower (s/km) than the most recent prior same-type run at same-or-higher avg HR.
+export const PACE_DEGRADE_S = 10
+
+export const RUN_TYPE_LABEL: Record<RunType, string> = {
+  easy: 'Easy',
+  quality: 'Quality',
+  long: 'Long',
+  tt: 'Time Trial',
+}
+
+// Run completion (categorical, mirrors BLOCK_COMPLETION): 'completed' = default;
+// the fail reasons drive the run deload signals (R1 fatigue-cut, R2 felt heavy).
+export const RUN_COMPLETION: { id: string; label: string }[] = [
+  { id: 'cut_fatigue', label: 'Cut short — fatigue' },
+  { id: 'cut_schedule', label: 'Cut short — schedule' },
+  { id: 'felt_heavy', label: 'Felt heavy — talk test failed' },
+]
+
+// Run-derived reactive-deload signals, pooled with the lift SIGNALS (same weekly
+// trigger: 3+ occurrences across 2+ sessions, lifts and runs together).
+export const RUN_SIGNALS: { id: string; label: string }[] = [
+  { id: 'R1', label: 'Run cut short (fatigue)' },
+  { id: 'R2', label: 'Felt heavy / talk test failed' },
+  { id: 'R3', label: 'Pace at HR degraded on 2+ runs' },
+]
