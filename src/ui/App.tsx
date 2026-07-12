@@ -46,6 +46,8 @@ import type {
   BreakDayMap,
   TestingResult,
   MacroBundle,
+  Run,
+  RunTargetsByCycle,
 } from '../engine/types'
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
@@ -114,6 +116,8 @@ export function App() {
   const [deloads, setDeloads] = useState<DeloadMap>({})
   const [breakDays, setBreakDays] = useState<BreakDayMap>({})
   const [testing, setTesting] = useState<TestingResult[]>([])
+  const [runs, setRuns] = useState<Run[]>([])
+  const [runTargets, setRunTargets] = useState<RunTargetsByCycle>({})
   const [status, setStatus] = useState<LoadStatus>('idle')
   const [err, setErr] = useState('')
   const [online, setOnline] = useState(typeof navigator === 'undefined' || navigator.onLine !== false)
@@ -139,6 +143,8 @@ export function App() {
     setDeloads(snap.deloads || {})
     setBreakDays(snap.breakDays || {})
     setTesting(snap.testing || [])
+    setRuns(snap.runs || [])
+    setRunTargets(snap.runTargets || {})
   }
 
   const load = useCallback(async () => {
@@ -155,7 +161,7 @@ export function App() {
         null
       const b: MacroBundle = target
         ? await repo.loadMacroBundle(target.id)
-        : { weights: {}, accessory: {}, sessions: [], deloads: {}, breakDays: {}, testing: [] }
+        : { weights: {}, accessory: {}, sessions: [], deloads: {}, breakDays: {}, testing: [], runs: [], runTargets: {} }
       setMacros(all)
       setMacro(target)
       setViewedMacroId(target?.id ?? null)
@@ -165,6 +171,8 @@ export function App() {
       setDeloads(b.deloads)
       setBreakDays(b.breakDays)
       setTesting(b.testing)
+      setRuns(b.runs)
+      setRunTargets(b.runTargets)
       setStatus('ready')
       setBooted(true)
     } catch (e) {
@@ -302,9 +310,9 @@ export function App() {
   // optimistic offline writes, since those flow through state).
   useEffect(() => {
     if (status === 'ready' && user && macro) {
-      saveSnapshot({ macros, viewedMacroId, macro, weights, accessory, sessions, deloads, breakDays, testing })
+      saveSnapshot({ macros, viewedMacroId, macro, weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets })
     }
-  }, [status, user, macro, macros, viewedMacroId, weights, accessory, sessions, deloads, breakDays, testing])
+  }, [status, user, macro, macros, viewedMacroId, weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets])
 
   const onSaveSession = useCallback(async (record: SessionDraft): Promise<Session> => {
     const saved = await repo.saveSession(record)
@@ -477,7 +485,7 @@ export function App() {
         <Setup
           key={macro?.id || 'new'}
           macro={macro}
-          bundle={{ weights, accessory }}
+          bundle={{ weights, accessory, runTargets }}
           macros={macros}
           onReload={load}
           onSelectMacro={onSelectMacro}

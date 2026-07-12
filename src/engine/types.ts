@@ -213,6 +213,9 @@ export interface Macro {
   startISO: string
   weeks: number
   status: MacroStatus
+  // Giant Run reference pace P (seconds/km) — the single per-macro run anchor.
+  // Null = talk-test mode. Never rounded; typically set from a time-trial result.
+  refPaceS: number | null
 }
 
 export interface LiftWeights {
@@ -253,6 +256,8 @@ export interface MacroBundle {
   deloads: DeloadMap
   breakDays: BreakDayMap
   testing: TestingResult[]
+  runs: Run[]
+  runTargets: RunTargetsByCycle
 }
 
 // ---- Trends tab ------------------------------------------------------------
@@ -266,6 +271,7 @@ export interface TrendsData {
   testing: TestingResult[]
   deloads: DeloadMap // weekKey ("M2C3W4") is globally unique, so one map spans macros
   breakDays: BreakDayMap
+  runs: Run[]
 }
 
 // A training session flattened to the shape the Trends charts consume (mirrors the

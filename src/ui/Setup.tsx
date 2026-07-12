@@ -4,10 +4,11 @@ import { C, cardStyle, inp, lbl, pillColor } from './theme'
 import { Card, BlockTitle } from './components'
 import * as repo from '../data/repository'
 import { computePosition, parseLocalDate, mondayOf, isoLocal } from '../engine/date-engine'
-import { LIFT_LABEL, SET_LADDER, VOLUME_PCT, PULLUP } from '../engine/constants'
+import { LIFT_LABEL, SET_LADDER, VOLUME_PCT, PULLUP, PACE_ROUND_S } from '../engine/constants'
 import { expandDayTops, giantSets, volumeWeight, liftMode } from '../engine/loading'
+import { runMode, easyPace, qualityRange, fmtPace, parseClock } from '../engine/runs'
 import { errMsg } from './controls'
-import type { Macro, WeightsByCycle, AccessoryByCycle, Lift, AnchorLift, Difficulty } from '../engine/types'
+import type { Macro, WeightsByCycle, AccessoryByCycle, RunTargetsByCycle, RunSlotKey, Lift, AnchorLift, Difficulty } from '../engine/types'
 
 const LIFTS: Lift[] = ['deadlift', 'ohp', 'squat', 'dips']
 // Anchor rows in the weights card: the 4 day lifts + pull-ups (dips-day secondary,
@@ -31,6 +32,14 @@ const ACC_ITEMS = Object.keys(ACC_LABEL)
 // auto-fills from the nearest lower cycle as a starting reference (adjust by feel + save).
 const SEED_ITEMS = ['lunge_deadlift', 'rdl_squat', 'row_ohp']
 
+// Giant Run distance-target slots (guidance only, per cycle, seeded like SEED_ITEMS).
+const RUN_SLOTS: RunSlotKey[] = ['easy', 'quality', 'long']
+const RUN_SLOT_LABEL: Record<RunSlotKey, string> = {
+  easy: 'Tue — Easy run',
+  quality: 'Thu — Quality run',
+  long: 'Sat — Long easy run',
+}
+
 // Native <input type="date"> on iOS keeps an intrinsic width and overflows its
 // container; -webkit-appearance:none strips that so it respects width:100%.
 const DATE_INPUT: CSSProperties = { ...inp, WebkitAppearance: 'none', appearance: 'none', display: 'block' }
@@ -39,6 +48,7 @@ const DATE_INPUT: CSSProperties = { ...inp, WebkitAppearance: 'none', appearance
 type WeightCell = { hard: number | string; medium: number | string; light: number | string }
 type EditWeights = Record<number, Record<string, WeightCell>>
 type EditAcc = Record<number, Record<string, number | string>>
+type EditRunTargets = Record<number, Record<RunSlotKey, number | string>>
 
 // Build editable state: every cycle/anchor-lift present, blank if unset.
 function initWeights(loaded?: WeightsByCycle): EditWeights {
@@ -69,9 +79,25 @@ function initAcc(loaded?: AccessoryByCycle): EditAcc {
   return a
 }
 
+// Run distance targets: same shape + forward seeding as the recorded accessories.
+function initRunTargets(loaded?: RunTargetsByCycle): EditRunTargets {
+  const t = {} as EditRunTargets
+  for (const c of CYCLES) {
+    t[c] = { easy: '', quality: '', long: '' }
+    for (const s of RUN_SLOTS) t[c][s] = loaded?.[c]?.[s] ?? ''
+  }
+  const blank = (v: number | string) => v === '' || v == null
+  for (const s of RUN_SLOTS) {
+    for (const c of CYCLES) {
+      if (c > 1 && blank(t[c][s]) && !blank(t[c - 1][s])) t[c][s] = t[c - 1][s]
+    }
+  }
+  return t
+}
+
 interface SetupProps {
   macro: Macro | null
-  bundle: { weights: WeightsByCycle; accessory: AccessoryByCycle }
+  bundle: { weights: WeightsByCycle; accessory: AccessoryByCycle; runTargets: RunTargetsByCycle }
   macros?: Macro[]
   onReload: () => Promise<void>
   onSelectMacro: (id: string) => void
@@ -133,12 +159,41 @@ function CascadePreview({ anchor, lift }: { anchor: number | string; lift: Ancho
   )
 }
 
+// Read-only live preview of the pace cascade from the reference-pace text —
+// mirrors CascadePreview: computed via the engine, never stored. Talk-test mode
+// (blank) explains itself; unparseable text shows the expected format.
+function PacePreview({ pace }: { pace: string }) {
+  const t = pace.trim()
+  if (t === '' || runMode(parseClock(t)) === 'talk') {
+    const invalid = t !== '' && parseClock(t) == null
+    return (
+      <div style={{ fontSize: 11, color: invalid ? C.red : C.muted, fontStyle: 'italic', marginTop: 4 }}>
+        {invalid ? 'Enter as min:sec per km, e.g. 5:35.' : 'Talk-test mode — prescriptions show run type + distance only.'}
+      </div>
+    )
+  }
+  const P = parseClock(t) as number
+  const [qMin, qMax] = qualityRange(P)
+  return (
+    <div style={{ marginTop: 6, background: 'rgba(0,0,0,0.18)', border: `1px solid ${C.border}`, borderRadius: 2, padding: 10, fontSize: 12, color: C.off }}>
+      Easy <strong style={{ color: C.gold }}>{fmtPace(easyPace(P))}</strong> /km · Quality{' '}
+      <strong style={{ color: C.gold }}>
+        {fmtPace(qMin)}–{fmtPace(qMax)}
+      </strong>{' '}
+      /km · Time trial: no prescribed pace
+    </div>
+  )
+}
+
 export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onRollMacro }: SetupProps) {
   const [startISO, setStartISO] = useState(macro?.startISO || '2026-04-13')
   const [number, setNumber] = useState(macro?.number || 1)
   const [cycle, setCycle] = useState(1)
   const [weights, setWeights] = useState<EditWeights>(() => initWeights(bundle?.weights))
   const [acc, setAcc] = useState<EditAcc>(() => initAcc(bundle?.accessory))
+  const [runT, setRunT] = useState<EditRunTargets>(() => initRunTargets(bundle?.runTargets))
+  // Reference pace P held as min:sec text; parsed (never rounded) on save.
+  const [pace, setPace] = useState(() => (macro?.refPaceS != null ? fmtPace(macro.refPaceS) : ''))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [err, setErr] = useState('')
@@ -167,6 +222,7 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
   const setW = (c: number, l: string, d: Difficulty, v: string) =>
     setWeights((p) => ({ ...p, [c]: { ...p[c], [l]: { ...p[c][l], [d]: v } } }) as EditWeights)
   const setA = (c: number, it: string, v: string) => setAcc((p) => ({ ...p, [c]: { ...p[c], [it]: v } }) as EditAcc)
+  const setR = (c: number, s: RunSlotKey, v: string) => setRunT((p) => ({ ...p, [c]: { ...p[c], [s]: v } }) as EditRunTargets)
 
   const pos = computePosition(startISO, number, new Date())
   const posText = pos.beforeStart
@@ -183,12 +239,17 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
     setSaving(true)
     setErr('')
     try {
+      // Reference pace: blank = talk-test mode (null); otherwise must parse as m:ss.
+      const paceText = pace.trim()
+      const refPaceS = paceText === '' ? null : parseClock(paceText)
+      if (paceText !== '' && refPaceS == null) throw new Error('Reference pace must be min:sec per km, e.g. 5:35')
       let m = macro
       if (!m) m = await repo.createMacro({ number, startISO })
-      else m = await repo.updateMacro(m.id, { number, startISO })
+      await repo.updateMacro(m.id, { number, startISO, refPaceS })
       for (const c of CYCLES) {
         await repo.saveWorkingWeights(m.id, c, weights[c])
         await repo.saveAccessoryWeights(m.id, c, acc[c])
+        await repo.saveRunTargets(m.id, c, runT[c])
       }
       setSaved(true)
       setTimeout(() => setSaved(false), 1600)
@@ -337,6 +398,65 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
             />
           </div>
         ))}
+      </Card>
+
+      {/* The Giant Run — reference pace anchor + per-cycle distance targets */}
+      <Card>
+        <BlockTitle tag="single anchor">Running</BlockTitle>
+        <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>
+          One <strong style={{ color: C.off }}>reference pace P</strong> per macro (typically your latest 5k time-trial
+          pace). Easy (P+75s) and Quality (P+15–40s) paces compute off it, rounded to {PACE_ROUND_S} s/km — P itself is
+          never rounded. Leave blank for <strong style={{ color: C.off }}>talk-test mode</strong> (no paces shown — the
+          mesocycle-1 state). Distance targets are guidance per cycle; the log records actual distance.
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+          <label htmlFor="ref-pace" style={{ fontSize: 13, color: C.off, fontWeight: 600 }}>
+            Reference pace P <span style={{ fontSize: 10, color: C.muted, fontWeight: 400 }}>(min:sec / km · blank = talk test)</span>
+          </label>
+          <input
+            id="ref-pace"
+            data-run-pace
+            aria-label="Reference pace P (min:sec per km)"
+            style={{ ...inp, padding: '6px', textAlign: 'center' }}
+            type="text"
+            inputMode="numeric"
+            placeholder="5:35"
+            value={pace}
+            onChange={(e) => setPace(e.target.value)}
+          />
+        </div>
+        <PacePreview pace={pace} />
+        <div style={{ borderTop: `1px solid ${C.border}`, margin: '12px 0' }} />
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>{CYCLES.map(cycleBtn)}</div>
+        {RUN_SLOTS.map((s) => (
+          <div
+            key={s}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 110px',
+              gap: 8,
+              alignItems: 'center',
+              padding: '6px 0',
+              borderBottom: '1px solid rgba(255,255,255,0.04)',
+            }}
+          >
+            <span style={{ fontSize: 13, color: C.off }}>
+              {RUN_SLOT_LABEL[s]}
+              {s === 'quality' && <span style={{ fontSize: 10, color: C.muted }}> (runs easy in C1)</span>}
+            </span>
+            <input
+              data-run-target={s}
+              aria-label={`${RUN_SLOT_LABEL[s]} target, cycle ${cycle} (km)`}
+              style={{ ...inp, padding: '6px', textAlign: 'center' }}
+              type="number"
+              step="0.5"
+              inputMode="decimal"
+              value={runT[cycle][s]}
+              onChange={(e) => setR(cycle, s, e.target.value)}
+            />
+          </div>
+        ))}
+        <div style={{ fontSize: 9.5, color: C.muted, marginTop: 6, textAlign: 'right' }}>km · target, not prescription</div>
       </Card>
 
       {err && (

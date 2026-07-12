@@ -20,6 +20,9 @@ import type {
   TrendsData,
   RecoveryProtocol,
   RecoveryLogMap,
+  Run,
+  RunDraft,
+  RunTargetsByCycle,
 } from '../engine/types'
 import type { Joint, Phase } from '../engine/recovery-content'
 
@@ -87,7 +90,13 @@ export async function setMacroStatus(id: string, status: MacroStatus): Promise<v
 
 export async function updateMacro(
   id: string,
-  { number, startISO, weeks, status }: { number?: number; startISO?: string; weeks?: number; status?: MacroStatus } = {}
+  {
+    number,
+    startISO,
+    weeks,
+    status,
+    refPaceS,
+  }: { number?: number; startISO?: string; weeks?: number; status?: MacroStatus; refPaceS?: number | null } = {}
 ): Promise<Macro> {
   assertWritable()
   const patch: Record<string, unknown> = {}
@@ -95,9 +104,16 @@ export async function updateMacro(
   if (startISO !== undefined) patch.start_date = startISO
   if (weeks !== undefined) patch.weeks = weeks
   if (status !== undefined) patch.status = status
+  if (refPaceS !== undefined) patch.ref_pace_s = refPaceS
   const { data, error } = await supabase.from('macros').update(patch).eq('id', id).select().single()
   if (error) throw error
   return M.rowToMacro(data)
+}
+
+// Giant Run reference pace P (s/km; null = talk-test mode) — the TT confirm flow
+// and Setup both land here. Stored exactly as given (never rounded).
+export async function setMacroRefPace(id: string, refPaceS: number | null): Promise<Macro> {
+  return updateMacro(id, { refPaceS })
 }
 
 // ---- working weights (per-cycle H/M/L) ------------------------------------
@@ -190,6 +206,76 @@ export async function deleteSession(id: string): Promise<void> {
   }
 }
 
+// ---- runs (The Giant Run) ---------------------------------------------------
+export async function getRuns(macroId: string): Promise<Run[]> {
+  const { data, error } = await supabase.from('runs').select('*').eq('macro_id', macroId).order('date', { ascending: false })
+  if (error) throw error
+  return (data || []).map(M.rowToRun)
+}
+
+// All runs across every macro (RLS-scoped), newest first — Data page + Trends.
+export async function getAllRuns(): Promise<Run[]> {
+  const { data, error } = await supabase.from('runs').select('*').order('date', { ascending: false })
+  if (error) throw error
+  return (data || []).map(M.rowToRun)
+}
+
+// Idempotent (upsert on the human-readable id) and offline-queued, exactly like
+// saveSession: offline or on a network failure the write is queued and resolves
+// optimistically; flushQueue() replays it on reconnect.
+export async function saveRun(run: RunDraft): Promise<Run> {
+  assertWritable()
+  const row = M.runToRow(run)
+  if (isOffline()) {
+    queue.enqueue({ kind: 'saveRun', payload: row })
+    return M.rowToRun(row)
+  }
+  try {
+    const { data, error } = await supabase.from('runs').upsert(row, { onConflict: 'id' }).select().single()
+    if (error) throw error
+    return M.rowToRun(data)
+  } catch (e) {
+    if (isNetworkError(e)) {
+      queue.enqueue({ kind: 'saveRun', payload: row })
+      return M.rowToRun(row)
+    }
+    throw e
+  }
+}
+
+export async function deleteRun(id: string): Promise<void> {
+  assertWritable()
+  if (isOffline()) {
+    queue.enqueue({ kind: 'deleteRun', payload: { id } })
+    return
+  }
+  try {
+    const { error } = await supabase.from('runs').delete().eq('id', id)
+    if (error) throw error
+  } catch (e) {
+    if (isNetworkError(e)) {
+      queue.enqueue({ kind: 'deleteRun', payload: { id } })
+      return
+    }
+    throw e
+  }
+}
+
+// ---- run targets (per-cycle distance guidance) ------------------------------
+export async function getRunTargets(macroId: string): Promise<RunTargetsByCycle> {
+  const { data, error } = await supabase.from('run_targets').select('*').eq('macro_id', macroId)
+  if (error) throw error
+  return M.rowsToRunTargets(data || [])
+}
+
+// bySlot = { easy: 3, quality: 3, long: 5 } for a single cycle.
+export async function saveRunTargets(macroId: string, cycle: number, bySlot: Record<string, unknown>): Promise<void> {
+  assertWritable()
+  const rows = M.runTargetsToRows(macroId, cycle, bySlot)
+  const { error } = await supabase.from('run_targets').upsert(rows, { onConflict: 'macro_id,cycle,run_type' })
+  if (error) throw error
+}
+
 // Replay queued offline writes. Call on reconnect and at startup.
 const QUEUE_EXECUTORS: QueueExecutors = {
   async saveSession(row) {
@@ -198,6 +284,14 @@ const QUEUE_EXECUTORS: QueueExecutors = {
   },
   async deleteSession({ id }) {
     const { error } = await supabase.from('sessions').delete().eq('id', id)
+    if (error) throw error
+  },
+  async saveRun(row) {
+    const { error } = await supabase.from('runs').upsert(row, { onConflict: 'id' })
+    if (error) throw error
+  },
+  async deleteRun({ id }) {
+    const { error } = await supabase.from('runs').delete().eq('id', id)
     if (error) throw error
   },
 }
@@ -276,7 +370,9 @@ export async function deleteTestingResult(id: string): Promise<void> {
 // ---- multi-macro archiving -------------------------------------------------
 // Complete the current macro and start the next one, carrying the current
 // macro's C3 working + accessory weights forward as the new macro's C1
-// (start-of-macro rule). The old macro and all its data are preserved.
+// (start-of-macro rule), plus the Giant Run anchor state: the reference pace P
+// (already updated by the TT confirm flow when taken) and the C3 run targets.
+// The old macro and all its data are preserved.
 export async function rollToNextMacro({
   currentMacroId,
   currentMacroNumber,
@@ -287,11 +383,20 @@ export async function rollToNextMacro({
   newStartISO: string
 }): Promise<Macro> {
   assertWritable()
-  const [w, acc] = await Promise.all([getWorkingWeights(currentMacroId), getAccessoryWeights(currentMacroId)])
+  const [w, acc, rt, current] = await Promise.all([
+    getWorkingWeights(currentMacroId),
+    getAccessoryWeights(currentMacroId),
+    getRunTargets(currentMacroId),
+    supabase.from('macros').select('*').eq('id', currentMacroId).single(),
+  ])
+  if (current.error) throw current.error
   await setMacroStatus(currentMacroId, 'completed')
   const next = await createMacro({ number: currentMacroNumber + 1, startISO: newStartISO, status: 'active' })
   if (w[3]) await saveWorkingWeights(next.id, 1, w[3])
   if (acc[3]) await saveAccessoryWeights(next.id, 1, acc[3])
+  if (rt[3]) await saveRunTargets(next.id, 1, rt[3])
+  const refPaceS = M.rowToMacro(current.data).refPaceS
+  if (refPaceS != null) return updateMacro(next.id, { refPaceS })
   return next
 }
 
@@ -300,7 +405,7 @@ export async function rollToNextMacro({
 // unfiltered select returns only their rows across all macros). Per-macro weight
 // grids are grouped by macro_id; deload week_keys are globally unique.
 export async function loadTrends(): Promise<TrendsData> {
-  const [macros, sess, wRows, aRows, tRows, dRows, breakDays] = await Promise.all([
+  const [macros, sess, wRows, aRows, tRows, dRows, breakDays, rRows] = await Promise.all([
     getMacros(),
     supabase.from('sessions').select('*'),
     supabase.from('working_weights').select('*'),
@@ -308,8 +413,9 @@ export async function loadTrends(): Promise<TrendsData> {
     supabase.from('testing_results').select('*'),
     supabase.from('deloads').select('*'),
     getBreakDays(),
+    supabase.from('runs').select('*'),
   ])
-  for (const r of [sess, wRows, aRows, tRows, dRows]) if (r.error) throw r.error
+  for (const r of [sess, wRows, aRows, tRows, dRows, rRows]) if (r.error) throw r.error
 
   const byMacro = <T extends { macro_id: string }>(rows: T[]) => {
     const out: Record<string, T[]> = {}
@@ -333,6 +439,7 @@ export async function loadTrends(): Promise<TrendsData> {
     testing: (tRows.data || []).map(M.rowToTesting),
     deloads: M.rowsToDeloads(dRows.data || []),
     breakDays,
+    runs: (rRows.data || []).map(M.rowToRun),
   }
 }
 
@@ -430,13 +537,15 @@ export async function setTendonLog(protocolId: string, tendonKey: string, dateIS
 
 // ---- bundle (one round-trip for app boot) ---------------------------------
 export async function loadMacroBundle(macroId: string): Promise<MacroBundle> {
-  const [weights, accessory, sessions, deloads, breakDays, testing] = await Promise.all([
+  const [weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets] = await Promise.all([
     getWorkingWeights(macroId),
     getAccessoryWeights(macroId),
     getSessions(macroId),
     getDeloads(macroId),
     getBreakDays(),
     getTestingResults(macroId),
+    getRuns(macroId),
+    getRunTargets(macroId),
   ])
-  return { weights, accessory, sessions, deloads, breakDays, testing }
+  return { weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets }
 }

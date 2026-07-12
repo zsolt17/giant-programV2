@@ -42,6 +42,8 @@ async function main() {
   console.log('Isolated test macro (never touches real data)')
   const stale = await repo.getMacroByNumber(TEST_MACRO_NUMBER)
   if (stale) await supabase.from('macros').delete().eq('id', stale.id) // clean up a prior crashed run
+  const staleNext = await repo.getMacroByNumber(TEST_MACRO_NUMBER + 1) // roll-forward throwaway from a crashed run
+  if (staleNext) await supabase.from('macros').delete().eq('id', staleNext.id)
   const macro = await repo.createMacro({ number: TEST_MACRO_NUMBER, startISO: '2099-01-04', status: 'completed' })
   ok('created throwaway macro', !!macro && macro.number === TEST_MACRO_NUMBER, macro)
   const id = macro.id
@@ -146,9 +148,64 @@ async function main() {
     await repo.setBreakDay('2099-01-01', false)
     ok('break day unset', !(await repo.getBreakDays())['2099-01-01'])
 
+    console.log('Giant Run (reference pace, runs, distance targets)')
+    // Reference pace P: stored exactly (never rounded), null = talk-test mode.
+    let m999 = await repo.setMacroRefPace(id, 337)
+    ok('ref pace set = 337 s/km (stored exact)', m999.refPaceS === 337, m999.refPaceS)
+    m999 = await repo.setMacroRefPace(id, null)
+    ok('ref pace cleared -> talk-test mode (null)', m999.refPaceS === null, m999.refPaceS)
+    await repo.setMacroRefPace(id, 337) // leave set for the roll-carry test below
+
+    const rid = '2099-01-05-run-E'
+    const savedRun = await repo.saveRun({
+      id: rid, macroId: id, date: '2099-01-05', cycle: 1, week: 1, weekType: 'training',
+      runType: 'easy', distanceKm: 5.2, durationS: 1980, avgHr: 148, completion: 'completed', notes: 'smoke run',
+    })
+    ok('run saved, distance = 5.2', savedRun.distanceKm === 5.2, savedRun.distanceKm)
+    ok('run duration/HR round-trip', savedRun.durationS === 1980 && savedRun.avgHr === 148, savedRun)
+    // "" -> NULL normalization on the raw run row; completion mapped back to 'completed'.
+    await repo.saveRun({ ...savedRun, avgHr: '', completion: '' })
+    const { data: rawRun } = await supabase.from('runs').select('avg_hr,completion').eq('id', rid).single()
+    ok('empty avgHr/completion stored as NULL', rawRun.avg_hr === null && rawRun.completion === null, rawRun)
+    let runs = await repo.getRuns(id)
+    ok('null completion reads back as completed', runs.find((r) => r.id === rid)?.completion === 'completed')
+    // Idempotent update on the same id.
+    await repo.saveRun({ ...savedRun, completion: 'cut_fatigue', durationS: 2100 })
+    runs = await repo.getRuns(id)
+    ok('run update: completion -> cut_fatigue', runs.find((r) => r.id === rid)?.completion === 'cut_fatigue')
+    ok('no duplicate run id', runs.filter((r) => r.id === rid).length === 1)
+    ok('getAllRuns spans macros (includes throwaway run)', (await repo.getAllRuns()).some((r) => r.id === rid))
+    await repo.deleteRun(rid)
+    ok('run deleted', !(await repo.getRuns(id)).find((r) => r.id === rid))
+
+    // Distance targets: per-cycle upsert + isolation, like accessory weights.
+    await repo.saveRunTargets(id, 1, { easy: 3, quality: 3, long: 5 })
+    await repo.saveRunTargets(id, 3, { easy: 4, quality: 4, long: 7 })
+    let rt = await repo.getRunTargets(id)
+    ok('C1 run targets = 3/3/5', rt?.[1]?.easy === 3 && rt?.[1]?.quality === 3 && rt?.[1]?.long === 5, rt?.[1])
+    ok('per-cycle isolation: C3 long = 7', rt?.[3]?.long === 7, rt?.[3])
+    await repo.saveRunTargets(id, 1, { easy: 3.5 })
+    rt = await repo.getRunTargets(id)
+    ok('target upsert updates in place -> 3.5', rt?.[1]?.easy === 3.5, rt?.[1]?.easy)
+
     console.log('Bundle')
     const bundle = await repo.loadMacroBundle(id)
     ok('bundle returns all sections', !!(bundle && bundle.weights && bundle.sessions && 'deloads' in bundle))
+    ok('bundle includes runs + runTargets', Array.isArray(bundle.runs) && bundle.runTargets?.[1]?.easy === 3.5, bundle.runTargets?.[1])
+
+    // Roll forward: C3 weights/accessory/run-targets -> new C1, ref pace copied.
+    // The rolled macro (number 1000) is briefly ACTIVE — deleted right here, and
+    // the finally block also sweeps it so a crash can't leave it behind.
+    console.log('Roll to next macro (carries C3 + ref pace)')
+    const next = await repo.rollToNextMacro({ currentMacroId: id, currentMacroNumber: TEST_MACRO_NUMBER, newStartISO: '2099-04-20' })
+    ok('next macro created (number 1000)', next.number === TEST_MACRO_NUMBER + 1, next.number)
+    ok('ref pace carried -> 337', next.refPaceS === 337, next.refPaceS)
+    const nrt = await repo.getRunTargets(next.id)
+    ok('C3 run targets carried as new C1 (long 7)', nrt?.[1]?.long === 7, nrt?.[1])
+    const nw = await repo.getWorkingWeights(next.id)
+    ok('C3 weights carried as new C1 (deadlift 170)', nw?.[1]?.deadlift?.hard === 170, nw?.[1]?.deadlift)
+    await supabase.from('macros').delete().eq('id', next.id)
+    ok('rolled throwaway macro removed', !(await repo.getMacroByNumber(TEST_MACRO_NUMBER + 1)))
 
     // Recovery (Tendon Health). Only one ACTIVE protocol per user is allowed (DB index),
     // so skip the write round-trip if the user already has a real active protocol.
@@ -172,9 +229,12 @@ async function main() {
       ok('recovery protocol cleaned up', true)
     }
   } finally {
-    console.log('Cleanup (delete throwaway macro — cascades to all its rows)')
+    console.log('Cleanup (delete throwaway macros — cascades to all their rows)')
     await supabase.from('macros').delete().eq('id', id)
     ok('throwaway macro + children removed', !(await repo.getMacroByNumber(TEST_MACRO_NUMBER)))
+    // Sweep the roll-forward throwaway (ACTIVE!) in case the run crashed mid-roll.
+    const leftoverNext = await repo.getMacroByNumber(TEST_MACRO_NUMBER + 1)
+    if (leftoverNext) await supabase.from('macros').delete().eq('id', leftoverNext.id)
     await signOut()
   }
 

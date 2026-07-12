@@ -19,6 +19,11 @@ import type {
   TestingResult,
   RecoveryProtocol,
   RecoveryLogMap,
+  Run,
+  RunDraft,
+  RunType,
+  RunSlotKey,
+  RunTargetsByCycle,
 } from '../engine/types'
 import type { Joint, Phase } from '../engine/recovery-content'
 import { expandDayTops } from '../engine/loading'
@@ -33,6 +38,7 @@ export interface MacroRow {
   start_date: string
   weeks: number
   status: MacroStatus
+  ref_pace_s: number | null // Giant Run reference pace P (s/km); null = talk-test mode
 }
 // Single-anchor model: only the Hard top set is stored. Medium/Light day tops and
 // the within-day ladder are computed live (see rowsToWeights / engine/loading.ts).
@@ -90,7 +96,7 @@ export interface TestingRow {
 
 // ---- macro -----------------------------------------------------------------
 export function rowToMacro(r: MacroRow): Macro {
-  return { id: r.id, number: r.number, startISO: r.start_date, weeks: r.weeks, status: r.status }
+  return { id: r.id, number: r.number, startISO: r.start_date, weeks: r.weeks, status: r.status, refPaceS: toNum(r.ref_pace_s) }
 }
 
 // ---- working weights -------------------------------------------------------
@@ -255,6 +261,80 @@ export function testingToRow(t: TestingResult): TestingRow {
   }
   if (t.id) row.id = t.id
   return row
+}
+
+// ---- runs (The Giant Run) ---------------------------------------------------
+export interface RunRow {
+  id: string
+  macro_id: string
+  date: string
+  cycle: number | null
+  week: number | null
+  week_type: WeekType
+  run_type: string
+  distance_km: number | null
+  duration_s: number | null
+  avg_hr: number | null
+  completion: string | null
+  notes: string | null
+  updated_at?: string
+}
+export function rowToRun(r: RunRow): Run {
+  return {
+    id: r.id,
+    macroId: r.macro_id,
+    date: r.date,
+    cycle: r.cycle,
+    week: r.week,
+    weekType: r.week_type,
+    runType: r.run_type as RunType,
+    distanceKm: toNum(r.distance_km),
+    durationS: toNum(r.duration_s),
+    avgHr: toNum(r.avg_hr),
+    completion: r.completion || 'completed', // legacy null → treated as completed
+    notes: r.notes || '',
+    updatedAt: r.updated_at,
+  }
+}
+export function runToRow(r: RunDraft): RunRow {
+  return {
+    id: r.id,
+    macro_id: r.macroId,
+    date: r.date,
+    cycle: r.cycle ?? null,
+    week: r.week ?? null,
+    week_type: r.weekType,
+    run_type: r.runType,
+    distance_km: toNum(r.distanceKm),
+    duration_s: toNum(r.durationS),
+    avg_hr: toNum(r.avgHr),
+    completion: blankToNull(r.completion),
+    notes: blankToNull(r.notes),
+  }
+}
+
+// ---- run targets (per-cycle distance guidance, accessory-weights pattern) ---
+export interface RunTargetRow {
+  macro_id: string
+  cycle: number
+  run_type: string
+  km: number | null
+}
+export function rowsToRunTargets(rows: RunTargetRow[]): RunTargetsByCycle {
+  const out: RunTargetsByCycle = {}
+  ;(rows || []).forEach((r) => {
+    out[r.cycle] = out[r.cycle] || {}
+    out[r.cycle][r.run_type as RunSlotKey] = toNum(r.km)
+  })
+  return out
+}
+export function runTargetsToRows(macroId: string, cycle: number, bySlot: Record<string, unknown>): RunTargetRow[] {
+  return Object.keys(bySlot).map((run_type) => ({
+    macro_id: macroId,
+    cycle: Number(cycle),
+    run_type,
+    km: toNum(bySlot[run_type]),
+  }))
 }
 
 // ---- recovery (protocols + per-tendon daily logs) --------------------------
