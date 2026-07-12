@@ -340,6 +340,11 @@ export function App() {
     return saved
   }, [])
 
+  const onDeleteRun = useCallback(async (id: string) => {
+    await repo.deleteRun(id)
+    setRuns((prev) => prev.filter((r) => r.id !== id))
+  }, [])
+
   // TT confirm flow + Setup both set the Giant Run reference pace P (never silent
   // from a save — always behind an explicit confirm tap).
   const onSetRefPace = useCallback(
@@ -502,11 +507,17 @@ export function App() {
           deloads={deloads}
           breakDays={breakDays}
           testingResults={testing}
+          runs={runs}
+          runTargets={runTargets}
+          refPaceS={macro.refPaceS}
           onToggleBreak={onToggleBreak}
           onSaveSession={onSaveSession}
           onDeleteSession={onDeleteSession}
           onSaveTestingResult={onSaveTestingResult}
           onDeleteTestingResult={onDeleteTestingResult}
+          onSaveRun={onSaveRun}
+          onDeleteRun={onDeleteRun}
+          onSetRefPace={onSetRefPace}
         />
       )}
 

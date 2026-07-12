@@ -6,10 +6,10 @@ import { PositionHeader, fmtClock, errMsg } from './controls'
 import { useWakeLock } from './useWakeLock'
 import { SessionForm, buildBlankSession } from './SessionForm'
 import { TestingSessionView } from './TestingSession'
-import { RunForm, buildBlankRun } from './RunForm'
+import { RunForm, buildBlankRun, SetPaceChip } from './RunForm'
 import { ROTATION, SCHEMES, LIFT_LABEL, SIGNALS, SECONDARY_ITEM, RUN_TYPE_LABEL } from '../engine/constants'
 import { deloadTop } from '../engine/loading'
-import { runSlotFor, derivedPaceS, fmtPace } from '../engine/runs'
+import { runSlotFor } from '../engine/runs'
 import { todayISO, mondayOf, parseLocalDate, isoLocal } from '../engine/date-engine'
 import { computeWeekSignals, shouldRecommendDeload, usedDeloadThisMeso, weekKeyFor } from '../engine/deload-rule'
 import type {
@@ -374,59 +374,6 @@ function RunDay({ slot, macroId, refPaceS, targetKm, deloadWeek, existing, onSav
       )}
       {slot.runType === 'tt' && existing && onSetRefPace && <SetPaceChip run={existing} refPaceS={refPaceS} onSetRefPace={onSetRefPace} />}
     </div>
-  )
-}
-
-// After a saved time trial: an explicit, confirm-gated offer to make the TT pace
-// the macro's new reference pace P. Never silent — a save alone never moves P.
-// (P then carries into the next macro on "Start next macro", like C3→C1 weights.)
-function SetPaceChip({ run, refPaceS, onSetRefPace }: { run: Run; refPaceS: number | null; onSetRefPace: (p: number | null) => Promise<void> }) {
-  const [confirm, setConfirm] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState('')
-  const pace = derivedPaceS(run.distanceKm, run.durationS)
-  if (pace == null) return null
-  const newP = Math.round(pace) // whole seconds for storage; NOT the 5 s/km prescription rounding
-  if (refPaceS === newP)
-    return (
-      <div style={{ marginTop: 12, fontSize: 12, color: C.green }}>Reference pace P is set to this result ({fmtPace(newP)} /km) ✓</div>
-    )
-  async function apply() {
-    setBusy(true)
-    setErr('')
-    try {
-      await onSetRefPace(newP)
-      setConfirm(false)
-    } catch (e) {
-      setErr(errMsg(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-  return (
-    <Card style={{ marginTop: 12, border: `1px solid ${C.gold}`, background: 'rgba(201,168,76,0.10)' }}>
-      {!confirm ? (
-        <button
-          onClick={() => setConfirm(true)}
-          style={{ background: 'transparent', color: C.gold, border: `1px solid ${C.gold}`, borderRadius: 2, padding: '10px 14px', fontSize: 13, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', width: '100%' }}
-        >
-          Set as new reference pace P → {fmtPace(newP)} /km
-        </button>
-      ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, color: C.off }}>
-            Replace {refPaceS != null ? `current P (${fmtPace(refPaceS)} /km)` : 'talk-test mode'} with {fmtPace(newP)} /km?
-          </span>
-          <button onClick={apply} disabled={busy} style={{ background: C.gold, color: C.dark, border: 'none', borderRadius: 2, padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: busy ? 'wait' : 'pointer' }}>
-            {busy ? 'Saving…' : 'Confirm'}
-          </button>
-          <button onClick={() => setConfirm(false)} disabled={busy} aria-label="Cancel setting reference pace" style={{ background: 'transparent', color: C.muted, border: `1px solid ${C.muted}`, borderRadius: 2, padding: '8px 12px', fontSize: 12, cursor: 'pointer' }}>
-            <span aria-hidden="true">✕</span>
-          </button>
-        </div>
-      )}
-      {err && <div style={{ marginTop: 8, fontSize: 12, color: C.red }}>Couldn't save — {err}.</div>}
-    </Card>
   )
 }
 

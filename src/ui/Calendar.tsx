@@ -2,9 +2,11 @@ import { useState, useRef, useEffect } from 'react'
 import { C, cardStyle, HEADING, pillColor } from './theme'
 import { Card } from './components'
 import { SessionModal } from './SessionModal'
+import { RunModal } from './RunModal'
 import { enumerateMacro, parseLocalDate, isoLocal, mondayOf, todayISO } from '../engine/date-engine'
-import { LIFT_SHORT } from '../engine/constants'
+import { LIFT_SHORT, RUN_TYPE_LABEL } from '../engine/constants'
 import { fmt } from '../engine/loading'
+import { runSlotsForWeek, derivedPaceS, fmtPace } from '../engine/runs'
 import type {
   MacroCell,
   Session,
@@ -14,6 +16,10 @@ import type {
   DeloadMap,
   BreakDayMap,
   TestingResult,
+  Run,
+  RunDraft,
+  RunSlot,
+  RunTargetsByCycle,
 } from '../engine/types'
 
 function shortDate(iso: string): string {
@@ -33,22 +39,32 @@ interface CalendarProps {
   deloads: DeloadMap
   breakDays: BreakDayMap
   testingResults: TestingResult[]
+  runs?: Run[]
+  runTargets?: RunTargetsByCycle
+  refPaceS?: number | null
   onToggleBreak: (iso: string, on: boolean) => void
   onSaveSession: (record: SessionDraft) => Promise<Session>
   onDeleteSession: (id: string) => Promise<void>
   onSaveTestingResult: (r: TestingResult) => Promise<TestingResult>
   onDeleteTestingResult: (id: string) => void
+  onSaveRun?: (record: RunDraft) => Promise<Run>
+  onDeleteRun?: (id: string) => Promise<void>
+  onSetRefPace?: (refPaceS: number | null) => Promise<void>
 }
 
-export function Calendar({ startISO, macroNumber, macroId, weights, accessory, sessions, deloads, breakDays, testingResults, onToggleBreak, onSaveSession, onDeleteSession, onSaveTestingResult, onDeleteTestingResult }: CalendarProps) {
+export function Calendar({ startISO, macroNumber, macroId, weights, accessory, sessions, deloads, breakDays, testingResults, runs = [], runTargets = {}, refPaceS = null, onToggleBreak, onSaveSession, onDeleteSession, onSaveTestingResult, onDeleteTestingResult, onSaveRun, onDeleteRun, onSetRefPace }: CalendarProps) {
   const rows = enumerateMacro(startISO, macroNumber)
   const todayStr = todayISO()
-  const [modal, setModal] = useState<{ cell: MacroCell } | null>(null)
+  const [modal, setModal] = useState<{ cell: MacroCell } | { runSlot: RunSlot } | null>(null)
   const currentRowRef = useRef<HTMLDivElement | null>(null)
 
   const loggedOnDate: Record<string, Session> = {}
   sessions.forEach((s) => {
     loggedOnDate[s.date] = s
+  })
+  const runOnDate: Record<string, Run> = {}
+  runs.forEach((r) => {
+    runOnDate[r.date] = r
   })
 
   const currentWeekIndex = (() => {
@@ -71,6 +87,16 @@ export function Calendar({ startISO, macroNumber, macroId, weights, accessory, s
     if (loggedOnDate[cell.date]) return 'logged'
     if (cell.date === todayStr) return 'today'
     if (cell.date < todayStr) return 'missed'
+    return 'upcoming'
+  }
+
+  // Same state semantics for run cells — except OPTIONAL run days (testing
+  // Tue/Thu, all of deload W15) never go red: deliberate rest isn't a miss.
+  function runCellState(slot: RunSlot): CellState {
+    if (breakDays[slot.date]) return 'break'
+    if (runOnDate[slot.date]) return 'logged'
+    if (slot.date === todayStr) return 'today'
+    if (slot.date < todayStr) return slot.optional ? 'upcoming' : 'missed'
     return 'upcoming'
   }
 
@@ -168,11 +194,51 @@ export function Calendar({ startISO, macroNumber, macroId, weights, accessory, s
                 )
               })}
             </div>
+
+            {/* Giant Run row — Tue/Thu/Sat under the lift row (the week block grows
+                vertically; cells stay 3-up so iPhone sizing matches the lift row). */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginTop: 6 }}>
+              {runSlotsForWeek(startISO, macroNumber, row.weekIndex).map((slot) => {
+                const st = runCellState(slot)
+                const loggedRun = runOnDate[slot.date]
+                const pace = loggedRun ? derivedPaceS(loggedRun.distanceKm, loggedRun.durationS) : null
+                return (
+                  <button
+                    key={slot.date}
+                    onClick={() => setModal({ runSlot: slot })}
+                    style={{
+                      background: st === 'today' ? 'rgba(201,168,76,0.12)' : 'rgba(255,255,255,0.02)',
+                      border: `1px solid ${st === 'today' ? C.gold : 'rgba(255,255,255,0.06)'}`,
+                      borderLeft: `3px solid ${STATE_COLOR[st]}`,
+                      borderRadius: 2,
+                      padding: '5px 8px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      color: C.off,
+                      fontFamily: 'inherit',
+                      minHeight: 44,
+                    }}
+                  >
+                    <div style={{ fontSize: 9, color: C.muted, marginBottom: 2 }}>{shortDate(slot.date)}</div>
+                    <div style={{ fontSize: 10.5, fontWeight: 600, color: STATE_COLOR[st] === C.muted ? C.off : STATE_COLOR[st] }}>
+                      {slot.runType === 'tt' ? '5k TT' : `${RUN_TYPE_LABEL[slot.runType]} run`}
+                      {slot.optional && <span style={{ fontSize: 8.5, color: C.muted, fontWeight: 400 }}> · opt</span>}
+                    </div>
+                    {loggedRun && loggedRun.distanceKm != null && (
+                      <div style={{ fontSize: 9, color: C.muted, marginTop: 2 }}>
+                        {loggedRun.distanceKm} km{pace != null ? ` · ${fmtPace(pace)}/km` : ''}
+                      </div>
+                    )}
+                    {st === 'break' && <div style={{ fontSize: 9, color: C.blue, marginTop: 2 }}>break</div>}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )
       })}
 
-      {modal && (
+      {modal && 'cell' in modal && (
         <SessionModal
           cell={modal.cell}
           macroNumber={macroNumber}
@@ -188,6 +254,24 @@ export function Calendar({ startISO, macroNumber, macroId, weights, accessory, s
           testingResults={testingResults}
           onSaveTestingResult={onSaveTestingResult}
           onDeleteTestingResult={onDeleteTestingResult}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal && 'runSlot' in modal && onSaveRun && onDeleteRun && (
+        <RunModal
+          slot={modal.runSlot}
+          macroNumber={macroNumber}
+          macroId={macroId}
+          refPaceS={refPaceS}
+          runTargets={runTargets}
+          deloads={deloads}
+          existing={runOnDate[modal.runSlot.date]}
+          isBreak={!!breakDays[modal.runSlot.date]}
+          onToggleBreak={onToggleBreak}
+          onSaveRun={onSaveRun}
+          onDeleteRun={onDeleteRun}
+          onSetRefPace={onSetRefPace}
           onClose={() => setModal(null)}
         />
       )}
