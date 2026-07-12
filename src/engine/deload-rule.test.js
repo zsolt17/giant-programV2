@@ -92,3 +92,43 @@ test('helpers: weekKeyFor + usedDeloadThisMeso', () => {
   assert.equal(usedDeloadThisMeso({ M2C3W2: true }, 2, 3), true)
   assert.equal(usedDeloadThisMeso({ M2C3W2: true }, 2, 1), false)
 })
+
+// ---- Giant Run pooling ------------------------------------------------------
+function R(id, over = {}) {
+  return {
+    id, macroId: 'm', date: '2026-04-21', cycle: 1, week: 2, weekType: 'training',
+    runType: 'easy', distanceKm: null, durationS: null, avgHr: null, completion: 'completed', notes: '',
+    ...over,
+  }
+}
+
+test('lift + run signals pool: 2 lift occ (1 session) + 1 run occ -> fired', () => {
+  const sessions = [S('a', { rpe: 'R9.5', volDone: false })] // 2 occurrences, 1 session
+  const runs = [R('r1', { completion: 'cut_fatigue' })] // R1: +1 occurrence, 2nd "session"
+  const sig = computeWeekSignals(sessions, runs)
+  assert.equal(sig.occurrences, 3)
+  assert.equal(sig.sessionCount, 2)
+  assert.equal(sig.fired, true)
+  assert.equal(sig.types.has('R1'), true)
+})
+
+test('cut_schedule run is neutral; runs alone can fire the pooled trigger', () => {
+  assert.equal(computeWeekSignals([], [R('r1', { completion: 'cut_schedule' })]).occurrences, 0)
+  const sig = computeWeekSignals([], [
+    R('r1', { completion: 'cut_fatigue' }),
+    R('r2', { id: 'r2', completion: 'felt_heavy' }),
+    R('r3', { id: 'r3', completion: 'felt_heavy' }),
+  ])
+  assert.equal(sig.occurrences, 3)
+  assert.equal(sig.fired, true)
+})
+
+test('shouldRecommendDeload sees run-only weeks', () => {
+  const runs = [
+    R('r1', { completion: 'cut_fatigue' }),
+    R('r2', { id: 'r2', completion: 'felt_heavy' }),
+    R('r3', { id: 'r3', completion: 'felt_heavy' }),
+  ]
+  assert.equal(shouldRecommendDeload({ prevWeekRuns: runs }), true)
+  assert.equal(shouldRecommendDeload({ prevWeekRuns: runs, breakComing: true }), false)
+})

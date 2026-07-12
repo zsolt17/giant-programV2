@@ -1,33 +1,46 @@
 import { C } from './theme'
 import { Card } from './components'
 import { blockTitle, Row } from './controls'
-import { SIGNALS } from '../engine/constants'
+import { SIGNALS, RUN_SIGNALS } from '../engine/constants'
 import { computeWeekSignals } from '../engine/deload-rule'
 import { daysSinceStart } from '../engine/recovery'
-import type { Session, DeloadMap } from '../engine/types'
+import type { Session, Run, DeloadMap } from '../engine/types'
 
-export function Deload({ sessions, deloads, macroNumber, startISO }: { sessions: Session[]; deloads: DeloadMap; macroNumber: number; startISO: string }) {
+export function Deload({ sessions, runs = [], deloads, macroNumber, startISO }: { sessions: Session[]; runs?: Run[]; deloads: DeloadMap; macroNumber: number; startISO: string }) {
   const weeks: Record<string, Session[]> = {}
+  const runWeeks: Record<string, Run[]> = {}
   const labels: Record<string, string> = {}
   const isTesting: Record<string, boolean> = {}
-  sessions.forEach((s) => {
-    let k: string
-    if (s.weekType === 'testing') {
-      // Test sessions (companion rows) have no cycle/week — bucket by the
-      // macro-relative week (13/14) derived from the start date (local math).
-      // 'W' sorts after 'C', so these land first after the reverse() below.
-      const w = Math.floor(daysSinceStart(startISO, s.date) / 7) + 1
-      k = `M${macroNumber}W${w}`
+  // Shared bucketing for sessions AND runs: training rows key by (cycle, week);
+  // testing rows (null cycle/week) key by the macro-relative week (13/14)
+  // derived from the start date. 'W' sorts after 'C', so testing buckets land
+  // first after the reverse() below.
+  function bucketKey(weekType: string, cycle: number | null, week: number | null, date: string): string | null {
+    if (weekType === 'testing') {
+      const w = Math.floor(daysSinceStart(startISO, date) / 7) + 1
+      const k = `M${macroNumber}W${w}`
       labels[k] = `W${w} · Testing`
       isTesting[k] = true
-    } else if (s.cycle && s.week) {
-      k = `M${macroNumber}C${s.cycle}W${s.week}`
-      labels[k] = `C${s.cycle} · W${s.week}`
-    } else return
-    weeks[k] = weeks[k] || []
-    weeks[k].push(s)
+      return k
+    }
+    if (cycle && week) {
+      const k = `M${macroNumber}C${cycle}W${week}`
+      labels[k] = `C${cycle} · W${week}`
+      return k
+    }
+    return null
+  }
+  sessions.forEach((s) => {
+    const k = bucketKey(s.weekType, s.cycle, s.week, s.date)
+    if (!k) return
+    ;(weeks[k] = weeks[k] || []).push(s)
   })
-  const keys = Object.keys(weeks).sort().reverse()
+  runs.forEach((r) => {
+    const k = bucketKey(r.weekType, r.cycle, r.week, r.date)
+    if (!k) return
+    ;(runWeeks[k] = runWeeks[k] || []).push(r)
+  })
+  const keys = [...new Set([...Object.keys(weeks), ...Object.keys(runWeeks)])].sort().reverse()
 
   return (
     <div>
@@ -39,7 +52,7 @@ export function Deload({ sessions, deloads, macroNumber, startISO }: { sessions:
         </div>
         {keys.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>No data yet.</div>}
         {keys.map((k) => {
-          const sig = computeWeekSignals(weeks[k])
+          const sig = computeWeekSignals(weeks[k] || [], runWeeks[k] || [], runs)
           const confirmed = deloads && deloads[k]
           // Testing weeks: signals stay visible as data, but the trigger label is
           // suppressed — the scheduled W15 deload is already next; the reactive
@@ -65,7 +78,10 @@ export function Deload({ sessions, deloads, macroNumber, startISO }: { sessions:
               )}
               {sig.occurrences > 0 && (
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
-                  {[...sig.types].map((id) => SIGNALS.find((x) => x.id === id)?.label).join(' · ')}
+                  {[...sig.types]
+                    .map((id) => (SIGNALS.find((x) => x.id === id) || RUN_SIGNALS.find((x) => x.id === id))?.label)
+                    .filter(Boolean)
+                    .join(' · ')}
                 </div>
               )}
             </div>
@@ -78,9 +94,13 @@ export function Deload({ sessions, deloads, macroNumber, startISO }: { sessions:
         {SIGNALS.map((s) => (
           <Row key={s.id} a={s.id} b={s.label} c="" />
         ))}
+        {RUN_SIGNALS.map((s) => (
+          <Row key={s.id} a={s.id} b={s.label} c="run" cls={C.blue} />
+        ))}
         <div style={{ fontSize: 11, color: C.muted, marginTop: 10, fontStyle: 'italic' }}>
-          S4 (Set 1 &gt; R7) stays a notebook-only check — not auto-detected here, since the logger captures the top set, not
-          every set.
+          Lifts and runs pool into one weekly count — same trigger (3+ occurrences across 2+ sessions). R3 is only
+          evaluated when average HR is logged. S4 (Set 1 &gt; R7) stays a notebook-only check — not auto-detected here,
+          since the logger captures the top set, not every set.
         </div>
       </Card>
     </div>

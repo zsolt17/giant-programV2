@@ -7,7 +7,7 @@ import { useWakeLock } from './useWakeLock'
 import { SessionForm, buildBlankSession } from './SessionForm'
 import { TestingSessionView } from './TestingSession'
 import { RunForm, buildBlankRun, SetPaceChip } from './RunForm'
-import { ROTATION, SCHEMES, LIFT_LABEL, SIGNALS, SECONDARY_ITEM, RUN_TYPE_LABEL } from '../engine/constants'
+import { ROTATION, SCHEMES, LIFT_LABEL, SIGNALS, RUN_SIGNALS, SECONDARY_ITEM, RUN_TYPE_LABEL } from '../engine/constants'
 import { deloadTop } from '../engine/loading'
 import { runSlotFor } from '../engine/runs'
 import { todayISO, mondayOf, parseLocalDate, isoLocal } from '../engine/date-engine'
@@ -145,6 +145,7 @@ export function Today({
       runSlot.week != null &&
       !!deloads[weekKeyFor(computed.macro, runSlot.cycle, runSlot.week)]
     const targetRaw = runSlot.weekType === 'training' && runSlot.cycle != null ? runTargets?.[runSlot.cycle]?.[runSlot.slot] : null
+    const isTraining = runSlot.weekType === 'training'
     return (
       <div>
         <PositionHeader computed={computed} label={`${RUN_TYPE_LABEL[runDeloadWeek ? 'easy' : runSlot.runType]} Run`} />
@@ -156,6 +157,11 @@ export function Today({
           targetKm={targetRaw ?? null}
           deloadWeek={runDeloadWeek}
           existing={runs.find((r) => r.date === runSlot.date)}
+          // Pooled weekly signal feedback (training weeks only — testing/deload
+          // weeks never feed the recommendation).
+          weekSessions={isTraining ? sessions.filter((s) => s.cycle === runSlot.cycle && s.week === runSlot.week) : []}
+          weekRuns={isTraining ? runs.filter((r) => r.cycle === runSlot.cycle && r.week === runSlot.week) : []}
+          allRuns={runs}
           onSaveRun={onSaveRun}
           onSetRefPace={onSetRefPace}
         />
@@ -251,11 +257,16 @@ export function Today({
   const sessionId = `${todayISO()}-${dayType}-${difficulty[0].toUpperCase()}`
   const existing = sessions.find((s) => s.id === sessionId)
   const currentWeekSessions = sessions.filter((s) => s.cycle === cycle && s.week === week)
+  const currentWeekRuns = runs.filter((r) => r.cycle === cycle && r.week === week)
 
-  // Reactive-deload recommendation (based on previous week's signals).
+  // Reactive-deload recommendation (based on previous week's signals — lifts and
+  // runs pooled).
   const prevWeekSessions = week > 1 ? sessions.filter((s) => s.cycle === cycle && s.week === week - 1) : []
+  const prevWeekRuns = week > 1 ? runs.filter((r) => r.cycle === cycle && r.week === week - 1) : []
   const recommend = shouldRecommendDeload({
     prevWeekSessions,
+    prevWeekRuns,
+    priorRuns: runs,
     alreadyDeloaded: isDeload,
     usedThisMeso: usedDeloadThisMeso(deloads, macro, cycle),
     breakComing: breakInWeek(computed.startISO ?? '', weekIndex, breakDays),
@@ -311,6 +322,8 @@ export function Today({
         secondaryLoad={secondaryDefault}
         pullupCell={pullupCell}
         currentWeekSessions={currentWeekSessions}
+        currentWeekRuns={currentWeekRuns}
+        allRuns={runs}
         stamp={{ macroId, cycle, week, weekType: 'training', dayType, difficulty, topReps: SCHEMES[difficulty].sets[3], topWeight: top, date: todayISO(), id: sessionId }}
         onSaveSession={onSaveSession}
         onRunningChange={onRunningChange}
@@ -330,6 +343,9 @@ interface RunDayProps {
   targetKm: number | null
   deloadWeek: boolean
   existing?: Run
+  weekSessions?: Session[]
+  weekRuns?: Run[]
+  allRuns?: Run[]
   onSaveRun: (record: RunDraft) => Promise<Run>
   onSetRefPace?: (refPaceS: number | null) => Promise<void>
 }
@@ -337,7 +353,7 @@ interface RunDayProps {
 // The run-day editor: RunForm + save, no timer (duration is a logged field).
 // The slot stamp (id/date/cycle/week/weekType/runType) is applied on every save
 // so a draft can't drift from the computed schedule.
-function RunDay({ slot, macroId, refPaceS, targetKm, deloadWeek, existing, onSaveRun, onSetRefPace }: RunDayProps) {
+function RunDay({ slot, macroId, refPaceS, targetKm, deloadWeek, existing, weekSessions = [], weekRuns = [], allRuns = [], onSaveRun, onSetRefPace }: RunDayProps) {
   const [draft, setDraft] = useState<RunDraft>(() => existing || buildBlankRun(slot, macroId))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -373,6 +389,7 @@ function RunDay({ slot, macroId, refPaceS, targetKm, deloadWeek, existing, onSav
         <div style={{ marginTop: 10, fontSize: 12, color: C.red }}>Couldn't save — {err}. Check your connection and try again.</div>
       )}
       {slot.runType === 'tt' && existing && onSetRefPace && <SetPaceChip run={existing} refPaceS={refPaceS} onSetRefPace={onSetRefPace} />}
+      {slot.weekType === 'training' && <SignalBanner currentWeekSessions={weekSessions} weekRuns={weekRuns} allRuns={allRuns} runDraft={draft} />}
     </div>
   )
 }
@@ -391,6 +408,8 @@ interface SessionEditorProps {
   secondaryLoad?: number | string | null
   pullupCell?: LiftWeights | null
   currentWeekSessions: Session[]
+  currentWeekRuns?: Run[]
+  allRuns?: Run[]
   stamp: Stamp
   onSaveSession: (record: SessionDraft) => Promise<Session>
   onRunningChange?: (running: boolean) => void
@@ -400,7 +419,7 @@ interface SessionEditorProps {
   setSaved: (b: boolean) => void
 }
 
-function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, carryLoad, secondaryLoad, pullupCell, currentWeekSessions, stamp, onSaveSession, onRunningChange, saving, setSaving, saved, setSaved }: SessionEditorProps) {
+function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, carryLoad, secondaryLoad, pullupCell, currentWeekSessions, currentWeekRuns = [], allRuns = [], stamp, onSaveSession, onRunningChange, saving, setSaving, saved, setSaved }: SessionEditorProps) {
   const [draft, setDraft] = useState<SessionDraft>(() => existing || blank())
   const [err, setErr] = useState('')
   const [nowTs, setNowTs] = useState(() => Date.now())
@@ -538,7 +557,7 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
       {err && (
         <div style={{ marginTop: 10, fontSize: 12, color: C.red }}>Couldn't save — {err}. Check your connection and try again.</div>
       )}
-      <SignalBanner currentWeekSessions={currentWeekSessions} draft={draft} />
+      <SignalBanner currentWeekSessions={currentWeekSessions} weekRuns={currentWeekRuns} allRuns={allRuns} draft={draft} />
 
       {running && <SessionControlBar elapsedMs={elapsedMs} saving={saving} onEnd={handleEnd} />}
     </div>
@@ -658,11 +677,37 @@ function SessionControlBar({ elapsedMs, saving, onEnd }: { elapsedMs: number; sa
   )
 }
 
-// Live fatigue-signal feedback for the current week, including the draft.
-function SignalBanner({ currentWeekSessions, draft }: { currentWeekSessions: Session[]; draft: SessionDraft }) {
-  // computeWeekSignals ignores cleanLoad (the only field that differs in a draft).
-  const merged = currentWeekSessions.filter((s) => s.id !== draft.id).concat(draft as Session)
-  const sig = computeWeekSignals(merged)
+// Label lookup spans the lift + run signal sets (pooled week).
+export function signalLabel(id: string): string | undefined {
+  return (SIGNALS.find((x) => x.id === id) || RUN_SIGNALS.find((x) => x.id === id))?.label
+}
+
+const numOrNull = (v: number | string | null | undefined): number | null =>
+  v === '' || v == null || Number.isNaN(Number(v)) ? null : Number(v)
+
+// Live fatigue-signal feedback for the current week (lifts + runs pooled),
+// including the in-progress draft (session or run).
+function SignalBanner({
+  currentWeekSessions,
+  weekRuns = [],
+  allRuns = [],
+  draft,
+  runDraft,
+}: {
+  currentWeekSessions: Session[]
+  weekRuns?: Run[]
+  allRuns?: Run[]
+  draft?: SessionDraft
+  runDraft?: RunDraft
+}) {
+  // computeWeekSignals ignores the fields that differ between draft and Session.
+  const mergedSessions = draft ? currentWeekSessions.filter((s) => s.id !== draft.id).concat(draft as Session) : currentWeekSessions
+  const mergedRuns = runDraft
+    ? weekRuns
+        .filter((r) => r.id !== runDraft.id)
+        .concat({ ...runDraft, distanceKm: numOrNull(runDraft.distanceKm), durationS: numOrNull(runDraft.durationS), avgHr: numOrNull(runDraft.avgHr) })
+    : weekRuns
+  const sig = computeWeekSignals(mergedSessions, mergedRuns, allRuns)
   if (sig.occurrences === 0) return null
   const fired = sig.fired
   return (
@@ -670,7 +715,7 @@ function SignalBanner({ currentWeekSessions, draft }: { currentWeekSessions: Ses
       <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', color: fired ? C.red : C.gold, textTransform: 'uppercase', marginBottom: 6 }}>
         {fired ? 'Reactive deload triggered' : `Fatigue signals: ${sig.occurrences} occ · ${sig.sessionCount} day${sig.sessionCount === 1 ? '' : 's'}`}
       </div>
-      <div style={{ fontSize: 12, color: C.off, lineHeight: 1.5 }}>{[...sig.types].map((id) => SIGNALS.find((x) => x.id === id)?.label).join(' · ')}</div>
+      <div style={{ fontSize: 12, color: C.off, lineHeight: 1.5 }}>{[...sig.types].map(signalLabel).filter(Boolean).join(' · ')}</div>
       {fired && <div style={{ fontSize: 12, color: C.off, marginTop: 8, fontStyle: 'italic' }}>Next week the app will recommend a deload (unless a break is scheduled).</div>}
     </div>
   )

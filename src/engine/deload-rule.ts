@@ -4,16 +4,24 @@
 //   S2 volume block incomplete       S3 carry skipped due to fatigue
 //   S5 bar speed ↓ on top set in 2+ sessions
 //   (S4 Set1>R7 retired.)
-// TRIGGER: 3+ total occurrences spanning at least 2 different sessions.
-// (3 occurrences = severity; 2 sessions = a pattern, not one bad day.)
-import type { Session, WeekSignals } from './types'
+// Giant Run signals POOL into the same week (engine/runs.ts):
+//   R1 run cut short (fatigue)       R2 felt heavy / talk test failed
+//   R3 pace-at-HR degraded on 2+ runs (only when HR is logged)
+// TRIGGER: 3+ total occurrences spanning at least 2 different sessions —
+// lifts and runs counted together. (3 occurrences = severity; 2 sessions =
+// a pattern, not one bad day.)
+import { computeRunSignalHits } from './runs'
+import type { Run, Session, WeekSignals } from './types'
 
 export function rpeNum(r: string | null | undefined): number {
   if (!r) return 0
   return parseFloat(String(r).replace('R', '')) || 0
 }
 
-export function computeWeekSignals(weekSessions: Session[]): WeekSignals {
+// `weekRuns` = the same week's logged runs; `priorRuns` = earlier runs (any
+// weeks), the R3 pace-at-HR baseline pool. Both default empty so lift-only
+// callers are unchanged.
+export function computeWeekSignals(weekSessions: Session[], weekRuns: Run[] = [], priorRuns: Run[] = []): WeekSignals {
   const types = new Set<string>()
   let occurrences = 0
   const sessionsWithSignal = new Set<string>()
@@ -54,6 +62,13 @@ export function computeWeekSignals(weekSessions: Session[]): WeekSignals {
     })
   }
 
+  // Pool the run-derived signals: occurrences add up, and run ids count toward
+  // the "2+ different sessions" spread exactly like lift session ids.
+  const runHits = computeRunSignalHits(weekRuns, priorRuns)
+  runHits.types.forEach((t) => types.add(t))
+  occurrences += runHits.occurrences
+  runHits.runIds.forEach((id) => sessionsWithSignal.add(id))
+
   const fired = occurrences >= 3 && sessionsWithSignal.size >= 2
   return { types, occurrences, sessionCount: sessionsWithSignal.size, fired }
 }
@@ -72,16 +87,20 @@ export function usedDeloadThisMeso(deloads: Record<string, boolean>, macroNumber
 // scheduled break is already covering this week (no deloading into a break).
 export function shouldRecommendDeload({
   prevWeekSessions,
+  prevWeekRuns,
+  priorRuns,
   alreadyDeloaded,
   usedThisMeso,
   breakComing,
 }: {
   prevWeekSessions?: Session[]
+  prevWeekRuns?: Run[]
+  priorRuns?: Run[]
   alreadyDeloaded?: boolean
   usedThisMeso?: boolean
   breakComing?: boolean
 }): boolean {
   if (alreadyDeloaded || usedThisMeso || breakComing) return false
-  if (!prevWeekSessions || !prevWeekSessions.length) return false
-  return computeWeekSignals(prevWeekSessions).fired
+  if ((!prevWeekSessions || !prevWeekSessions.length) && (!prevWeekRuns || !prevWeekRuns.length)) return false
+  return computeWeekSignals(prevWeekSessions || [], prevWeekRuns || [], priorRuns || []).fired
 }

@@ -537,7 +537,7 @@ export function App() {
         <History sessions={sessions} testingResults={testing} macroNumber={macro.number} onDeleteSession={onDeleteSession} />
       )}
 
-      {tab === 'deload' && macro && <Deload sessions={sessions} deloads={deloads} macroNumber={macro.number} startISO={macro.startISO} />}
+      {tab === 'deload' && macro && <Deload sessions={sessions} runs={runs} deloads={deloads} macroNumber={macro.number} startISO={macro.startISO} />}
 
       {tab === 'trends' &&
         (trendsErr ? (
