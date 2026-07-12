@@ -21,7 +21,7 @@ const Trends = lazy(() => import('./Trends').then((m) => ({ default: m.Trends })
 const Data = lazy(() => import('./Data').then((m) => ({ default: m.Data })))
 const Recovery = lazy(() => import('./Recovery').then((m) => ({ default: m.Recovery })))
 import { errMsg } from './controls'
-import { computePosition, parseLocalDate, todayISO } from '../engine/date-engine'
+import { computePosition, parseLocalDate, isoLocal, todayISO } from '../engine/date-engine'
 import { C } from './theme'
 import type { Joint, Phase } from '../engine/recovery-content'
 import type { RecoveryProtocol, RecoveryLogMap } from '../engine/types'
@@ -47,6 +47,7 @@ import type {
   TestingResult,
   MacroBundle,
   Run,
+  RunDraft,
   RunTargetsByCycle,
 } from '../engine/types'
 
@@ -329,6 +330,28 @@ export function App() {
     setSessions((prev) => prev.filter((s) => s.id !== id))
   }, [])
 
+  const onSaveRun = useCallback(async (record: RunDraft): Promise<Run> => {
+    const saved = await repo.saveRun(record)
+    setRuns((prev) => {
+      const next = prev.filter((r) => r.id !== saved.id).concat(saved)
+      next.sort((a, b) => (a.date < b.date ? 1 : -1))
+      return next
+    })
+    return saved
+  }, [])
+
+  // TT confirm flow + Setup both set the Giant Run reference pace P (never silent
+  // from a save — always behind an explicit confirm tap).
+  const onSetRefPace = useCallback(
+    async (refPaceS: number | null) => {
+      if (!macro) return
+      const updated = await repo.setMacroRefPace(macro.id, refPaceS)
+      setMacro(updated)
+      setMacros((prev) => prev.map((m) => (m.id === updated.id ? updated : m)))
+    },
+    [macro]
+  )
+
   const onToggleBreak = useCallback(async (iso: string, on: boolean) => {
     await repo.setBreakDay(iso, on)
     setBreakDays((prev) => {
@@ -453,11 +476,17 @@ export function App() {
           deloads={deloads}
           breakDays={breakDays}
           testingResults={testing}
+          runs={runs}
+          runTargets={runTargets}
+          refPaceS={macro.refPaceS}
+          dateISO={isoLocal(devNow())}
           onSaveSession={onSaveSession}
           onDeleteSession={onDeleteSession}
           onApplyDeload={onApplyDeload}
           onSaveTestingResult={onSaveTestingResult}
           onDeleteTestingResult={onDeleteTestingResult}
+          onSaveRun={onSaveRun}
+          onSetRefPace={onSetRefPace}
           onRunningChange={setSessionRunning}
         />
       )}

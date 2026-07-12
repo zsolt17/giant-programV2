@@ -6,8 +6,10 @@ import { PositionHeader, fmtClock, errMsg } from './controls'
 import { useWakeLock } from './useWakeLock'
 import { SessionForm, buildBlankSession } from './SessionForm'
 import { TestingSessionView } from './TestingSession'
-import { ROTATION, SCHEMES, LIFT_LABEL, SIGNALS, SECONDARY_ITEM } from '../engine/constants'
+import { RunForm, buildBlankRun } from './RunForm'
+import { ROTATION, SCHEMES, LIFT_LABEL, SIGNALS, SECONDARY_ITEM, RUN_TYPE_LABEL } from '../engine/constants'
 import { deloadTop } from '../engine/loading'
+import { runSlotFor, derivedPaceS, fmtPace } from '../engine/runs'
 import { todayISO, mondayOf, parseLocalDate, isoLocal } from '../engine/date-engine'
 import { computeWeekSignals, shouldRecommendDeload, usedDeloadThisMeso, weekKeyFor } from '../engine/deload-rule'
 import type {
@@ -23,6 +25,10 @@ import type {
   WeekType,
   Lift,
   Difficulty,
+  Run,
+  RunDraft,
+  RunSlot,
+  RunTargetsByCycle,
 } from '../engine/types'
 
 // Is any break day inside the program week containing weekIndex?
@@ -70,11 +76,18 @@ interface TodayProps {
   deloads: DeloadMap
   breakDays?: BreakDayMap
   testingResults?: TestingResult[]
+  runs?: Run[]
+  runTargets?: RunTargetsByCycle
+  refPaceS?: number | null
+  // The date the position was computed for (honours the dev ?today override).
+  dateISO?: string
   onSaveSession: (record: SessionDraft) => Promise<Session>
   onDeleteSession: (id: string) => Promise<void>
   onApplyDeload: (weekKey: string, on: boolean) => Promise<void>
   onSaveTestingResult: (r: TestingResult) => Promise<TestingResult>
   onDeleteTestingResult: (id: string) => void
+  onSaveRun?: (record: RunDraft) => Promise<Run>
+  onSetRefPace?: (refPaceS: number | null) => Promise<void>
   onRunningChange?: (running: boolean) => void
 }
 
@@ -87,11 +100,17 @@ export function Today({
   deloads,
   breakDays = {},
   testingResults = [],
+  runs = [],
+  runTargets = {},
+  refPaceS = null,
+  dateISO,
   onSaveSession,
   onDeleteSession,
   onApplyDeload,
   onSaveTestingResult,
   onDeleteTestingResult,
+  onSaveRun,
+  onSetRefPace,
   onRunningChange,
 }: TodayProps) {
   const [viewDiff, setViewDiff] = useState<Difficulty | null>(null)
@@ -114,6 +133,36 @@ export function Today({
         </div>
       </Card>
     )
+  // Run day (Tue/Thu/Sat)? Never collides with lift session days (Mon/Wed/Fri):
+  // training + deload weeks render the run session; the testing-week Saturday is
+  // the 5k time trial. Reactive-deload weeks collapse to short-easy-only.
+  const today = dateISO || todayISO()
+  const runSlot = computed.startISO ? runSlotFor(computed.startISO, computed.macro, parseLocalDate(today)) : null
+  if (runSlot && onSaveRun) {
+    const runDeloadWeek =
+      runSlot.weekType === 'training' &&
+      runSlot.cycle != null &&
+      runSlot.week != null &&
+      !!deloads[weekKeyFor(computed.macro, runSlot.cycle, runSlot.week)]
+    const targetRaw = runSlot.weekType === 'training' && runSlot.cycle != null ? runTargets?.[runSlot.cycle]?.[runSlot.slot] : null
+    return (
+      <div>
+        <PositionHeader computed={computed} label={`${RUN_TYPE_LABEL[runDeloadWeek ? 'easy' : runSlot.runType]} Run`} />
+        <RunDay
+          key={runSlot.date}
+          slot={runSlot}
+          macroId={macroId}
+          refPaceS={refPaceS}
+          targetKm={targetRaw ?? null}
+          deloadWeek={runDeloadWeek}
+          existing={runs.find((r) => r.date === runSlot.date)}
+          onSaveRun={onSaveRun}
+          onSetRefPace={onSetRefPace}
+        />
+      </div>
+    )
+  }
+
   if (computed.weekType === 'testing') {
     if (computed.isSessionDay && computed.testRole === 'test' && computed.testLift) {
       // Full session structure computed off the C3 Hard anchor (exact, never rounded);
@@ -271,6 +320,113 @@ export function Today({
         setSaved={setSaved}
       />
     </div>
+  )
+}
+
+interface RunDayProps {
+  slot: RunSlot
+  macroId: string
+  refPaceS: number | null
+  targetKm: number | null
+  deloadWeek: boolean
+  existing?: Run
+  onSaveRun: (record: RunDraft) => Promise<Run>
+  onSetRefPace?: (refPaceS: number | null) => Promise<void>
+}
+
+// The run-day editor: RunForm + save, no timer (duration is a logged field).
+// The slot stamp (id/date/cycle/week/weekType/runType) is applied on every save
+// so a draft can't drift from the computed schedule.
+function RunDay({ slot, macroId, refPaceS, targetKm, deloadWeek, existing, onSaveRun, onSetRefPace }: RunDayProps) {
+  const [draft, setDraft] = useState<RunDraft>(() => existing || buildBlankRun(slot, macroId))
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [err, setErr] = useState('')
+  const setField = <K extends keyof RunDraft>(k: K, v: RunDraft[K]) => setDraft((p) => ({ ...p, [k]: v }) as RunDraft)
+
+  async function handleSave() {
+    setSaving(true)
+    setErr('')
+    try {
+      const blank = buildBlankRun(slot, macroId)
+      await onSaveRun({ ...draft, id: blank.id, date: blank.date, cycle: blank.cycle, week: blank.week, weekType: blank.weekType, runType: blank.runType })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 1800)
+    } catch (e) {
+      setErr(errMsg(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div>
+      <RunForm slot={slot} refPaceS={refPaceS} targetKm={targetKm} deloadWeek={deloadWeek} draft={draft} setField={setField} />
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        style={{ width: '100%', background: saved ? C.green : C.gold, color: C.dark, border: 'none', borderRadius: 2, padding: 14, fontSize: 14, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}
+      >
+        {saving ? 'Saving…' : saved ? 'Saved ✓' : existing ? 'Update run' : 'Log run'}
+      </button>
+      {err && (
+        <div style={{ marginTop: 10, fontSize: 12, color: C.red }}>Couldn't save — {err}. Check your connection and try again.</div>
+      )}
+      {slot.runType === 'tt' && existing && onSetRefPace && <SetPaceChip run={existing} refPaceS={refPaceS} onSetRefPace={onSetRefPace} />}
+    </div>
+  )
+}
+
+// After a saved time trial: an explicit, confirm-gated offer to make the TT pace
+// the macro's new reference pace P. Never silent — a save alone never moves P.
+// (P then carries into the next macro on "Start next macro", like C3→C1 weights.)
+function SetPaceChip({ run, refPaceS, onSetRefPace }: { run: Run; refPaceS: number | null; onSetRefPace: (p: number | null) => Promise<void> }) {
+  const [confirm, setConfirm] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const pace = derivedPaceS(run.distanceKm, run.durationS)
+  if (pace == null) return null
+  const newP = Math.round(pace) // whole seconds for storage; NOT the 5 s/km prescription rounding
+  if (refPaceS === newP)
+    return (
+      <div style={{ marginTop: 12, fontSize: 12, color: C.green }}>Reference pace P is set to this result ({fmtPace(newP)} /km) ✓</div>
+    )
+  async function apply() {
+    setBusy(true)
+    setErr('')
+    try {
+      await onSetRefPace(newP)
+      setConfirm(false)
+    } catch (e) {
+      setErr(errMsg(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Card style={{ marginTop: 12, border: `1px solid ${C.gold}`, background: 'rgba(201,168,76,0.10)' }}>
+      {!confirm ? (
+        <button
+          onClick={() => setConfirm(true)}
+          style={{ background: 'transparent', color: C.gold, border: `1px solid ${C.gold}`, borderRadius: 2, padding: '10px 14px', fontSize: 13, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', width: '100%' }}
+        >
+          Set as new reference pace P → {fmtPace(newP)} /km
+        </button>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: C.off }}>
+            Replace {refPaceS != null ? `current P (${fmtPace(refPaceS)} /km)` : 'talk-test mode'} with {fmtPace(newP)} /km?
+          </span>
+          <button onClick={apply} disabled={busy} style={{ background: C.gold, color: C.dark, border: 'none', borderRadius: 2, padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: busy ? 'wait' : 'pointer' }}>
+            {busy ? 'Saving…' : 'Confirm'}
+          </button>
+          <button onClick={() => setConfirm(false)} disabled={busy} aria-label="Cancel setting reference pace" style={{ background: 'transparent', color: C.muted, border: `1px solid ${C.muted}`, borderRadius: 2, padding: '8px 12px', fontSize: 12, cursor: 'pointer' }}>
+            <span aria-hidden="true">✕</span>
+          </button>
+        </div>
+      )}
+      {err && <div style={{ marginTop: 8, fontSize: 12, color: C.red }}>Couldn't save — {err}.</div>}
+    </Card>
   )
 }
 
