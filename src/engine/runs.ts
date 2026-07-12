@@ -15,7 +15,9 @@ import {
   QUALITY_OFFSET_MAX_S,
   PACE_ROUND_S,
   PACE_DEGRADE_S,
+  RUN_STRUCTURE,
 } from './constants'
+import type { RunStructureKey } from './constants'
 import type { Run, RunSlot, RunSlotKey, RunType, RunSignalHits, WeekType } from './types'
 
 // ---- schedule ---------------------------------------------------------------
@@ -98,6 +100,32 @@ export const qualityRange = (refPaceS: number): [number, number] => [
 export function derivedPaceS(distanceKm: number | null | undefined, durationS: number | null | undefined): number | null {
   if (distanceKm == null || durationS == null || !(distanceKm > 0) || !(durationS > 0)) return null
   return durationS / distanceKm
+}
+
+// ---- structure descriptions ---------------------------------------------------
+
+// Which RUN_STRUCTURE text a slot shows. W15 and reactive-deload weeks both
+// collapse to the pressure-free deload text; everything else is what the day
+// RESOLVES to (a C1 Thursday resolves to easy, so it reads the easy text).
+export function runStructureKey(slot: RunSlot, deloadWeek: boolean): RunStructureKey {
+  if (slot.weekType === 'deload' || deloadWeek) return 'deload'
+  return slot.runType
+}
+
+// The description shown on the run session view. In pace mode the computed
+// guidance is appended (easy/long → easy pace, quality → the range); the TT
+// pace is discovered/recorded, never prescribed, and deload stays pace-free.
+// Talk-test mode returns the text verbatim.
+export function runStructureText(key: RunStructureKey, refPaceS: number | null | undefined): string {
+  const base = RUN_STRUCTURE[key]
+  if (runMode(refPaceS) !== 'pace') return base
+  const P = refPaceS as number
+  if (key === 'easy' || key === 'long') return `${base} Easy pace: ~${fmtPace(easyPace(P))} /km.`
+  if (key === 'quality') {
+    const [qMin, qMax] = qualityRange(P)
+    return `${base} Quality pace: ${fmtPace(qMin)}–${fmtPace(qMax)} /km.`
+  }
+  return base
 }
 
 // ---- formatting / parsing ----------------------------------------------------

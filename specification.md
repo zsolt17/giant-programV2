@@ -86,6 +86,19 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-07-12 (evening)
+- `feat(run)`: **run-day structure descriptions**. Each run session view (Today + Calendar
+  RunModal, shared `RunForm`) now opens with a muted-italic description of the run's structure —
+  Easy / Quality (warm-up → 15–20 min of tempo blocks or cruise intervals → cool-down) / Long /
+  Time Trial / deload (W15 **and** reactive-deload weeks share the pressure-free text; a C1
+  Thursday resolves to the Easy text). In pace mode the engine appends the computed guidance
+  ("Easy pace: ~7:15 /km" / "Quality pace: 6:15–6:40 /km"); talk-test mode shows the texts
+  verbatim; TT/deload never carry a pace. Texts live once in `constants.RUN_STRUCTURE`, composed
+  by pure `runStructureKey`/`runStructureText` (engine, unit-tested). The now-redundant "Pace"
+  guidance row and W15 gold note were consolidated into the description (the reactive-deload gold
+  note stays). typecheck + **112 tests** + build green; all five texts + pace-append verified in
+  the browser (live P=6:00).
+
 ## 2026-07-12 (later)
 - `fix(run/mobile)`: **pace & duration typeable on the iPhone keypad**. The reference-pace and
   run-duration inputs used `inputMode="numeric"`, whose iOS keypad has no colon — seconds were

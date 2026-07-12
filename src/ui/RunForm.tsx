@@ -8,7 +8,7 @@ import { C, HEADING, inp, lbl } from './theme'
 import { Card } from './components'
 import { blockTitle, Row } from './controls'
 import { RUN_TYPE_LABEL, RUN_COMPLETION, TT_KM } from '../engine/constants'
-import { runMode, easyPace, qualityRange, fmtPace, fmtRunDuration, parseClock, derivedPaceS, runIdFor } from '../engine/runs'
+import { fmtPace, fmtRunDuration, parseClock, derivedPaceS, runIdFor, runStructureKey, runStructureText } from '../engine/runs'
 import { errMsg } from './controls'
 import type { RunDraft, RunSlot } from '../engine/types'
 
@@ -44,7 +44,6 @@ interface RunFormProps {
 
 export function RunForm({ slot, refPaceS, targetKm, deloadWeek, draft, setField }: RunFormProps) {
   const isTT = slot.runType === 'tt'
-  const paceMode = runMode(refPaceS) === 'pace'
 
   // Duration is typed as min:sec text; the draft always holds parsed SECONDS
   // (or null while the text is incomplete), so persistence never sees the text.
@@ -61,16 +60,8 @@ export function RunForm({ slot, refPaceS, targetKm, deloadWeek, draft, setField 
   // Reactive deload: the prescription collapses to a short easy run.
   const shownType = deloadWeek ? 'easy' : slot.runType
   const target = deloadWeek || slot.weekType === 'deload' ? 'short & easy' : isTT ? `${TT_KM} km` : targetKm != null ? `${targetKm} km` : '—'
-  const guidance = (() => {
-    if (isTT) return 'No prescribed pace — discover it. All-out but even; record the result.'
-    if (!paceMode) return 'Talk test — fully conversational. No pace targets in this mesocycle.'
-    const P = refPaceS as number
-    if (shownType === 'quality') {
-      const [qMin, qMax] = qualityRange(P)
-      return `${fmtPace(qMin)}–${fmtPace(qMax)} /km`
-    }
-    return `${fmtPace(easyPace(P))} /km`
-  })()
+  // Structure description (engine-composed: pace guidance appended in pace mode).
+  const structure = runStructureText(runStructureKey(slot, deloadWeek), refPaceS)
 
   const pace = derivedPaceS(num(draft.distanceKm), num(draft.durationS))
 
@@ -84,13 +75,8 @@ export function RunForm({ slot, refPaceS, targetKm, deloadWeek, draft, setField 
             Reactive deload week — keep it a short, easy shakeout. Skip freely.
           </div>
         )}
-        {slot.weekType === 'deload' && !deloadWeek && (
-          <div style={{ fontSize: 12, color: C.gold, lineHeight: 1.5, marginBottom: 6 }}>
-            End-of-macro deload — all runs optional, short easy only.
-          </div>
-        )}
+        <div style={{ fontSize: 12, color: C.muted, fontStyle: 'italic', lineHeight: 1.5, marginBottom: 8 }}>{structure}</div>
         <Row a="Distance" b={slot.optional ? 'guidance — run or rest' : 'target, not prescription'} c={target} cls={C.gold} />
-        <Row a="Pace" b={guidance} c="" cls={C.off} />
       </Card>
 
       {/* Log */}

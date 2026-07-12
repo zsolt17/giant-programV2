@@ -219,3 +219,34 @@ test('parseClock: iOS decimal-keypad forms — "." "," separators + bare digits'
   assert.equal(parseClock('575'), null) // "75 seconds" is invalid
   assert.equal(parseClock('5.75'), null)
 })
+
+// ---- structure descriptions -----------------------------------------------------
+import { runStructureKey, runStructureText } from './runs'
+import { RUN_STRUCTURE } from './constants'
+
+test('runStructureKey: resolves by run type; deload overrides (W15 + reactive)', () => {
+  const c1Thu = runSlotFor(START, MACRO, parseLocalDate('2026-04-16')) // quality slot, resolves easy
+  assert.equal(runStructureKey(c1Thu, false), 'easy')
+  const c2Thu = runSlotFor(START, MACRO, parseLocalDate('2026-05-14'))
+  assert.equal(runStructureKey(c2Thu, false), 'quality')
+  const sat = runSlotFor(START, MACRO, parseLocalDate('2026-04-18'))
+  assert.equal(runStructureKey(sat, false), 'long')
+  const ttSat = runSlotFor(START, MACRO, parseLocalDate('2026-07-11'))
+  assert.equal(runStructureKey(ttSat, false), 'tt')
+  const w15 = runSlotFor(START, MACRO, parseLocalDate('2026-07-25'))
+  assert.equal(runStructureKey(w15, false), 'deload')
+  // Reactive deload collapses a normal training run day to the deload text.
+  assert.equal(runStructureKey(sat, true), 'deload')
+})
+
+test('runStructureText: verbatim in talk mode; pace appended in pace mode; tt/deload never', () => {
+  // Talk mode (no anchor): texts exactly as authored.
+  assert.equal(runStructureText('easy', null), RUN_STRUCTURE.easy)
+  assert.equal(runStructureText('quality', 0), RUN_STRUCTURE.quality)
+  // Pace mode, P = 312 (5:12): easy 387→385=6:25; quality 327→325=5:25, 352→350=5:50.
+  assert.equal(runStructureText('easy', 312), `${RUN_STRUCTURE.easy} Easy pace: ~6:25 /km.`)
+  assert.equal(runStructureText('long', 312), `${RUN_STRUCTURE.long} Easy pace: ~6:25 /km.`)
+  assert.equal(runStructureText('quality', 312), `${RUN_STRUCTURE.quality} Quality pace: 5:25–5:50 /km.`)
+  assert.equal(runStructureText('tt', 312), RUN_STRUCTURE.tt)
+  assert.equal(runStructureText('deload', 312), RUN_STRUCTURE.deload)
+})

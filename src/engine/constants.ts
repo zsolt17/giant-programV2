@@ -144,6 +144,32 @@ export const RUN_TYPE_LABEL: Record<RunType, string> = {
   tt: 'Time Trial',
 }
 
+// Structure description shown at the top of each run session view (Today +
+// RunModal), mirroring how lift days describe their blocks. Keyed by what the
+// day RESOLVES to, plus 'deload' for W15 / reactive-deload weeks — a C1
+// Thursday resolves to 'easy', so it shows the easy text. In pace mode the
+// engine appends the computed pace guidance (runStructureText in runs.ts).
+export type RunStructureKey = RunType | 'deload'
+export const RUN_STRUCTURE: Record<RunStructureKey, string> = {
+  easy:
+    'Steady conversational jog, start to finish — no structure needed. Flat or gentle terrain. ' +
+    'Talk test the whole way: full sentences, always. Should end feeling like you cheated.',
+  quality:
+    'Easy warm-up jog (~10 min) → quality blocks: 15–20 total minutes at quality pace, as tempo ' +
+    'blocks (e.g. 3 × 5 min, 2–3 min easy jog between) or cruise intervals (e.g. 5 × 3 min, short ' +
+    'jog between) → easy cool-down jog (~5–10 min). Each block ends with more in the tank — if ' +
+    'holding pace would take a grind, the session ends.',
+  long:
+    "One continuous conversational run — the week's longest, and its easiest effort. Trail and " +
+    'terrain welcome; pace ambition is not. Talk test throughout. This is the engine builder: ' +
+    'distance progresses here first, pace never does by intent.',
+  tt:
+    'Easy warm-up jog (~10 min) with a few short pick-ups → 5k at an honest hard effort: strong ' +
+    'throughout, never desperate, finish knowing a sprint was still there → easy cool-down jog. ' +
+    'The result is recorded, not chased — it becomes the new reference pace.',
+  deload: "Optional, short, easy only. A gentle jog if you feel like moving; nothing if you don't.",
+}
+
 // Run completion (categorical, mirrors BLOCK_COMPLETION): 'completed' = default;
 // the fail reasons drive the run deload signals (R1 fatigue-cut, R2 felt heavy).
 export const RUN_COMPLETION: { id: string; label: string }[] = [
