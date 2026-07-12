@@ -176,6 +176,13 @@ async function main() {
     await supabase.from('runs').update({ terrain: null }).eq('id', rid) // simulate a pre-0011 row
     runs = await repo.getRuns(id)
     ok('legacy NULL terrain reads back as road', runs.find((r) => r.id === rid)?.terrain === 'road')
+    // Bulletproof (0012): boolean round-trips; legacy NULL reads back as false.
+    await repo.saveRun({ ...savedRun, bulletproof: true })
+    runs = await repo.getRuns(id)
+    ok('bulletproof round-trips = true', runs.find((r) => r.id === rid)?.bulletproof === true)
+    await supabase.from('runs').update({ bulletproof: null }).eq('id', rid) // simulate a pre-0012 row
+    runs = await repo.getRuns(id)
+    ok('legacy NULL bulletproof reads back as false', runs.find((r) => r.id === rid)?.bulletproof === false)
     // Idempotent update on the same id.
     await repo.saveRun({ ...savedRun, completion: 'cut_fatigue', durationS: 2100 })
     runs = await repo.getRuns(id)

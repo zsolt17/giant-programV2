@@ -312,7 +312,7 @@ Block cardio cals), `carry_rounds`, `carry_distance`; `0005_anchor_weights.sql` 
 and adds `sessions.block_completion`; `0008_recovery.sql` adds the Recovery tables — §12; `0009_dips_pullup_modes.sql` adds the
 `pullup` anchor lift + `sessions.dips_cluster` for the two-mode logic — §3; `0010_giant_run.sql` adds
 `macros.ref_pace_s` + the `runs` and `run_targets` tables — §13; `0011_run_terrain.sql` adds
-`runs.terrain` — §13).
+`runs.terrain` — §13; `0012_run_bulletproof.sql` adds `runs.bulletproof` — §13).
 See `supabase/MIGRATIONS.md` for how migrations are applied and the DB kept reproducible.
 Tables:
 
@@ -461,6 +461,7 @@ runs (
   avg_hr        int,
   completion    text,                      -- completed | cut_fatigue | cut_schedule | felt_heavy (null = completed)
   terrain       text default 'road',       -- road | trail (null = road; trail excluded from pace readouts)
+  bulletproof   boolean default false,     -- post-run Bulletproof circuit done (habit boolean; null = false)
   notes         text,
   updated_at    timestamptz default now()
 )
@@ -610,9 +611,17 @@ logging, deload signals, data export). Engine: `src/engine/runs.ts`.
   route, and selecting Trail on an easy/long day appends "ignore pace — talk test
   governs; hiking steep climbs at conversational effort counts as easy running."
   Copy-summaries mark trail runs (`… → 8:20/km · Trail`); road stays unmarked.
+- **Bulletproof (post-run circuit):** every run session ends with a fixed 5–10 min
+  injury-prevention block (the runner's carry block) — calf raises w/ slow
+  eccentric, tibialis raises, single-leg balance, seated leg raises over obstacle,
+  optional plantar rolling; RPE 5–6, never hard. Content is app-side
+  (`constants.BULLETPROOF_ITEMS`); logging is one done-boolean per run
+  (`runs.bulletproof`) — a habit tracker, not a training log. Shown on all run
+  types incl. the TT; tagged optional on deload weeks.
 - **Data:** runs appear in the Data list (marked `· RUN`) with their own copy-summary
-  format, export as a third CSV (with `terrain` and a derived `pace_s_per_km`
-  column), and get a pace-over-time Trends view (per run type, up = faster).
+  format (incl. `Bulletproof: ✓` when done), export as a third CSV (with `terrain`,
+  `bulletproof`, and a derived `pace_s_per_km` column), and get a pace-over-time
+  Trends view (per run type, up = faster).
 
 ## 14. Related documents
 

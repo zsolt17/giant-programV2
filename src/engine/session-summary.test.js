@@ -215,3 +215,9 @@ test('runSummary: trail runs marked after the pace segment; road stays unmarked'
   assert.equal(s, ['Run — M2C1W2 — Easy — 14.07.2026', '5.2 km in 43:20 → 8:20/km · Trail | avg HR 148', 'Completion: Completed ✓'].join('\n'))
   assert.ok(!runSummary(baseRun({ terrain: 'road' }), 2).includes('Trail'))
 })
+
+test('runSummary: Bulletproof line when done, no residue when not', () => {
+  const done = runSummary(baseRun({ bulletproof: true, notes: '' }), 2)
+  assert.equal(done, ['Run — M2C1W2 — Easy — 14.07.2026', '5.2 km in 33:00 → 6:21/km | avg HR 148', 'Completion: Completed ✓', 'Bulletproof: ✓'].join('\n'))
+  assert.ok(!runSummary(baseRun({ bulletproof: false }), 2).includes('Bulletproof'))
+})

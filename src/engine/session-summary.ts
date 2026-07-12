@@ -212,6 +212,9 @@ export function runSummary(r: Run, macroNumber: number): string {
       : RUN_COMPLETION.find((o) => o.id === r.completion)?.label || r.completion
   lines.push(`Completion: ${completion}`)
 
+  // Post-run Bulletproof circuit — shown when done, omitted when not (no residue).
+  if (r.bulletproof) lines.push('Bulletproof: ✓')
+
   if (r.notes && r.notes.trim()) lines.push(`Notes: ${r.notes.trim()}`)
   return lines.join('\n')
 }

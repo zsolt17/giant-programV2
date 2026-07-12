@@ -86,6 +86,19 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-07-12 (late)
+- `feat(run)`: **Bulletproof — post-run injury-prevention block**. Every run session (all types
+  incl. the time trial; tagged optional on W15/reactive-deload weeks) now ends with a compact
+  fixed circuit card after the log fields — calf raises w/ slow 3-sec eccentric (2×15 straight +
+  1×12 bent-knee), tibialis raises 2×20, single-leg balance 30–45s/side, seated leg raises over
+  obstacle 2×12–15/side, optional plantar rolling 30s/foot; muted note "RPE 5–6, never hard…".
+  Content lives in `constants.BULLETPROOF_ITEMS`/`BULLETPROOF_NOTE`; logging is a single
+  **"Bulletproof circuit done"** checkbox saved on the run (habit tracker, no per-exercise log).
+  Copy-summary gains a `Bulletproof: ✓` line when done (omitted otherwise); runs CSV gains a
+  `bulletproof` column. Migration `0012_run_bulletproof.sql` (`runs.bulletproof boolean default
+  false`; legacy NULL reads as false). typecheck + **116 tests** + build green; smoke extended
+  (boolean round-trip + legacy-NULL default).
+
 ## 2026-07-12 (night)
 - `feat(run)`: **terrain awareness — Road/Trail toggle on run logging**. Trail pace varies with
   terrain, not fatigue, so trail runs no longer distort pace readouts: the Trends pace chart

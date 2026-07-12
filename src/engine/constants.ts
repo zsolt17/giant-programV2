@@ -182,6 +182,18 @@ export const RUN_TERRAIN_NOTE = {
 
 export const TERRAIN_LABEL: Record<Terrain, string> = { road: 'Road', trail: 'Trail' }
 
+// Bulletproof — the fixed post-run injury-prevention circuit (5–10 min),
+// shown after the run log on every run type (the runner's "carry block").
+// One done-boolean per run; no per-exercise logging — habit, not training log.
+export const BULLETPROOF_ITEMS: { name: string; dose: string; optional?: true }[] = [
+  { name: 'Calf raises, slow 3-sec eccentric', dose: '2×15 straight-knee + 1×12 bent-knee (off a step)' },
+  { name: 'Tibialis raises', dose: '2×20 (wall-supported)' },
+  { name: 'Single-leg balance', dose: '30–45s per side' },
+  { name: 'Seated leg raises over obstacle', dose: '2×12–15 per side' },
+  { name: 'Plantar rolling', dose: '30s per foot', optional: true },
+]
+export const BULLETPROOF_NOTE = 'RPE 5–6, never hard. After long runs, drop a set if legs are cooked.'
+
 // Run completion (categorical, mirrors BLOCK_COMPLETION): 'completed' = default;
 // the fail reasons drive the run deload signals (R1 fatigue-cut, R2 felt heavy).
 export const RUN_COMPLETION: { id: string; label: string }[] = [

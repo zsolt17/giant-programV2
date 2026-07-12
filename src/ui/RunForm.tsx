@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react'
 import { C, HEADING, inp, lbl } from './theme'
 import { Card } from './components'
 import { blockTitle, Row } from './controls'
-import { RUN_TYPE_LABEL, RUN_COMPLETION, TERRAIN_LABEL, TT_KM } from '../engine/constants'
+import { RUN_TYPE_LABEL, RUN_COMPLETION, TERRAIN_LABEL, TT_KM, BULLETPROOF_ITEMS, BULLETPROOF_NOTE } from '../engine/constants'
 import { fmtPace, fmtRunDuration, parseClock, derivedPaceS, runIdFor, runStructureKey, runStructureText } from '../engine/runs'
 import { errMsg } from './controls'
 import type { RunDraft, RunSlot, Terrain } from '../engine/types'
@@ -27,6 +27,7 @@ export function buildBlankRun(slot: RunSlot, macroId: string): RunDraft {
     avgHr: '',
     completion: 'completed',
     terrain: 'road',
+    bulletproof: false,
     notes: '',
   }
 }
@@ -145,6 +146,26 @@ export function RunForm({ slot, refPaceS, targetKm, deloadWeek, draft, setField 
         <TerrainToggle value={(draft.terrain as Terrain) || 'road'} onChange={(v) => setField('terrain', v)} />
 
         <RunCompletion value={draft.completion} onChange={(v) => setField('completion', v)} />
+      </Card>
+
+      {/* Bulletproof — fixed post-run circuit (the runner's carry block).
+          Content lives in constants; one done-boolean, no per-exercise logging. */}
+      <Card>
+        {blockTitle('Bulletproof', `5–10 min${slot.weekType === 'deload' || deloadWeek ? ' · optional' : ''} · post-run`)}
+        {BULLETPROOF_ITEMS.map((it) => (
+          <div key={it.name} style={{ padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            <div style={{ fontSize: 13, color: it.optional ? C.muted : C.off }}>
+              {it.name}
+              {it.optional && <span style={{ fontSize: 10, color: C.muted }}> · optional</span>}
+            </div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{it.dose}</div>
+          </div>
+        ))}
+        <div style={{ fontSize: 12, color: C.muted, fontStyle: 'italic', lineHeight: 1.5, marginTop: 8 }}>{BULLETPROOF_NOTE}</div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginTop: 10, color: draft.bulletproof ? C.green : C.off }}>
+          <input data-bulletproof="1" type="checkbox" checked={draft.bulletproof} onChange={(e) => setField('bulletproof', e.target.checked)} />
+          Bulletproof circuit done
+        </label>
       </Card>
 
       {/* Notes */}

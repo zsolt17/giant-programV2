@@ -175,6 +175,8 @@ export interface Run {
   completion: string
   // Road (default) / trail; legacy null → road.
   terrain: Terrain
+  // Post-run Bulletproof circuit done (single habit boolean; legacy null → false).
+  bulletproof: boolean
   notes: string
   updatedAt?: string
 }

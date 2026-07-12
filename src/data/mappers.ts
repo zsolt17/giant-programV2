@@ -278,6 +278,7 @@ export interface RunRow {
   avg_hr: number | null
   completion: string | null
   terrain: string | null
+  bulletproof: boolean | null
   notes: string | null
   updated_at?: string
 }
@@ -295,6 +296,7 @@ export function rowToRun(r: RunRow): Run {
     avgHr: toNum(r.avg_hr),
     completion: r.completion || 'completed', // legacy null → treated as completed
     terrain: (r.terrain as Terrain) || 'road', // legacy null → road
+    bulletproof: !!r.bulletproof, // legacy null → not done
     notes: r.notes || '',
     updatedAt: r.updated_at,
   }
@@ -313,6 +315,7 @@ export function runToRow(r: RunDraft): RunRow {
     avg_hr: toNum(r.avgHr),
     completion: blankToNull(r.completion),
     terrain: r.terrain || 'road',
+    bulletproof: !!r.bulletproof,
     notes: blankToNull(r.notes),
   }
 }
