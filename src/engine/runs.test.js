@@ -222,7 +222,7 @@ test('parseClock: iOS decimal-keypad forms — "." "," separators + bare digits'
 
 // ---- structure descriptions -----------------------------------------------------
 import { runStructureKey, runStructureText } from './runs'
-import { RUN_STRUCTURE } from './constants'
+import { RUN_STRUCTURE, RUN_TERRAIN_NOTE } from './constants'
 
 test('runStructureKey: resolves by run type; deload overrides (W15 + reactive)', () => {
   const c1Thu = runSlotFor(START, MACRO, parseLocalDate('2026-04-16')) // quality slot, resolves easy
@@ -240,13 +240,41 @@ test('runStructureKey: resolves by run type; deload overrides (W15 + reactive)',
 })
 
 test('runStructureText: verbatim in talk mode; pace appended in pace mode; tt/deload never', () => {
-  // Talk mode (no anchor): texts exactly as authored.
+  // Talk mode (no anchor): texts as authored (+ the standing quality terrain rule).
   assert.equal(runStructureText('easy', null), RUN_STRUCTURE.easy)
-  assert.equal(runStructureText('quality', 0), RUN_STRUCTURE.quality)
+  assert.equal(runStructureText('quality', 0), `${RUN_STRUCTURE.quality} ${RUN_TERRAIN_NOTE.quality}`)
   // Pace mode, P = 312 (5:12): easy 387→385=6:25; quality 327→325=5:25, 352→350=5:50.
   assert.equal(runStructureText('easy', 312), `${RUN_STRUCTURE.easy} Easy pace: ~6:25 /km.`)
   assert.equal(runStructureText('long', 312), `${RUN_STRUCTURE.long} Easy pace: ~6:25 /km.`)
-  assert.equal(runStructureText('quality', 312), `${RUN_STRUCTURE.quality} Quality pace: 5:25–5:50 /km.`)
-  assert.equal(runStructureText('tt', 312), RUN_STRUCTURE.tt)
+  assert.equal(runStructureText('quality', 312), `${RUN_STRUCTURE.quality} Quality pace: 5:25–5:50 /km. ${RUN_TERRAIN_NOTE.quality}`)
+  assert.equal(runStructureText('tt', 312), `${RUN_STRUCTURE.tt} ${RUN_TERRAIN_NOTE.tt}`)
   assert.equal(runStructureText('deload', 312), RUN_STRUCTURE.deload)
+})
+
+test('runStructureText terrain: trail note on easy/long/deload only while Trail is selected', () => {
+  // Trail selected: the note appends (and, in pace mode, after the pace line).
+  assert.equal(runStructureText('easy', null, 'trail'), `${RUN_STRUCTURE.easy} ${RUN_TERRAIN_NOTE.trail}`)
+  assert.equal(runStructureText('long', 312, 'trail'), `${RUN_STRUCTURE.long} Easy pace: ~6:25 /km. ${RUN_TERRAIN_NOTE.trail}`)
+  assert.equal(runStructureText('deload', null, 'trail'), `${RUN_STRUCTURE.deload} ${RUN_TERRAIN_NOTE.trail}`)
+  // Road (default): no trail note.
+  assert.equal(runStructureText('easy', null, 'road'), RUN_STRUCTURE.easy)
+  // Quality/tt keep their own standing rule regardless of the toggle.
+  assert.equal(runStructureText('quality', null, 'trail'), `${RUN_STRUCTURE.quality} ${RUN_TERRAIN_NOTE.quality}`)
+  assert.equal(runStructureText('tt', null, 'trail'), `${RUN_STRUCTURE.tt} ${RUN_TERRAIN_NOTE.tt}`)
+})
+
+test('R3 evaluates ROAD runs only — trail candidates and trail baselines are excluded', () => {
+  const roadPrior = [run('p1', { date: '2026-04-14', type: 'easy', km: 5, s: 1800, hr: 150 })] // 360 s/km
+  const degradedPair = (terrain) => [
+    { ...run('w1', { date: '2026-04-21', type: 'easy', km: 5, s: 1855, hr: 152 }), terrain },
+    { ...run('w2', { date: '2026-04-23', type: 'easy', km: 5, s: 1900, hr: 153 }), terrain },
+  ]
+  // Road pair vs road baseline: fires.
+  assert.equal(computeRunSignalHits(degradedPair('road'), roadPrior).occurrences, 1)
+  // Same numbers on TRAIL: never degraded (terrain-paced).
+  assert.equal(computeRunSignalHits(degradedPair('trail'), roadPrior).occurrences, 0)
+  // A trail run can't serve as the baseline either: a fast trail prior would
+  // otherwise make an honest road run look degraded.
+  const trailPrior = [{ ...run('p1', { date: '2026-04-14', type: 'easy', km: 5, s: 1800, hr: 150 }), terrain: 'trail' }]
+  assert.equal(computeRunSignalHits(degradedPair('road'), trailPrior).occurrences, 0)
 })

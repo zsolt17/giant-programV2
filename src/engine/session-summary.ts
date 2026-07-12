@@ -200,8 +200,10 @@ export function runSummary(r: Run, macroNumber: number): string {
   const dist = r.distanceKm != null ? `${kg(r.distanceKm)} km` : ''
   const dur = r.durationS != null ? `in ${fmtRunDuration(r.durationS)}` : ''
   const paceSeg = pace != null ? `→ ${fmtPace(pace)}/km` : ''
+  // Trail marks the pace as terrain-paced; road is the default and stays unmarked.
+  const terrainSeg = r.terrain === 'trail' ? '· Trail' : ''
   const hrSeg = r.avgHr != null ? `| avg HR ${r.avgHr}` : ''
-  const logLine = [dist, dur, paceSeg, hrSeg].filter(Boolean).join(' ')
+  const logLine = [dist, dur, paceSeg, terrainSeg, hrSeg].filter(Boolean).join(' ')
   if (logLine) lines.push(logLine)
 
   const completion =

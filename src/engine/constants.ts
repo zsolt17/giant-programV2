@@ -1,6 +1,6 @@
 // Program constants — ported verbatim from the working index.html. These encode
 // the fixed structure of The Giant Program and must not drift.
-import type { Difficulty, Lift, AnchorLift, Scheme, DayMeta, RunType, RunSlotKey } from './types'
+import type { Difficulty, Lift, AnchorLift, Scheme, DayMeta, RunType, RunSlotKey, Terrain } from './types'
 
 // 4 lifts across 3 weekly slots (Mon=hard, Wed=medium, Fri=light), repeating
 // every 4 weeks (one mesocycle). Index = (weekInMeso - 1).
@@ -169,6 +169,18 @@ export const RUN_STRUCTURE: Record<RunStructureKey, string> = {
     'The result is recorded, not chased — it becomes the new reference pace.',
   deload: "Optional, short, easy only. A gentle jog if you feel like moving; nothing if you don't.",
 }
+
+// Terrain wording, appended to the structure descriptions (runStructureText):
+// quality/tt are standing rules of those days (always shown); the trail note is
+// contextual — shown on easy/long/deload days while the Trail toggle is selected.
+export const RUN_TERRAIN_NOTE = {
+  trail:
+    'Trail: ignore pace — talk test governs. Hiking steep climbs at conversational effort counts as easy running.',
+  quality: 'Quality runs on flat/road only — trails are for easy days.',
+  tt: 'Always the same flat route, every macro.',
+} as const
+
+export const TERRAIN_LABEL: Record<Terrain, string> = { road: 'Road', trail: 'Trail' }
 
 // Run completion (categorical, mirrors BLOCK_COMPLETION): 'completed' = default;
 // the fail reasons drive the run deload signals (R1 fatigue-cut, R2 felt heavy).

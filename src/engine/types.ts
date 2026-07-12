@@ -153,6 +153,9 @@ export interface WeekSignals {
 // can differ from the slot (the Thu quality slot runs easy during mesocycle 1).
 export type RunSlotKey = 'easy' | 'quality' | 'long'
 export type RunType = RunSlotKey | 'tt'
+// Road (default) vs trail: trail pace varies with terrain, not fatigue, so
+// pace-based readouts (trend chart, R3 signal) exclude trail runs.
+export type Terrain = 'road' | 'trail'
 
 // A logged run (app-object shape; mappers convert to/from DB rows). Pace is
 // always DERIVED (durationS / distanceKm), never stored.
@@ -170,6 +173,8 @@ export interface Run {
   // 'completed' (default) or a categorical reason (RUN_COMPLETION); legacy
   // null → treated as completed. Drives the run deload signals (R1/R2).
   completion: string
+  // Road (default) / trail; legacy null → road.
+  terrain: Terrain
   notes: string
   updatedAt?: string
 }
@@ -317,6 +322,7 @@ export interface TrendRun {
   paceS: number // derived s/km (unrounded)
   distanceKm: number | null
   hr: number | null
+  terrain: Terrain // trail points are hidden by default and drawn hollow when shown
 }
 
 // ---- Recovery > Tendon Health ---------------------------------------------

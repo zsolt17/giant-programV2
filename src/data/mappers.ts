@@ -24,6 +24,7 @@ import type {
   RunType,
   RunSlotKey,
   RunTargetsByCycle,
+  Terrain,
 } from '../engine/types'
 import type { Joint, Phase } from '../engine/recovery-content'
 import { expandDayTops } from '../engine/loading'
@@ -276,6 +277,7 @@ export interface RunRow {
   duration_s: number | null
   avg_hr: number | null
   completion: string | null
+  terrain: string | null
   notes: string | null
   updated_at?: string
 }
@@ -292,6 +294,7 @@ export function rowToRun(r: RunRow): Run {
     durationS: toNum(r.duration_s),
     avgHr: toNum(r.avg_hr),
     completion: r.completion || 'completed', // legacy null → treated as completed
+    terrain: (r.terrain as Terrain) || 'road', // legacy null → road
     notes: r.notes || '',
     updatedAt: r.updated_at,
   }
@@ -309,6 +312,7 @@ export function runToRow(r: RunDraft): RunRow {
     duration_s: toNum(r.durationS),
     avg_hr: toNum(r.avgHr),
     completion: blankToNull(r.completion),
+    terrain: r.terrain || 'road',
     notes: blankToNull(r.notes),
   }
 }

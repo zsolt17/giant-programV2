@@ -16,9 +16,10 @@ import {
   PACE_ROUND_S,
   PACE_DEGRADE_S,
   RUN_STRUCTURE,
+  RUN_TERRAIN_NOTE,
 } from './constants'
 import type { RunStructureKey } from './constants'
-import type { Run, RunSlot, RunSlotKey, RunType, RunSignalHits, WeekType } from './types'
+import type { Run, RunSlot, RunSlotKey, RunType, RunSignalHits, Terrain, WeekType } from './types'
 
 // ---- schedule ---------------------------------------------------------------
 
@@ -115,17 +116,24 @@ export function runStructureKey(slot: RunSlot, deloadWeek: boolean): RunStructur
 // The description shown on the run session view. In pace mode the computed
 // guidance is appended (easy/long → easy pace, quality → the range); the TT
 // pace is discovered/recorded, never prescribed, and deload stays pace-free.
-// Talk-test mode returns the text verbatim.
-export function runStructureText(key: RunStructureKey, refPaceS: number | null | undefined): string {
-  const base = RUN_STRUCTURE[key]
-  if (runMode(refPaceS) !== 'pace') return base
-  const P = refPaceS as number
-  if (key === 'easy' || key === 'long') return `${base} Easy pace: ~${fmtPace(easyPace(P))} /km.`
-  if (key === 'quality') {
-    const [qMin, qMax] = qualityRange(P)
-    return `${base} Quality pace: ${fmtPace(qMin)}–${fmtPace(qMax)} /km.`
+// Talk-test mode returns the text verbatim. Terrain wording: quality/tt carry
+// their standing terrain rule always; easy/long/deload gain the trail note
+// only while the Trail toggle is selected (pace guidance is then moot but kept
+// — the note explicitly overrides it).
+export function runStructureText(key: RunStructureKey, refPaceS: number | null | undefined, terrain: Terrain = 'road'): string {
+  let text = RUN_STRUCTURE[key]
+  if (runMode(refPaceS) === 'pace') {
+    const P = refPaceS as number
+    if (key === 'easy' || key === 'long') text = `${text} Easy pace: ~${fmtPace(easyPace(P))} /km.`
+    if (key === 'quality') {
+      const [qMin, qMax] = qualityRange(P)
+      text = `${text} Quality pace: ${fmtPace(qMin)}–${fmtPace(qMax)} /km.`
+    }
   }
-  return base
+  if (key === 'quality') return `${text} ${RUN_TERRAIN_NOTE.quality}`
+  if (key === 'tt') return `${text} ${RUN_TERRAIN_NOTE.tt}`
+  if (terrain === 'trail') return `${text} ${RUN_TERRAIN_NOTE.trail}`
+  return text
 }
 
 // ---- formatting / parsing ----------------------------------------------------
@@ -180,13 +188,23 @@ export function parseClock(text: string | null | undefined): number | null {
 // R3 — pace-at-HR degraded on 2+ runs this week (ONE week-level occurrence,
 //      mirrors the lifts' S5). Only evaluated when avg HR is logged — a run
 //      without HR (or with no prior same-type HR run to compare against) is
-//      skipped, never guessed.
+//      skipped, never guessed. ROAD runs only, on both sides: trail pace
+//      varies with terrain, not fatigue, so a trail run is never judged
+//      degraded and never serves as a baseline.
 function paceAtHrDegraded(run: Run, priorRuns: Run[]): boolean {
+  if (run.terrain === 'trail') return false
   const pace = derivedPaceS(run.distanceKm, run.durationS)
   if (pace == null || run.avgHr == null) return false
-  // Most recent PRIOR run of the same type that also has pace + HR.
+  // Most recent PRIOR road run of the same type that also has pace + HR.
   const baseline = priorRuns
-    .filter((r) => r.runType === run.runType && r.date < run.date && r.avgHr != null && derivedPaceS(r.distanceKm, r.durationS) != null)
+    .filter(
+      (r) =>
+        r.terrain !== 'trail' &&
+        r.runType === run.runType &&
+        r.date < run.date &&
+        r.avgHr != null &&
+        derivedPaceS(r.distanceKm, r.durationS) != null
+    )
     .sort((a, b) => (a.date < b.date ? 1 : -1))[0]
   if (!baseline) return false
   const basePace = derivedPaceS(baseline.distanceKm, baseline.durationS) as number

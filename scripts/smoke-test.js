@@ -169,6 +169,13 @@ async function main() {
     ok('empty avgHr/completion stored as NULL', rawRun.avg_hr === null && rawRun.completion === null, rawRun)
     let runs = await repo.getRuns(id)
     ok('null completion reads back as completed', runs.find((r) => r.id === rid)?.completion === 'completed')
+    // Terrain (0011): round-trips; legacy NULL reads back as road.
+    await repo.saveRun({ ...savedRun, terrain: 'trail' })
+    runs = await repo.getRuns(id)
+    ok('terrain round-trips = trail', runs.find((r) => r.id === rid)?.terrain === 'trail')
+    await supabase.from('runs').update({ terrain: null }).eq('id', rid) // simulate a pre-0011 row
+    runs = await repo.getRuns(id)
+    ok('legacy NULL terrain reads back as road', runs.find((r) => r.id === rid)?.terrain === 'road')
     // Idempotent update on the same id.
     await repo.saveRun({ ...savedRun, completion: 'cut_fatigue', durationS: 2100 })
     runs = await repo.getRuns(id)

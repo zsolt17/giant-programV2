@@ -208,3 +208,10 @@ test('runSummary: testing-week TT degrades position; unlogged fields leave no re
   const bare = runSummary(baseRun({ distanceKm: null, durationS: null, avgHr: null, notes: '' }), 2)
   assert.equal(bare, ['Run — M2C1W2 — Easy — 14.07.2026', 'Completion: Completed ✓'].join('\n'))
 })
+
+test('runSummary: trail runs marked after the pace segment; road stays unmarked', () => {
+  const s = runSummary(baseRun({ terrain: 'trail', durationS: 2600, notes: '' }), 2)
+  // 2600 / 5.2 = 500 s/km → 8:20.
+  assert.equal(s, ['Run — M2C1W2 — Easy — 14.07.2026', '5.2 km in 43:20 → 8:20/km · Trail | avg HR 148', 'Completion: Completed ✓'].join('\n'))
+  assert.ok(!runSummary(baseRun({ terrain: 'road' }), 2).includes('Trail'))
+})

@@ -311,7 +311,8 @@ Block cardio cals), `carry_rounds`, `carry_distance`; `0005_anchor_weights.sql` 
 `0007_program_revision.sql` reassigns secondaries (`rdl_deadlift`→`rdl_squat`, adds `lunge_deadlift`)
 and adds `sessions.block_completion`; `0008_recovery.sql` adds the Recovery tables — §12; `0009_dips_pullup_modes.sql` adds the
 `pullup` anchor lift + `sessions.dips_cluster` for the two-mode logic — §3; `0010_giant_run.sql` adds
-`macros.ref_pace_s` + the `runs` and `run_targets` tables — §13).
+`macros.ref_pace_s` + the `runs` and `run_targets` tables — §13; `0011_run_terrain.sql` adds
+`runs.terrain` — §13).
 See `supabase/MIGRATIONS.md` for how migrations are applied and the DB kept reproducible.
 Tables:
 
@@ -459,6 +460,7 @@ runs (
   duration_s    int,
   avg_hr        int,
   completion    text,                      -- completed | cut_fatigue | cut_schedule | felt_heavy (null = completed)
+  terrain       text default 'road',       -- road | trail (null = road; trail excluded from pace readouts)
   notes         text,
   updated_at    timestamptz default now()
 )
@@ -579,7 +581,8 @@ logging, deload signals, data export). Engine: `src/engine/runs.ts`.
   previous cycle in Setup; the log records actual distance independently.
 - **Logging:** distance (km) + duration (min:sec) → **pace always derived, never
   stored**; optional avg HR; categorical completion (Completed ✓ default / cut
-  short – fatigue / cut short – schedule / felt heavy – talk test failed); notes.
+  short – fatigue / cut short – schedule / felt heavy – talk test failed);
+  **terrain toggle** (Road default / Trail); notes.
   One `runs` row per day, human-readable id `{date}-run-{E|Q|L|T}`, idempotent
   upsert, offline-queued like sessions. Editable/deletable retroactively from the
   Calendar's run modal.
@@ -598,9 +601,18 @@ logging, deload signals, data export). Engine: `src/engine/runs.ts`.
   weekly count; the trigger, testing-week suppression, cap and exemptions are
   unchanged (§5). A reactive-deload week collapses the run prescription to
   short-easy-only in Today + Calendar.
+- **Terrain awareness (Road/Trail):** trail pace varies with terrain, not fatigue, so
+  trail runs never distort pace-based readouts — the Trends pace chart **excludes
+  trail by default** (a chip overlays them as hollow markers), and **R3 evaluates
+  road runs only, on both sides** (a trail run is never judged degraded and never
+  serves as a baseline). Guidance wording (with the descriptions in
+  `constants.ts`): quality days are flat/road only, the TT is always the same flat
+  route, and selecting Trail on an easy/long day appends "ignore pace — talk test
+  governs; hiking steep climbs at conversational effort counts as easy running."
+  Copy-summaries mark trail runs (`… → 8:20/km · Trail`); road stays unmarked.
 - **Data:** runs appear in the Data list (marked `· RUN`) with their own copy-summary
-  format, export as a third CSV (with a derived `pace_s_per_km` column), and get a
-  pace-over-time Trends view (per run type, up = faster).
+  format, export as a third CSV (with `terrain` and a derived `pace_s_per_km`
+  column), and get a pace-over-time Trends view (per run type, up = faster).
 
 ## 14. Related documents
 

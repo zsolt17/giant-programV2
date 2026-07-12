@@ -86,6 +86,20 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-07-12 (night)
+- `feat(run)`: **terrain awareness — Road/Trail toggle on run logging**. Trail pace varies with
+  terrain, not fatigue, so trail runs no longer distort pace readouts: the Trends pace chart
+  **excludes trail by default** (a "Trail runs" chip overlays them as hollow markers; legend
+  numbers stay road-only), and the **R3 pace-at-HR signal evaluates road runs only, on both
+  sides** (trail candidates skipped, trail baselines ignored). New segmented Terrain control in
+  the run Log card (Road default, `data-run-terrain`); guidance wording centralised in
+  `RUN_TERRAIN_NOTE`: quality days always state "flat/road only", the TT "always the same flat
+  route", and selecting Trail on easy/long/deload days appends the ignore-pace/talk-test note
+  live. Copy-summary marks trail (`… → 8:20/km · Trail`); runs CSV gains a `terrain` column.
+  Migration `0011_run_terrain.sql` (`runs.terrain text default 'road'` + CHECK; legacy NULL reads
+  as road). typecheck + **115 tests** + build green; smoke extended (terrain round-trip +
+  legacy-NULL default).
+
 ## 2026-07-12 (evening)
 - `feat(run)`: **run-day structure descriptions**. Each run session view (Today + Calendar
   RunModal, shared `RunForm`) now opens with a muted-italic description of the run's structure —

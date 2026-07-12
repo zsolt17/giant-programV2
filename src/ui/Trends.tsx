@@ -286,28 +286,43 @@ function PaceTooltip({ active, payload, label }: TipProps) {
 
 function RunsChart({ runs, runType }: { runs: TrendRun[]; runType: string }) {
   const types: RunType[] = runType === 'All' ? ALL_RUN_TYPES : [runType as RunType]
-  const shown = useMemo(() => runs.filter((r) => types.includes(r.type)), [runs, runType]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Trail runs are paced by terrain, not fitness — hidden by default so they
+  // can't distort the trend; the chip overlays them as hollow markers.
+  const [showTrail, setShowTrail] = useState(false)
+  const shown = useMemo(
+    () => runs.filter((r) => types.includes(r.type) && (showTrail || r.terrain !== 'trail')),
+    [runs, runType, showTrail] // eslint-disable-line react-hooks/exhaustive-deps
+  )
+  const trailCount = useMemo(() => runs.filter((r) => types.includes(r.type) && r.terrain === 'trail').length, [runs, runType]) // eslint-disable-line react-hooks/exhaustive-deps
   const byDate = useMemo(() => {
-    const map: Record<string, Record<string, number | string>> = {}
+    const map: Record<string, Record<string, number | string | boolean>> = {}
     shown.forEach((r) => {
       const label = `${r.date.slice(8, 10)}.${r.date.slice(5, 7)}`
       if (!map[r.date]) map[r.date] = { label }
       map[r.date][RUN_TYPE_LABEL[r.type]] = Math.round(r.paceS)
+      map[r.date][`${RUN_TYPE_LABEL[r.type]}~trail`] = r.terrain === 'trail'
     })
     return Object.keys(map)
       .sort()
       .map((k) => map[k])
   }, [shown])
-  if (!byDate.length) return <div style={{ textAlign: 'center', color: C.dim, padding: '60px 0', fontSize: 13 }}>No runs with distance + duration logged yet.</div>
-  // Latest pace per type for the legend strip.
+  // Latest ROAD pace per type for the legend strip (trail never sets the number).
   const latestOf = (t: RunType) => {
-    const of = shown.filter((r) => r.type === t)
+    const of = shown.filter((r) => r.type === t && r.terrain !== 'trail')
     return of.length ? of[of.length - 1].paceS : null
   }
+  // Hollow marker for trail points, solid for road.
+  const dotFor = (t: RunType) =>
+    function TerrainDot(props: { cx?: number; cy?: number; payload?: Record<string, unknown> }) {
+      const { cx, cy, payload } = props
+      if (cx == null || cy == null || payload?.[RUN_TYPE_LABEL[t]] == null) return <g />
+      const trail = !!payload?.[`${RUN_TYPE_LABEL[t]}~trail`]
+      return <circle cx={cx} cy={cy} r={trail ? 3.5 : 2.5} fill={trail ? 'transparent' : RUN_COLORS[t]} stroke={RUN_COLORS[t]} strokeWidth={trail ? 1.5 : 0} />
+    }
   return (
     <Card>
       <SectionHeader sub="The Giant Run" title="Pace Over Time" />
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
         {types.map((t) => {
           const latest = latestOf(t)
           return (
@@ -319,19 +334,32 @@ function RunsChart({ runs, runType }: { runs: TrendRun[]; runType: string }) {
             </div>
           )
         })}
+        <div style={{ marginLeft: 'auto' }}>
+          <Btn active={showTrail} onClick={() => setShowTrail((v) => !v)} color={C.green}>
+            Trail runs{trailCount ? ` (${trailCount})` : ''}
+          </Btn>
+        </div>
       </div>
-      <ResponsiveContainer width="100%" height={220}>
-        <LineChart data={byDate} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={C.line} vertical={false} />
-          <XAxis dataKey="label" tick={tick} axisLine={false} tickLine={false} />
-          <YAxis reversed tick={tick} axisLine={false} tickLine={false} width={38} domain={['dataMin - 15', 'dataMax + 15']} tickFormatter={(v: number) => fmtPace(v)} />
-          <Tooltip content={<PaceTooltip />} />
-          {types.map((t) => (
-            <Line key={t} type="monotone" dataKey={RUN_TYPE_LABEL[t]} stroke={RUN_COLORS[t]} strokeWidth={2.5} dot={{ r: 2.5, strokeWidth: 0, fill: RUN_COLORS[t] }} connectNulls />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
-      <div style={{ fontSize: 10, color: C.dim, marginTop: 8, textAlign: 'right' }}>up = faster · pace derived from logged distance + duration</div>
+      {!byDate.length ? (
+        <div style={{ textAlign: 'center', color: C.dim, padding: '40px 0', fontSize: 13 }}>
+          {trailCount ? 'Only trail runs so far — enable the Trail chip to see them.' : 'No runs with distance + duration logged yet.'}
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={byDate} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={C.line} vertical={false} />
+            <XAxis dataKey="label" tick={tick} axisLine={false} tickLine={false} />
+            <YAxis reversed tick={tick} axisLine={false} tickLine={false} width={38} domain={['dataMin - 15', 'dataMax + 15']} tickFormatter={(v: number) => fmtPace(v)} />
+            <Tooltip content={<PaceTooltip />} />
+            {types.map((t) => (
+              <Line key={t} type="monotone" dataKey={RUN_TYPE_LABEL[t]} stroke={RUN_COLORS[t]} strokeWidth={2.5} dot={dotFor(t)} connectNulls />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      )}
+      <div style={{ fontSize: 10, color: C.dim, marginTop: 8, textAlign: 'right' }}>
+        up = faster · road only by default{showTrail ? ' · hollow = trail (terrain-paced)' : ''}
+      </div>
     </Card>
   )
 }

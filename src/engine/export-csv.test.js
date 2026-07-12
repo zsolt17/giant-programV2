@@ -103,9 +103,10 @@ test('runsToCsv: header, derived pace column, date-sorted, escaping intact', () 
   ]
   const csv = runsToCsv(runs, macros)
   const lines = csv.split('\n')
-  assert.equal(lines[0], 'date,macro,cycle,week,week_type,run_type,distance_km,duration_s,pace_s_per_km,avg_hr,completion,notes')
+  assert.equal(lines[0], 'date,macro,cycle,week,week_type,run_type,terrain,distance_km,duration_s,pace_s_per_km,avg_hr,completion,notes')
   // Sorted oldest first; pace derived (1980/5.2 = 380.8 → 381).
-  assert.equal(lines[1], '2026-07-14,2,1,2,training,easy,5.2,1980,381,148,completed,')
+  // Terrain defaults to road when the fixture doesn't set it (legacy rows).
+  assert.equal(lines[1], '2026-07-14,2,1,2,training,easy,road,5.2,1980,381,148,completed,')
   // 1000/3 = 333.3 → 333; comma-bearing notes are quoted.
-  assert.equal(lines[2], '2026-07-16,2,1,2,training,quality,3,1000,333,,felt_heavy,"hills, wind"')
+  assert.equal(lines[2], '2026-07-16,2,1,2,training,quality,road,3,1000,333,,felt_heavy,"hills, wind"')
 })

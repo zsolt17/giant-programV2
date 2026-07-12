@@ -75,7 +75,7 @@ export function testingToCsv(results: TestingResult[], macros: Macro[]): string 
 // seconds) for analysis convenience; it is never stored.
 export function runsToCsv(runs: Run[], macros: Macro[]): string {
   const numberById = new Map(macros.map((m) => [m.id, m.number]))
-  const header = 'date,macro,cycle,week,week_type,run_type,distance_km,duration_s,pace_s_per_km,avg_hr,completion,notes'
+  const header = 'date,macro,cycle,week,week_type,run_type,terrain,distance_km,duration_s,pace_s_per_km,avg_hr,completion,notes'
   const rows = runs
     .slice()
     .sort((a, b) => (a.date < b.date ? -1 : 1))
@@ -88,6 +88,7 @@ export function runsToCsv(runs: Run[], macros: Macro[]): string {
         r.week,
         r.weekType,
         r.runType,
+        r.terrain || 'road',
         r.distanceKm,
         r.durationS,
         pace != null ? Math.round(pace) : null,

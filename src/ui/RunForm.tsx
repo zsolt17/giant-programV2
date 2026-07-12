@@ -7,10 +7,10 @@ import { useState, useEffect } from 'react'
 import { C, HEADING, inp, lbl } from './theme'
 import { Card } from './components'
 import { blockTitle, Row } from './controls'
-import { RUN_TYPE_LABEL, RUN_COMPLETION, TT_KM } from '../engine/constants'
+import { RUN_TYPE_LABEL, RUN_COMPLETION, TERRAIN_LABEL, TT_KM } from '../engine/constants'
 import { fmtPace, fmtRunDuration, parseClock, derivedPaceS, runIdFor, runStructureKey, runStructureText } from '../engine/runs'
 import { errMsg } from './controls'
-import type { RunDraft, RunSlot } from '../engine/types'
+import type { RunDraft, RunSlot, Terrain } from '../engine/types'
 
 // Build a blank run draft for a computed slot.
 export function buildBlankRun(slot: RunSlot, macroId: string): RunDraft {
@@ -26,6 +26,7 @@ export function buildBlankRun(slot: RunSlot, macroId: string): RunDraft {
     durationS: '',
     avgHr: '',
     completion: 'completed',
+    terrain: 'road',
     notes: '',
   }
 }
@@ -60,8 +61,9 @@ export function RunForm({ slot, refPaceS, targetKm, deloadWeek, draft, setField 
   // Reactive deload: the prescription collapses to a short easy run.
   const shownType = deloadWeek ? 'easy' : slot.runType
   const target = deloadWeek || slot.weekType === 'deload' ? 'short & easy' : isTT ? `${TT_KM} km` : targetKm != null ? `${targetKm} km` : '—'
-  // Structure description (engine-composed: pace guidance appended in pace mode).
-  const structure = runStructureText(runStructureKey(slot, deloadWeek), refPaceS)
+  // Structure description (engine-composed: pace guidance in pace mode, terrain
+  // wording per the toggle — re-composes live when Trail is selected).
+  const structure = runStructureText(runStructureKey(slot, deloadWeek), refPaceS, (draft.terrain as Terrain) || 'road')
 
   const pace = derivedPaceS(num(draft.distanceKm), num(draft.durationS))
 
@@ -140,6 +142,8 @@ export function RunForm({ slot, refPaceS, targetKm, deloadWeek, draft, setField 
           <span style={{ fontSize: 12, color: C.muted }}>/km</span>
         </div>
 
+        <TerrainToggle value={(draft.terrain as Terrain) || 'road'} onChange={(v) => setField('terrain', v)} />
+
         <RunCompletion value={draft.completion} onChange={(v) => setField('completion', v)} />
       </Card>
 
@@ -208,6 +212,42 @@ export function SetPaceChip({ run, refPaceS, onSetRefPace }: { run: { distanceKm
       )}
       {err && <div style={{ marginTop: 8, fontSize: 12, color: C.red }}>Couldn't save — {err}.</div>}
     </Card>
+  )
+}
+
+// Terrain toggle: Road (default) / Trail. Trail runs are excluded from
+// pace-based readouts (trend chart default view, R3 signal) — terrain sets
+// their pace, not fatigue. Segmented control like the difficulty/cycle pickers.
+function TerrainToggle({ value, onChange }: { value: Terrain; onChange: (v: Terrain) => void }) {
+  return (
+    <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+      <label style={lbl}>Terrain</label>
+      <div role="group" aria-label="Terrain" style={{ display: 'flex', gap: 8 }}>
+        {(Object.keys(TERRAIN_LABEL) as Terrain[]).map((t) => (
+          <button
+            key={t}
+            data-run-terrain={t}
+            aria-pressed={value === t}
+            onClick={() => onChange(t)}
+            style={{
+              flex: 1,
+              background: value === t ? C.gold : 'transparent',
+              color: value === t ? C.dark : C.muted,
+              border: `1px solid ${C.border}`,
+              borderRadius: 2,
+              fontSize: 12,
+              fontWeight: 600,
+              padding: '8px 4px',
+              cursor: 'pointer',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+            }}
+          >
+            {TERRAIN_LABEL[t]}
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }
 

@@ -68,7 +68,7 @@ export function toRunTrend(runs: Run[], macros: Macro[]): TrendRun[] {
       const paceS = derivedPaceS(r.distanceKm, r.durationS)
       if (paceS == null) return null
       const num = numById[r.macroId] ?? 0
-      return { macro: `M${num}`, macroNumber: num, date: r.date, type: r.runType, paceS, distanceKm: r.distanceKm, hr: r.avgHr } satisfies TrendRun
+      return { macro: `M${num}`, macroNumber: num, date: r.date, type: r.runType, paceS, distanceKm: r.distanceKm, hr: r.avgHr, terrain: r.terrain || 'road' } satisfies TrendRun
     })
     .filter((r): r is TrendRun => r != null)
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
