@@ -3,8 +3,10 @@ import type { CSSProperties, ReactNode } from 'react'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { C as TH, HEADING, BODY } from './theme'
 import { useFocusTrap } from './useFocusTrap'
-import { toTrendSessions, toAccessoryTrend, toCarrySessions, toAttendance, macroLabels } from '../engine/trends'
-import type { TrendsData, TrendSession, TrendAccessory, TrendCarry, TrendDay, CarryType, AttMacro, AttStatus } from '../engine/types'
+import { toTrendSessions, toAccessoryTrend, toCarrySessions, toAttendance, toRunTrend, macroLabels } from '../engine/trends'
+import { fmtPace } from '../engine/runs'
+import { RUN_TYPE_LABEL } from '../engine/constants'
+import type { TrendsData, TrendSession, TrendAccessory, TrendCarry, TrendDay, TrendRun, RunType, CarryType, AttMacro, AttStatus } from '../engine/types'
 
 // Mockup palette remapped onto the navy/gold system (the mockup's amber ≈ our gold).
 const C = {
@@ -35,8 +37,10 @@ const CARRY_COLORS: Record<CarryType, string> = { Farmer: C.amber, Suitcase: C.s
 const STATUS_COLOR: Record<string, string> = { done: C.green, missed: C.red, deload: C.amber, holiday: C.slate, test: C.purple, upcoming: C.muted }
 const SLOTS = ['Mon', 'Wed', 'Fri']
 const ALL_LIFTS: TrendDay[] = ['DL', 'OHP', 'Squat', 'Dips']
-const AUX_VIEWS = ['Lifts', 'Accessories', 'Carries', 'Session'] as const
+const AUX_VIEWS = ['Lifts', 'Runs', 'Accessories', 'Carries', 'Session'] as const
 type View = (typeof AUX_VIEWS)[number]
+const ALL_RUN_TYPES: RunType[] = ['easy', 'quality', 'long', 'tt']
+const RUN_COLORS: Record<RunType, string> = { easy: C.green, quality: C.amber, long: C.slate, tt: C.purple }
 
 // ─── shared UI ───────────────────────────────────────────────────────────────
 interface TipProps {
@@ -206,7 +210,7 @@ function useFocusTrapRef(onClose: () => void) {
 }
 
 // ─── filter bar ──────────────────────────────────────────────────────────────
-function FilterBar({ rangeStart, rangeEnd, cycle, lift, view, onOpenPicker, onCycle, onLift, onView }: { rangeStart: string; rangeEnd: string; cycle: string; lift: string; view: View; onOpenPicker: () => void; onCycle: (c: string) => void; onLift: (l: string) => void; onView: (v: View) => void }) {
+function FilterBar({ rangeStart, rangeEnd, cycle, lift, runType, view, onOpenPicker, onCycle, onLift, onRunType, onView }: { rangeStart: string; rangeEnd: string; cycle: string; lift: string; runType: string; view: View; onOpenPicker: () => void; onCycle: (c: string) => void; onLift: (l: string) => void; onRunType: (t: string) => void; onView: (v: View) => void }) {
   const isSingle = rangeStart === rangeEnd
   const rangeLabel = isSingle ? rangeStart : `${rangeStart} – ${rangeEnd}`
   const isLifts = view === 'Lifts'
@@ -223,7 +227,7 @@ function FilterBar({ rangeStart, rangeEnd, cycle, lift, view, onOpenPicker, onCy
       <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
         <span style={rowLabel}>VIEW</span>
         {AUX_VIEWS.map((v) => (
-          <Btn key={v} active={view === v} onClick={() => onView(v)} color={v === 'Accessories' ? C.purple : v === 'Carries' ? C.green : v === 'Session' ? C.slate : C.amber}>
+          <Btn key={v} active={view === v} onClick={() => onView(v)} color={v === 'Accessories' ? C.purple : v === 'Carries' || v === 'Runs' ? C.green : v === 'Session' ? C.slate : C.amber}>
             {v}
           </Btn>
         ))}
@@ -248,7 +252,87 @@ function FilterBar({ rangeStart, rangeEnd, cycle, lift, view, onOpenPicker, onCy
           ))}
         </div>
       )}
+      {view === 'Runs' && (
+        <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+          <span style={rowLabel}>RUN</span>
+          {['All', ...ALL_RUN_TYPES].map((t) => (
+            <Btn key={t} active={runType === t} color={RUN_COLORS[t as RunType]} onClick={() => onRunType(t)}>
+              {t === 'All' ? 'All' : t === 'tt' ? 'TT' : RUN_TYPE_LABEL[t as RunType]}
+            </Btn>
+          ))}
+        </div>
+      )}
     </div>
+  )
+}
+
+// ─── Runs view chart ─────────────────────────────────────────────────────────
+// Pace over time, one line per run type. The Y axis is REVERSED (up = faster)
+// and ticks/tooltip render mm:ss — raw seconds never reach the eye.
+function PaceTooltip({ active, payload, label }: TipProps) {
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{ background: C.inset, border: `1px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', fontSize: 12 }}>
+      <div style={{ color: C.label, marginBottom: 4 }}>{label}</div>
+      {payload.map((p, i) => (
+        <div key={i} style={{ color: p.color || C.amber, display: 'flex', gap: 8 }}>
+          <span style={{ color: C.dim }}>{p.name}</span>
+          <span style={{ fontWeight: 600, ...num }}>{fmtPace(Number(p.value))}/km</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function RunsChart({ runs, runType }: { runs: TrendRun[]; runType: string }) {
+  const types: RunType[] = runType === 'All' ? ALL_RUN_TYPES : [runType as RunType]
+  const shown = useMemo(() => runs.filter((r) => types.includes(r.type)), [runs, runType]) // eslint-disable-line react-hooks/exhaustive-deps
+  const byDate = useMemo(() => {
+    const map: Record<string, Record<string, number | string>> = {}
+    shown.forEach((r) => {
+      const label = `${r.date.slice(8, 10)}.${r.date.slice(5, 7)}`
+      if (!map[r.date]) map[r.date] = { label }
+      map[r.date][RUN_TYPE_LABEL[r.type]] = Math.round(r.paceS)
+    })
+    return Object.keys(map)
+      .sort()
+      .map((k) => map[k])
+  }, [shown])
+  if (!byDate.length) return <div style={{ textAlign: 'center', color: C.dim, padding: '60px 0', fontSize: 13 }}>No runs with distance + duration logged yet.</div>
+  // Latest pace per type for the legend strip.
+  const latestOf = (t: RunType) => {
+    const of = shown.filter((r) => r.type === t)
+    return of.length ? of[of.length - 1].paceS : null
+  }
+  return (
+    <Card>
+      <SectionHeader sub="The Giant Run" title="Pace Over Time" />
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+        {types.map((t) => {
+          const latest = latestOf(t)
+          return (
+            <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div style={{ width: 18, height: 3, background: RUN_COLORS[t], borderRadius: 2 }} />
+              <span style={{ fontSize: 11, color: C.label, ...num }}>
+                {RUN_TYPE_LABEL[t]} {latest != null ? `${fmtPace(latest)}/km` : '—'}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+      <ResponsiveContainer width="100%" height={220}>
+        <LineChart data={byDate} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={C.line} vertical={false} />
+          <XAxis dataKey="label" tick={tick} axisLine={false} tickLine={false} />
+          <YAxis reversed tick={tick} axisLine={false} tickLine={false} width={38} domain={['dataMin - 15', 'dataMax + 15']} tickFormatter={(v: number) => fmtPace(v)} />
+          <Tooltip content={<PaceTooltip />} />
+          {types.map((t) => (
+            <Line key={t} type="monotone" dataKey={RUN_TYPE_LABEL[t]} stroke={RUN_COLORS[t]} strokeWidth={2.5} dot={{ r: 2.5, strokeWidth: 0, fill: RUN_COLORS[t] }} connectNulls />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+      <div style={{ fontSize: 10, color: C.dim, marginTop: 8, textAlign: 'right' }}>up = faster · pace derived from logged distance + duration</div>
+    </Card>
   )
 }
 
@@ -764,6 +848,7 @@ export function Trends({ data }: { data: TrendsData }) {
   const allLunge = useMemo(() => toAccessoryTrend(data.macros, data.accessory, 'lunge_deadlift'), [data])
   const allCarries = useMemo(() => toCarrySessions(data.sessions, data.macros, data.accessory), [data])
   const allAttendance = useMemo(() => toAttendance(data.macros, data.sessions, data.deloads, data.breakDays), [data])
+  const allRunTrend = useMemo(() => toRunTrend(data.runs || [], data.macros), [data])
   const ALL_MACROS = useMemo(() => macroLabels(data.macros), [data.macros])
   const latest = ALL_MACROS[ALL_MACROS.length - 1] || ''
 
@@ -771,6 +856,7 @@ export function Trends({ data }: { data: TrendsData }) {
   const [rangeEnd, setRangeEnd] = useState(latest)
   const [cycle, setCycle] = useState('All')
   const [lift, setLift] = useState('All')
+  const [runType, setRunType] = useState('All')
   const [view, setView] = useState<View>('Lifts')
   const [pickerOpen, setPickerOpen] = useState(false)
 
@@ -791,6 +877,7 @@ export function Trends({ data }: { data: TrendsData }) {
   const handleView = (v: View) => {
     setView(v)
     if (v !== 'Lifts') setLift('All')
+    if (v !== 'Runs') setRunType('All')
     setCycle('All')
   }
 
@@ -807,7 +894,7 @@ export function Trends({ data }: { data: TrendsData }) {
           <div style={{ fontSize: 10, color: C.amber, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 3 }}>The Giant Program · {subtitle}</div>
           <div style={{ fontFamily: HEADING, fontSize: 30, letterSpacing: '0.04em', color: C.bright, lineHeight: 1 }}>TRENDS</div>
         </div>
-        <FilterBar rangeStart={rangeStart} rangeEnd={rangeEnd} cycle={cycle} lift={lift} view={view} onOpenPicker={() => setPickerOpen(true)} onCycle={setCycle} onLift={setLift} onView={handleView} />
+        <FilterBar rangeStart={rangeStart} rangeEnd={rangeEnd} cycle={cycle} lift={lift} runType={runType} view={view} onOpenPicker={() => setPickerOpen(true)} onCycle={setCycle} onLift={setLift} onRunType={setRunType} onView={handleView} />
       </div>
 
       <div>
@@ -821,6 +908,7 @@ export function Trends({ data }: { data: TrendsData }) {
               <BarSpeedChart sessions={filtered} lift={lift} />
             </>
           ))}
+        {view === 'Runs' && <RunsChart runs={allRunTrend.filter((r) => activeMacros.includes(r.macro))} runType={runType} />}
         {view === 'Accessories' && (
           <>
             <AccessoryChart data={allRow.filter((a) => activeMacros.includes(a.macro))} title="One-Arm DB Row" sub="OHP-day secondary · per cycle" color={C.slate} />

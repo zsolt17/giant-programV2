@@ -92,3 +92,20 @@ test('unknown macroId yields a blank macro cell, not a crash', () => {
   const csv = sessionsToCsv([session({ macroId: 'ghost' })], macros)
   assert.equal(csv.split('\n')[1].split(',')[1], '') // macro column blank
 })
+
+// ---- runsToCsv (Giant Run) ----------------------------------------------------
+import { runsToCsv } from './export-csv'
+
+test('runsToCsv: header, derived pace column, date-sorted, escaping intact', () => {
+  const runs = [
+    { id: 'b', macroId: 'm2', date: '2026-07-16', cycle: 1, week: 2, weekType: 'training', runType: 'quality', distanceKm: 3, durationS: 1000, avgHr: null, completion: 'felt_heavy', notes: 'hills, wind' },
+    { id: 'a', macroId: 'm2', date: '2026-07-14', cycle: 1, week: 2, weekType: 'training', runType: 'easy', distanceKm: 5.2, durationS: 1980, avgHr: 148, completion: 'completed', notes: '' },
+  ]
+  const csv = runsToCsv(runs, macros)
+  const lines = csv.split('\n')
+  assert.equal(lines[0], 'date,macro,cycle,week,week_type,run_type,distance_km,duration_s,pace_s_per_km,avg_hr,completion,notes')
+  // Sorted oldest first; pace derived (1980/5.2 = 380.8 → 381).
+  assert.equal(lines[1], '2026-07-14,2,1,2,training,easy,5.2,1980,381,148,completed,')
+  // 1000/3 = 333.3 → 333; comma-bearing notes are quoted.
+  assert.equal(lines[2], '2026-07-16,2,1,2,training,quality,3,1000,333,,felt_heavy,"hills, wind"')
+})

@@ -307,6 +307,18 @@ export interface TrendAccessory {
   weight: number
 }
 
+// One logged run with a derivable pace, for the Runs trend view (pace over time,
+// per run type). Pace is derived at build time — never persisted.
+export interface TrendRun {
+  macro: string // "M2"
+  macroNumber: number
+  date: string
+  type: RunType
+  paceS: number // derived s/km (unrounded)
+  distanceKm: number | null
+  hr: number | null
+}
+
 // ---- Recovery > Tendon Health ---------------------------------------------
 // An active or completed joint isometric-loading protocol. Joint/Phase live in
 // engine/recovery-content.ts (the static content module).

@@ -1,9 +1,10 @@
 // Pure derivation: our persisted Session/Macro/deload data -> the flat row shape
 // the Trends charts consume (TrendSession). No DB calls, no React. The deload
 // signal flags mirror deload-rule.ts exactly so Trends never disagrees with Deload.
-import type { Session, Macro, DeloadMap, BreakDayMap, AccessoryByCycle, TrendSession, TrendDay, TrendAccessory, TrendCarry, CarryType, AttStatus, AttMacro, AttCycle } from './types'
+import type { Session, Macro, Run, DeloadMap, BreakDayMap, AccessoryByCycle, TrendSession, TrendDay, TrendAccessory, TrendCarry, TrendRun, CarryType, AttStatus, AttMacro, AttCycle } from './types'
 import { weekKeyFor } from './deload-rule'
 import { enumerateMacro, todayISO } from './date-engine'
+import { derivedPaceS } from './runs'
 
 const DAY_LABEL: Record<string, TrendDay> = { deadlift: 'DL', ohp: 'OHP', squat: 'Squat', dips: 'Dips' }
 const SPD: Record<string, 0 | 1 | 2> = { down: 0, normal: 1, up: 2 }
@@ -52,6 +53,24 @@ export function toTrendSessions(sessions: Session[], macros: Macro[], deloads: D
         sets: (s.cardioCals || []).filter((c): c is number => c != null),
       } satisfies TrendSession
     })
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+}
+
+// Giant Run: every logged run with a derivable pace, oldest → newest, for the
+// Runs trend view. Pace is derived with the same engine call the UI renders.
+export function toRunTrend(runs: Run[], macros: Macro[]): TrendRun[] {
+  const numById: Record<string, number> = {}
+  macros.forEach((m) => {
+    numById[m.id] = m.number
+  })
+  return runs
+    .map((r) => {
+      const paceS = derivedPaceS(r.distanceKm, r.durationS)
+      if (paceS == null) return null
+      const num = numById[r.macroId] ?? 0
+      return { macro: `M${num}`, macroNumber: num, date: r.date, type: r.runType, paceS, distanceKm: r.distanceKm, hr: r.avgHr } satisfies TrendRun
+    })
+    .filter((r): r is TrendRun => r != null)
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
 }
 

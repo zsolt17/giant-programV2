@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { sessionSummary, testSummary, splitVolNote } from './session-summary'
+import { sessionSummary, testSummary, runSummary, splitVolNote } from './session-summary'
 
 // A fully-populated squat-hard session (top 130 → clean 85/90/95/100 ladder);
 // tests override fields as needed. Accessory grid = the session's macro, keyed by cycle.
@@ -168,4 +168,43 @@ test('testSummary: degrades without an anchor or vol note; week omitted when nul
   const r = { macroId: 'm2', lift: 'dips', weight: 12.5, reps: 3, notes: '', testedOn: '2026-07-10' }
   const out = testSummary(r, 2, null)
   assert.equal(out, ['Test — M2 — Dips — 10.07.2026', 'TEST RESULT: 12.5×3', 'No carry (testing week)'].join('\n'))
+})
+
+// ---- runSummary (Giant Run) --------------------------------------------------
+function baseRun(over = {}) {
+  return {
+    id: '2026-07-14-run-E', macroId: 'm2', date: '2026-07-14', cycle: 1, week: 2,
+    weekType: 'training', runType: 'easy', distanceKm: 5.2, durationS: 1980, avgHr: 148,
+    completion: 'completed', notes: 'felt smooth',
+    ...over,
+  }
+}
+
+test('runSummary: exact full format (distance/duration/pace/HR/completion/notes)', () => {
+  // 1980 s / 5.2 km = 380.77 s/km → "6:21"
+  assert.equal(
+    runSummary(baseRun(), 2),
+    [
+      'Run — M2C1W2 — Easy — 14.07.2026',
+      '5.2 km in 33:00 → 6:21/km | avg HR 148',
+      'Completion: Completed ✓',
+      'Notes: felt smooth',
+    ].join('\n')
+  )
+})
+
+test('runSummary: HR segment omitted when not logged; categorical completion label', () => {
+  const s = runSummary(baseRun({ avgHr: null, completion: 'cut_fatigue', notes: '' }), 2)
+  assert.equal(s, ['Run — M2C1W2 — Easy — 14.07.2026', '5.2 km in 33:00 → 6:21/km', 'Completion: Cut short — fatigue'].join('\n'))
+})
+
+test('runSummary: testing-week TT degrades position; unlogged fields leave no residue', () => {
+  const s = runSummary(
+    baseRun({ id: '2026-07-11-run-T', date: '2026-07-11', cycle: null, week: null, weekType: 'testing', runType: 'tt', distanceKm: 5, durationS: 1561, avgHr: null, notes: '' }),
+    2
+  )
+  assert.equal(s, ['Run — M2 · Testing — Time Trial — 11.07.2026', '5 km in 26:01 → 5:12/km', 'Completion: Completed ✓'].join('\n'))
+  // Nothing logged at all → header + completion only.
+  const bare = runSummary(baseRun({ distanceKm: null, durationS: null, avgHr: null, notes: '' }), 2)
+  assert.equal(bare, ['Run — M2C1W2 — Easy — 14.07.2026', 'Completion: Completed ✓'].join('\n'))
 })

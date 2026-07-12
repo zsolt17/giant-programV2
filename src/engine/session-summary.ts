@@ -3,9 +3,10 @@
 // and unit-tested. Captures the complete session picture: the Giant Block set
 // ladder comes from the SAME loading-engine computation Today renders (giantSets/
 // volumeWeight), never re-derived. Non-applicable / unlogged lines are omitted.
-import { LIFT_SHORT, SCHEMES, DAY_META, SECONDARY_ITEM, BLOCK_COMPLETION } from './constants'
+import { LIFT_SHORT, SCHEMES, DAY_META, SECONDARY_ITEM, BLOCK_COMPLETION, RUN_TYPE_LABEL, RUN_COMPLETION } from './constants'
 import { giantSets, volumeWeight, liftMode, fmt } from './loading'
-import type { Session, Lift, AccessoryByCycle, WeightsByCycle, TestingResult } from './types'
+import { derivedPaceS, fmtPace, fmtRunDuration } from './runs'
+import type { Session, Lift, AccessoryByCycle, WeightsByCycle, TestingResult, Run } from './types'
 import type { DayMeta } from './types'
 
 // 'up' -> ↑, 'down' -> ↓, 'normal' -> →; blank -> '' (no stray arrow when unlogged).
@@ -176,6 +177,40 @@ function w15DeloadSummary(s: Session, macroNumber: number): string {
   const dur = durationMin(s)
   if (dur != null) lines.push(`Duration: ${dur} min`)
   if (s.notes && s.notes.trim()) lines.push(`Notes: ${s.notes.trim()}`)
+  return lines.join('\n')
+}
+
+// Giant Run summary (Data page copy format):
+//   Run — M2C1W2 — Easy — 14.07.2026
+//   5.2 km in 33:00 → 6:20/km | avg HR 148
+//   Completion: Completed ✓
+//   Notes: …
+// Special weeks degrade the position segment like sessionSummary; unlogged
+// distance/duration segments are dropped, never faked. Pace is derived here
+// with the same engine call the UI renders — never re-computed differently.
+export function runSummary(r: Run, macroNumber: number): string {
+  const lines: string[] = []
+  const pos =
+    r.cycle != null && r.week != null
+      ? `M${macroNumber}C${r.cycle}W${r.week}`
+      : `M${macroNumber} · ${r.weekType.charAt(0).toUpperCase() + r.weekType.slice(1)}`
+  lines.push(`Run — ${pos} — ${RUN_TYPE_LABEL[r.runType]} — ${fmtDate(r.date)}`)
+
+  const pace = derivedPaceS(r.distanceKm, r.durationS)
+  const dist = r.distanceKm != null ? `${kg(r.distanceKm)} km` : ''
+  const dur = r.durationS != null ? `in ${fmtRunDuration(r.durationS)}` : ''
+  const paceSeg = pace != null ? `→ ${fmtPace(pace)}/km` : ''
+  const hrSeg = r.avgHr != null ? `| avg HR ${r.avgHr}` : ''
+  const logLine = [dist, dur, paceSeg, hrSeg].filter(Boolean).join(' ')
+  if (logLine) lines.push(logLine)
+
+  const completion =
+    !r.completion || r.completion === 'completed'
+      ? 'Completed ✓'
+      : RUN_COMPLETION.find((o) => o.id === r.completion)?.label || r.completion
+  lines.push(`Completion: ${completion}`)
+
+  if (r.notes && r.notes.trim()) lines.push(`Notes: ${r.notes.trim()}`)
   return lines.join('\n')
 }
 

@@ -100,3 +100,21 @@ test('toCarrySessions skips carries with no logged distance or skipped', () => {
   assert.equal(toCarrySessions([S({ carryDistance: null })], MACROS, {}).length, 0)
   assert.equal(toCarrySessions([S({ carryDistance: 40, carrySkipped: true })], MACROS, {}).length, 0)
 })
+
+// ---- toRunTrend (Giant Run pace trend) ----------------------------------------
+import { toRunTrend } from './trends'
+
+test('toRunTrend: derives pace, drops paceless runs, sorts oldest first', () => {
+  const macros = [{ id: 'm2', number: 2, startISO: '2026-04-13', weeks: 15, status: 'active', refPaceS: null }]
+  const runs = [
+    { id: 'b', macroId: 'm2', date: '2026-07-16', cycle: 1, week: 2, weekType: 'training', runType: 'quality', distanceKm: 3, durationS: 1000, avgHr: null, completion: 'completed', notes: '' },
+    { id: 'a', macroId: 'm2', date: '2026-07-14', cycle: 1, week: 2, weekType: 'training', runType: 'easy', distanceKm: 5, durationS: 1800, avgHr: 148, completion: 'completed', notes: '' },
+    { id: 'c', macroId: 'm2', date: '2026-07-18', cycle: 1, week: 2, weekType: 'training', runType: 'long', distanceKm: null, durationS: 1800, avgHr: null, completion: 'completed', notes: '' },
+  ]
+  const t = toRunTrend(runs, macros)
+  assert.equal(t.length, 2) // the paceless long run is dropped
+  assert.deepEqual(t.map((r) => r.date), ['2026-07-14', '2026-07-16'])
+  assert.equal(t[0].paceS, 360)
+  assert.equal(t[0].macro, 'M2')
+  assert.equal(t[1].type, 'quality')
+})

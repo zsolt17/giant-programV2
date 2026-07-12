@@ -2,7 +2,8 @@
 // CSV — tests live in testing_results, not sessions), for the Data page's
 // export. Framework-agnostic and unit-tested. The macro NUMBER is resolved from
 // the macros list (rows only carry macroId).
-import type { Session, Macro, TestingResult, DeloadMap } from './types'
+import { derivedPaceS } from './runs'
+import type { Session, Macro, TestingResult, DeloadMap, Run } from './types'
 
 // Column order = header order. Each entry maps a Session to its cell value.
 const COLUMNS: { header: string; value: (s: Session, macroNumber: number | '') => unknown }[] = [
@@ -66,5 +67,36 @@ export function testingToCsv(results: TestingResult[], macros: Macro[]): string 
     .slice()
     .sort((a, b) => ((a.testedOn || '') < (b.testedOn || '') ? -1 : 1))
     .map((r) => [r.testedOn, numberById.get(r.macroId) ?? '', r.lift, r.weight, r.reps, r.notes].map(csvCell).join(','))
+  return [header, ...rows].join('\n')
+}
+
+// Giant Run export — third CSV file (runs have their own column set). The
+// pace_s_per_km column is DERIVED at export time (duration/distance, whole
+// seconds) for analysis convenience; it is never stored.
+export function runsToCsv(runs: Run[], macros: Macro[]): string {
+  const numberById = new Map(macros.map((m) => [m.id, m.number]))
+  const header = 'date,macro,cycle,week,week_type,run_type,distance_km,duration_s,pace_s_per_km,avg_hr,completion,notes'
+  const rows = runs
+    .slice()
+    .sort((a, b) => (a.date < b.date ? -1 : 1))
+    .map((r) => {
+      const pace = derivedPaceS(r.distanceKm, r.durationS)
+      return [
+        r.date,
+        numberById.get(r.macroId) ?? '',
+        r.cycle,
+        r.week,
+        r.weekType,
+        r.runType,
+        r.distanceKm,
+        r.durationS,
+        pace != null ? Math.round(pace) : null,
+        r.avgHr,
+        r.completion,
+        r.notes,
+      ]
+        .map(csvCell)
+        .join(',')
+    })
   return [header, ...rows].join('\n')
 }
