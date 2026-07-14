@@ -86,6 +86,19 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-07-13
+- `fix(run/mobile)` + `feat(run)`: **run-log field fixes + visible target pace**. (1) The
+  Distance/Duration/Avg-HR inputs now bottom-align (each field is a flex column with the input
+  pinned), so the two-line "Duration (min:sec)" label can't push its input out of line — Today and
+  the Calendar modal both (shared RunForm); the TT's "fixed 5" note moved into the distance label.
+  (2) Distance is a text+decimal-keypad input — `type="number"` rejected the comma the iOS keypad
+  produces in comma-locales; "," normalises to "." so 3,02 / 3.02 both work. (3) **Session-timer
+  duration edit accepts seconds**: the lift "Edit (min)" fields (Today TimerBar + SessionModal) are
+  now a shared min:sec `DurationEdit` control (controls.tsx) built on `parseClock` — 42.30 / 42,30 /
+  4230 = 42:30, bare 42 = whole minutes; commits recompute `ended_at` in seconds. (4) The run Log
+  card opens with a **"Target pace:"** line (easy/long → ~easy pace, quality → range, TT → none,
+  trail/talk mode → talk test). typecheck + 116 tests + build green.
+
 ## 2026-07-12 (late)
 - `feat(run)`: **Bulletproof — post-run injury-prevention block**. Every run session (all types
   incl. the time trial; tagged optional on W15/reactive-deload weeks) now ends with a compact

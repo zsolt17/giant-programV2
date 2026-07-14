@@ -1,10 +1,36 @@
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { C, HEADING, cardStyle, inp, lbl, pillColor } from './theme'
 import { ROTATION, LIFT_LABEL, PULLUP } from '../engine/constants'
+import { parseClock } from '../engine/runs'
 import type { Difficulty, DayMeta, Position } from '../engine/types'
 
 export function speedArrow(s: string): string {
   return s === 'up' ? '↑' : s === 'down' ? '↓' : '→'
+}
+
+// Duration editor as min:sec text — shared by the session-timer edit (Today +
+// SessionModal). The iOS decimal keypad has no colon, so parseClock's forms all
+// work: "42.30" / "42,30" / "4230" = 42:30, bare "42" = 42 whole minutes.
+// Holds local text while typing (a valid keystroke commits parsed SECONDS up),
+// and snaps back to the canonical m:ss on blur.
+export function DurationEdit({ valueMs, onCommit }: { valueMs: number | null; onCommit: (seconds: number) => void }) {
+  const [txt, setTxt] = useState<string | null>(null)
+  return (
+    <input
+      style={inp}
+      type="text"
+      inputMode="decimal"
+      aria-label="Edit duration (minutes and seconds)"
+      value={txt ?? (valueMs != null ? fmtClock(valueMs) : '')}
+      onChange={(e) => {
+        setTxt(e.target.value)
+        const s = parseClock(e.target.value)
+        if (s != null) onCommit(s)
+      }}
+      onBlur={() => setTxt(null)}
+    />
+  )
 }
 
 // Extract a human-readable message from an unknown thrown value (mirrors the

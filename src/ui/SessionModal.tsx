@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import type { CSSProperties } from 'react'
 import { useFocusTrap } from './useFocusTrap'
-import { C, HEADING, inp, lbl, pillColor } from './theme'
+import { C, HEADING, lbl, pillColor } from './theme'
 import { SessionForm, buildBlankSession } from './SessionForm'
 import { TestingSessionView } from './TestingSession'
-import { fmtClock, errMsg } from './controls'
+import { fmtClock, DurationEdit, errMsg } from './controls'
 import { SCHEMES, LIFT_LABEL, SECONDARY_ITEM } from '../engine/constants'
 import { deloadTop } from '../engine/loading'
 import { parseLocalDate } from '../engine/date-engine'
@@ -92,13 +92,13 @@ export function SessionModal({
   const setField = <K extends keyof SessionDraft>(k: K, v: SessionDraft[K]) => setDraft((p) => ({ ...p, [k]: v }) as SessionDraft)
 
   // Manual duration edit for a timed session (editable-after-the-fact fallback).
+  // Takes SECONDS (DurationEdit parses min:sec text).
   const startedMs = draft.startedAt ? new Date(draft.startedAt).getTime() : null
   const durationMs = startedMs != null && draft.endedAt ? new Date(draft.endedAt).getTime() - startedMs : null
   const autoEnded = (draft.notes || '').includes('auto-ended at 90 min')
-  function setDurationMin(val: string) {
-    const n = parseFloat(val)
-    if (startedMs == null || !Number.isFinite(n) || n < 0) return
-    setField('endedAt', new Date(startedMs + n * 60000).toISOString())
+  function setDurationSec(s: number) {
+    if (startedMs == null || s < 0) return
+    setField('endedAt', new Date(startedMs + s * 1000).toISOString())
   }
 
   async function handleSave() {
@@ -231,15 +231,8 @@ export function SessionModal({
                   {autoEnded && <div style={{ fontSize: 11, color: C.red, marginTop: 4 }}>Auto-ended at 90 min</div>}
                 </div>
                 <div style={{ width: 110 }}>
-                  <label style={lbl}>Edit (min)</label>
-                  <input
-                    style={inp}
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={durationMs != null ? Math.round(durationMs / 60000) : ''}
-                    onChange={(e) => setDurationMin(e.target.value)}
-                  />
+                  <label style={lbl}>Edit (min:sec)</label>
+                  <DurationEdit valueMs={durationMs} onCommit={setDurationSec} />
                 </div>
               </div>
             )}

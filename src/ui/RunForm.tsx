@@ -8,7 +8,7 @@ import { C, HEADING, inp, lbl } from './theme'
 import { Card } from './components'
 import { blockTitle, Row } from './controls'
 import { RUN_TYPE_LABEL, RUN_COMPLETION, TERRAIN_LABEL, TT_KM, BULLETPROOF_ITEMS, BULLETPROOF_NOTE } from '../engine/constants'
-import { fmtPace, fmtRunDuration, parseClock, derivedPaceS, runIdFor, runStructureKey, runStructureText } from '../engine/runs'
+import { runMode, easyPace, qualityRange, fmtPace, fmtRunDuration, parseClock, derivedPaceS, runIdFor, runStructureKey, runStructureText } from '../engine/runs'
 import { errMsg } from './controls'
 import type { RunDraft, RunSlot, Terrain } from '../engine/types'
 
@@ -85,31 +85,49 @@ export function RunForm({ slot, refPaceS, targetKm, deloadWeek, draft, setField 
       {/* Log */}
       <Card>
         {blockTitle('Log', 'actuals')}
+        {/* Today's target pace at the top of the log, so the number you're
+            chasing sits next to the fields you fill in. */}
+        <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>
+          Target pace:{' '}
+          <strong style={{ color: C.gold, fontVariantNumeric: 'tabular-nums' }}>
+            {(() => {
+              if (draft.terrain === 'trail') return 'talk test (trail — ignore pace)'
+              if (isTT) return 'none — discover it'
+              if (runMode(refPaceS) !== 'pace') return 'talk test'
+              if (shownType === 'quality') {
+                const [qMin, qMax] = qualityRange(refPaceS as number)
+                return `${fmtPace(qMin)}–${fmtPace(qMax)} /km`
+              }
+              return `~${fmtPace(easyPace(refPaceS as number))} /km`
+            })()}
+          </strong>
+        </div>
+        {/* Each field is a flex column with the input pinned to the bottom, so a
+            label that wraps to two lines can't push its input out of alignment. */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-          <div style={{ flex: 1, minWidth: 90 }}>
-            <label style={lbl}>Distance (km)</label>
+          <div style={{ flex: 1, minWidth: 90, display: 'flex', flexDirection: 'column' }}>
+            <label style={{ ...lbl, flex: 1 }}>{isTT ? 'Distance · fixed 5' : 'Distance (km)'}</label>
             <input
               data-run-distance="1"
               style={inp}
-              type="number"
-              min="0"
-              step="0.1"
+              // text + decimal keypad: type="number" rejects the comma the iOS
+              // decimal pad produces in comma-locales; we normalise "," → "."
+              type="text"
               inputMode="decimal"
               value={draft.distanceKm ?? ''}
               readOnly={isTT}
               aria-label="Distance in kilometres"
-              onChange={(e) => setField('distanceKm', e.target.value)}
+              onChange={(e) => setField('distanceKm', e.target.value.replace(/,/g, '.').replace(/[^0-9.]/g, ''))}
             />
-            {isTT && <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>fixed 5 km</div>}
           </div>
-          <div style={{ flex: 1, minWidth: 90 }}>
-            <label style={lbl}>Duration (min:sec)</label>
+          <div style={{ flex: 1, minWidth: 90, display: 'flex', flexDirection: 'column' }}>
+            <label style={{ ...lbl, flex: 1 }}>Duration (min:sec)</label>
             <input
               data-run-duration="1"
               style={inp}
               type="text"
-              // decimal keypad: iOS's numeric pad has no colon — "." works as the
-              // separator (42.30 = 42:30), and bare digits parse too (4230 = 42:30).
+              // decimal keypad: iOS's numeric pad has no colon — "." and "," work
+              // as separators (42.30 = 42:30), and bare digits parse too (4230).
               inputMode="decimal"
               placeholder="42:30"
               value={durText}
@@ -117,8 +135,8 @@ export function RunForm({ slot, refPaceS, targetKm, deloadWeek, draft, setField 
               onChange={(e) => onDuration(e.target.value)}
             />
           </div>
-          <div style={{ flex: 1, minWidth: 80 }}>
-            <label style={lbl}>Avg HR</label>
+          <div style={{ flex: 1, minWidth: 80, display: 'flex', flexDirection: 'column' }}>
+            <label style={{ ...lbl, flex: 1 }}>Avg HR</label>
             <input
               data-run-hr="1"
               style={inp}

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
-import { C, HEADING, pillColor, inp, lbl } from './theme'
+import { C, HEADING, pillColor, lbl } from './theme'
 import { Card } from './components'
-import { PositionHeader, fmtClock, errMsg } from './controls'
+import { PositionHeader, DurationEdit, fmtClock, errMsg } from './controls'
 import { useWakeLock } from './useWakeLock'
 import { SessionForm, buildBlankSession } from './SessionForm'
 import { TestingSessionView } from './TestingSession'
@@ -515,11 +515,11 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
   const handleEnd = () => persist({ ...draft, ...stamp, endedAt: new Date().toISOString() }, true)
   const handleSave = () => persist({ ...draft, ...stamp }, true)
 
-  // Manual duration edit (completed/auto-ended): recompute ended_at from started_at.
-  function setDurationMin(val: string) {
-    const n = parseFloat(val)
-    if (startedMs == null || !Number.isFinite(n) || n < 0) return
-    setField('endedAt', new Date(startedMs + n * 60000).toISOString())
+  // Manual duration edit (completed/auto-ended): recompute ended_at from
+  // started_at. Takes SECONDS (DurationEdit parses min:sec text).
+  function setDurationSec(s: number) {
+    if (startedMs == null || s < 0) return
+    setField('endedAt', new Date(startedMs + s * 1000).toISOString())
   }
 
   const autoEnded = (draft.notes || '').includes(AUTO_END_NOTE)
@@ -538,8 +538,7 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
           autoEnded={autoEnded}
           saving={saving}
           onStart={handleStart}
-          durationMin={durationMs != null ? Math.round(durationMs / 60000) : ''}
-          onDurationMin={setDurationMin}
+          onDurationSec={setDurationSec}
         />
       )}
 
@@ -571,14 +570,13 @@ interface TimerBarProps {
   autoEnded: boolean
   saving: boolean
   onStart: () => void
-  durationMin: number | string
-  onDurationMin: (val: string) => void
+  onDurationSec: (seconds: number) => void
 }
 
 // Top of the session in the non-running states: Start button (not started) /
 // duration + manual edit (completed). The running state has no top element —
 // its controls live in the fixed SessionControlBar.
-function TimerBar({ notStarted, durationMs, hasTimer, autoEnded, saving, onStart, durationMin, onDurationMin }: TimerBarProps) {
+function TimerBar({ notStarted, durationMs, hasTimer, autoEnded, saving, onStart, onDurationSec }: TimerBarProps) {
   if (notStarted) {
     return (
       <Card style={{ textAlign: 'center' }}>
@@ -606,8 +604,8 @@ function TimerBar({ notStarted, durationMs, hasTimer, autoEnded, saving, onStart
         </div>
         {hasTimer && (
           <div style={{ width: 110 }}>
-            <label style={lbl}>Edit (min)</label>
-            <input style={inp} type="number" min="0" step="1" value={durationMin} onChange={(e) => onDurationMin(e.target.value)} />
+            <label style={lbl}>Edit (min:sec)</label>
+            <DurationEdit valueMs={durationMs} onCommit={onDurationSec} />
           </div>
         )}
       </div>
