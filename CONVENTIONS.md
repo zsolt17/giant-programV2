@@ -311,7 +311,11 @@ in `.env.production`; blank = off, tree-shaken out). Keep it a no-op when unconf
 See `ARCHITECTURE.md` §2–§6 for the full domain. In code:
 
 - **Date engine — `src/engine/date-engine.ts`.** Position is computed strictly from
-  the macro start date, never set manually. **Critical:** `corePosition` does the
+  the macro start date, never set manually, and is **weeks-driven**: every entry
+  point takes the macro's `{ weeks, deloadExtended }` (defaults 13 / false).
+  Training is always weeks 0–11; the deload is the final week (+1 when extended);
+  a 12..deload gap exists only on legacy weeks=15 macros and keeps the dormant
+  testing logic so lived history renders. **Critical:** `corePosition` does the
   position math only and never computes the next session. `computePosition` and
   `nextSessionFrom` both call `corePosition`. **Do not make them call each other** —
   that caused infinite recursion and was deliberately split. Dates are computed in
@@ -350,7 +354,8 @@ See `ARCHITECTURE.md` §2–§6 for the full domain. In code:
   Trigger = 3+ occurrences across ≥2 sessions. `shouldRecommendDeload` adds the
   cap/already-deloaded/break-coming exemptions. Advise-and-confirm, never auto-forced.
 - **Constants — `src/engine/constants.ts`.** `ROTATION`, `DAY_META`, `PULLUP`,
-  `TESTING_SCHEDULE` (W13 Mon=DL/Fri=Dips, W14 Mon=Squat/Fri=OHP), `MACRO_WEEKS = 15`.
+  `MACRO_WEEKS = 13` (default shape; the engine reads the macro's stored `weeks`),
+  `TESTING_SCHEDULE` (LEGACY — dormant, renders 15-week macros' lived testing weeks).
 - **Elapsed time / timers (session timer, `Today.tsx`).** Store **timestamps**
   (`started_at` / `ended_at`, `timestamptz`), never a duration — duration is always
   *derived* (`ended − started`). The live display is **recomputed from `started_at`

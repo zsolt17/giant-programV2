@@ -64,7 +64,7 @@ export async function getActiveMacro(): Promise<Macro | null> {
 export async function createMacro({
   number,
   startISO,
-  weeks = 15,
+  weeks = 13, // 12 training + 1 deload (extendable); legacy 15-week macros predate 0013
   status = 'active',
 }: {
   number: number
@@ -96,7 +96,8 @@ export async function updateMacro(
     weeks,
     status,
     refPaceS,
-  }: { number?: number; startISO?: string; weeks?: number; status?: MacroStatus; refPaceS?: number | null } = {}
+    deloadExtended,
+  }: { number?: number; startISO?: string; weeks?: number; status?: MacroStatus; refPaceS?: number | null; deloadExtended?: boolean } = {}
 ): Promise<Macro> {
   assertWritable()
   const patch: Record<string, unknown> = {}
@@ -105,6 +106,7 @@ export async function updateMacro(
   if (weeks !== undefined) patch.weeks = weeks
   if (status !== undefined) patch.status = status
   if (refPaceS !== undefined) patch.ref_pace_s = refPaceS
+  if (deloadExtended !== undefined) patch.deload_extended = deloadExtended
   const { data, error } = await supabase.from('macros').update(patch).eq('id', id).select().single()
   if (error) throw error
   return M.rowToMacro(data)

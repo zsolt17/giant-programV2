@@ -87,10 +87,14 @@ per-difficulty percentages 75/82/90, 72/80/88, 70/78/86.)*
 Set percentages are of that day's top (Set 4 = 100%). The day tops themselves come from the
 Hard anchor (Medium = 95%, Light = 90% of the Hard top — §3). Round to nearest 2.5 kg.
 
-### 2.5 The 15-week macrocycle
+### 2.5 The 13-week macrocycle *(restructured 2026-07-15; supersedes the 15-week shape)*
 - Weeks 1–12: three 4-week mesocycles (C1, C2, C3), H/M/L rotation.
-- Weeks 13–14: testing block.
-- Week 15: end-of-macro deload.
+- Week 13: end-of-macro deload — **extendable to a second identical deload week**
+  by the athlete, decided *during* the deload, never pre-planned (per-macro
+  `deload_extended` flag → a 14-week macro).
+- The old testing block (former weeks 13–14) is **removed from the schedule**;
+  see §2.7 for what remains of it. Legacy macros that lived their testing weeks
+  keep rendering them (the engine is weeks-driven — §6).
 
 ### 2.6 Lift rotation (weeks 1–4, repeats each mesocycle)
 4 lifts across 3 weekly slots (Mon=Hard, Wed=Medium, Fri=Light):
@@ -101,7 +105,13 @@ Hard anchor (Medium = 95%, Light = 90% of the Hard top — §3). Round to neares
 | W3 | Squat | Dips | Deadlift |
 | W4 | OHP | Squat | Dips |
 
-### 2.7 Testing weeks (13–14)
+### 2.7 Testing weeks — LEGACY (removed from the schedule 2026-07-15)
+
+**No longer part of the macro.** Strength testing was dropped with the 13-week
+restructure; the running 5k time trial moved to the deload week's Saturday (§13).
+Everything below is kept because legacy macros (stored `weeks = 15`) lived these
+weeks and their logged results stay renderable/exportable — the components,
+`testing_results` table, and Data-page entries are dormant, not deleted.
 - **Mon & Fri = test sessions:** Warm-Up → Giant Block (hard rep scheme) → Volume Block (normal) → **no carry**.
 - **Wed = optional light/recovery day** (blank placeholder; keep easy or skip).
 - Test results are **recorded, not prescribed** — no pre-set target; discover the clean 2–3RM with 1 rep in reserve and log it.
@@ -115,10 +125,14 @@ Hard anchor (Medium = 95%, Light = 90% of the Hard top — §3). Round to neares
   `{date}-{lift}-TEST`) alongside the `testing_results` record — same fields/mechanism as normal
   sessions, so `computeWeekSignals` needs no special casing (§5).
 
-### 2.8 End-of-macro deload (week 15)
+### 2.8 End-of-macro deload (the final week; week 13, or 13–14 when extended)
 - **Fixed layout: Mon = Deadlift, Wed = OHP, Fri = Dips** (NOT the normal rotation).
-- Squat deliberately omitted (post-testing fatigue; avoid two heavy lower-body sessions).
+- Squat deliberately omitted (avoid two heavy lower-body sessions late in the macro).
 - Each session: Giant Block only at 50–60%, hard rep scheme, no volume, no carries. Skill days kept.
+- **Extension:** the athlete can add one identical second deload week from the
+  deload-week view ("Extend deload one week", confirm-gated, undoable). Runs: Tue/Thu
+  optional short easy; the **first** deload Saturday is the 5k time trial (§13); an
+  extended second week's Saturday is optional easy — the TT happens once.
 
 ### 2.9 Carry loads (per day, accessory effort)
 Deadlift = Farmer's 60kg/hand · OHP = Overhead 2×20kg · Squat = Sandbag bear hug 68kg · Dips = Suitcase 50kg/hand. Progression: once per mesocycle, position before load, distance before weight. **Carries are reward/accessory work — kept around RPE 6, never pushed to a fourth hard effort.** (Stored per cycle keyed by day — `carry_<day>` — so reassigning the implement doesn't move the key.)
@@ -224,23 +238,28 @@ design decision: miss a session, you rejoin where the calendar says. The structu
 program is built to absorb gaps via deload indicators, repeat-cycle rules, and manual weight
 adjustment on return.
 
-**Anchor:** Macro 2 started **Monday 13 April 2026**. Macro = 15 weeks. A new macro rolls forward
-15 weeks and carries C3 weights into the new C1.
+**Anchor:** Macro 2 started **Monday 13 April 2026**. Macro = 13 weeks (14 when the
+deload is extended; legacy macros stored as 15). A new macro rolls forward by the
+completed macro's total weeks and carries C3 weights into the new C1.
 
-**Computation (verified correct):**
+**Computation (verified correct; WEEKS-DRIVEN since the 13-week restructure —
+every engine entry point takes the macro's `{ weeks, deloadExtended }`):**
 ```
 daysSinceStart = floor((today - mondayOf(startDate)) / 1 day)
 weekIndex = floor(daysSinceStart / 7)        // 0-based internally; ALWAYS display 1-based
-weekType: weeks 0-11 = training, 12-13 = testing, 14 = deload
+totalWeeks = weeks + (deloadExtended ? 1 : 0)
+weekType:  0-11 = training (always)
+           weekIndex >= weeks-1 = deload (the final week, + the extension week)
+           12..weeks-2 = testing  // legacy gap — exists only when weeks = 15
 meso (training only) = floor(weekIndex / 4) + 1   // 1..3
 weekInMeso = (weekIndex % 4) + 1                   // 1..4
 session days = Mon (hard), Wed (medium), Fri (light)
 dayType = ROTATION[weekInMeso-1][difficulty]
 ```
-- Testing weeks: Mon/Fri = test, Wed = optional light (`testRole` field distinguishes).
+- Legacy testing weeks: Mon/Fri = test, Wed = optional light (`testRole` field distinguishes).
 - Local date (Brașov, Romania timezone) — compute "today" locally, never UTC, to avoid date-boundary bugs.
 - Non-session days (Tue/Thu/Sat/Sun) show "Skill day / Rest" + the next scheduled session.
-- Before start → "upcoming"; past week 15 → "macro complete, start next macro."
+- Before start → "upcoming"; past the macro's total weeks → "macro complete, start next macro."
 
 **Important implementation note:** an early version caused infinite recursion because
 `computePosition` and `nextSessionFrom` called each other. The fix was to extract a `corePosition`
@@ -252,7 +271,8 @@ separation. (Lives in `src/engine/date-engine.ts`; known-correct outputs are uni
 
 ## 7. The calendar view (Option A)
 
-A **program-structured grid** (NOT a literal month calendar): 15 rows (one per program week), each
+A **program-structured grid** (NOT a literal month calendar): one row per program week
+(13; 14 when the deload is extended; legacy macros 15), each
 with 3 cells (Mon/Wed/Fri columns). Each cell shows:
 - The real calendar date (past, today, and future all dated).
 - Lift + difficulty (or "Test" / "Light optional" / "Deload").
@@ -312,7 +332,8 @@ Block cardio cals), `carry_rounds`, `carry_distance`; `0005_anchor_weights.sql` 
 and adds `sessions.block_completion`; `0008_recovery.sql` adds the Recovery tables — §12; `0009_dips_pullup_modes.sql` adds the
 `pullup` anchor lift + `sessions.dips_cluster` for the two-mode logic — §3; `0010_giant_run.sql` adds
 `macros.ref_pace_s` + the `runs` and `run_targets` tables — §13; `0011_run_terrain.sql` adds
-`runs.terrain` — §13; `0012_run_bulletproof.sql` adds `runs.bulletproof` — §13).
+`runs.terrain` — §13; `0012_run_bulletproof.sql` adds `runs.bulletproof` — §13;
+`0013_macro_13_weeks.sql` adds `macros.deload_extended` + defaults `weeks` to 13 — §2.5).
 See `supabase/MIGRATIONS.md` for how migrations are applied and the DB kept reproducible.
 Tables:
 
@@ -323,9 +344,10 @@ macros (
   user_id       uuid references auth.users not null,
   number        int not null,              -- M1, M2, M3...
   start_date    date not null,             -- anchored to a Monday
-  weeks         int not null default 15,
+  weeks         int not null default 13,   -- 12 training + 1 deload; legacy macros store 15 (lived testing weeks)
   status        text not null default 'active',  -- active | completed
   ref_pace_s    int,                       -- Giant Run reference pace P (s/km); NULL = talk-test mode (§13)
+  deload_extended boolean default false,   -- athlete added a second identical deload week (§2.8)
   created_at    timestamptz default now()
 )
 
@@ -503,6 +525,12 @@ repeated here. The two load-bearing domain invariants to preserve, wherever the 
 
 ## 11. Decisions log (settled — don't relitigate)
 
+- **13-week macro (2026-07-15):** testing weeks removed from the schedule; the deload
+  is the final week, athlete-extendable by one identical week (decided during the
+  deload, never pre-planned); the 5k TT moved to the first deload Saturday. The
+  engine is **weeks-driven** (reads `macros.weeks` + `deload_extended`): legacy
+  15-week macros keep their lived testing weeks renderable — dormant, not deleted
+  (components, `testing_results`, history all intact).
 - Position is date-computed, never manual. Firm.
 - **Working weights = a single Hard-top anchor per lift per cycle.** Medium (×0.95) / Light
   (×0.90) day tops, the uniform 85/90/95/100 Giant Block ladder, and 80% volume all compute off
@@ -568,9 +596,11 @@ Three runs a week on the lift off-days, fully integrated (date engine, calendar,
 logging, deload signals, data export). Engine: `src/engine/runs.ts`.
 
 - **Schedule (strict-date, from the same macro anchor):** Tue = Easy · Thu = Quality
-  (**Easy during mesocycle 1**) · Sat = Long easy. Testing weeks: Sat = **5k time
-  trial**, Tue/Thu optional easy. Week 15: all runs optional, short easy only. Runs
-  are computed via `corePosition` — never positioned manually.
+  (**Easy during mesocycle 1**) · Sat = Long easy. Deload week(s): Tue/Thu optional
+  short easy; the **first deload Saturday = the 5k time trial** (prescribed — the
+  macro's measurement); an extended second week's Saturday is optional easy. Legacy
+  testing weeks (15-week macros) keep their old TT-Saturday rendering. Runs are
+  computed via `corePosition` — never positioned manually.
 - **One anchor per macro: the reference pace P** (stored `macros.ref_pace_s`,
   seconds/km; entered/edited in Setup as min:sec). **Two-mode**, same pattern as
   dips/pull-ups: no anchor → **talk-test mode** (type + distance only, no paces — the

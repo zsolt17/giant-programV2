@@ -8,6 +8,7 @@
 // mode (type + distance only, no paces anywhere — the mesocycle-1 state); anchor
 // set → pace mode with the offset cascade.
 import { corePosition, parseLocalDate, isoLocal, mondayOf } from './date-engine'
+import { MACRO_WEEKS as BASE_MACRO_WEEKS } from './constants'
 import {
   RUN_SLOT_BY_DOW,
   EASY_OFFSET_S,
@@ -19,7 +20,7 @@ import {
   RUN_TERRAIN_NOTE,
 } from './constants'
 import type { RunStructureKey } from './constants'
-import type { Run, RunSlot, RunSlotKey, RunType, RunSignalHits, Terrain, WeekType } from './types'
+import type { MacroShape, Run, RunSlot, RunSlotKey, RunType, RunSignalHits, Terrain, WeekType } from './types'
 
 // ---- schedule ---------------------------------------------------------------
 
@@ -32,23 +33,27 @@ export function runIdFor(dateISO: string, runType: RunType): string {
 // The run scheduled for a date, or null when it isn't a run day (or is outside
 // the macro). Uses corePosition — never duplicates the position math.
 //   training:  Tue easy · Thu quality (easy during mesocycle 1) · Sat long
-//   testing:   Sat = 5k time trial · Tue/Thu = optional easy (or rest)
-//   deload:    all three optional, short easy only
-export function runSlotFor(startISO: string, macroNumber: number, target: Date): RunSlot | null {
+//   deload:    Tue/Thu optional short easy · FIRST deload week's Sat = the 5k
+//              time trial (the macro's measurement — prescribed, not optional);
+//              an extended second week's Sat is optional easy (TT happens once)
+//   testing (legacy weeks=15 macros only): Sat = TT · Tue/Thu optional easy
+export function runSlotFor(startISO: string, macroNumber: number, target: Date, shape: MacroShape = {}): RunSlot | null {
   const wd = target.getDay()
   const slot: RunSlotKey | undefined = RUN_SLOT_BY_DOW[wd]
   if (!slot) return null
-  const p = corePosition(startISO, macroNumber, target)
+  const p = corePosition(startISO, macroNumber, target, shape)
   if (p.beforeStart || p.complete) return null
   const weekType = p.weekType as WeekType
+  const firstDeloadWeek = (shape.weeks ?? BASE_MACRO_WEEKS) - 1
   let runType: RunType
   let optional = false
   if (weekType === 'testing') {
     runType = slot === 'long' ? 'tt' : 'easy'
     optional = slot !== 'long'
   } else if (weekType === 'deload') {
-    runType = 'easy'
-    optional = true
+    const isTT = slot === 'long' && p.weekIndex === firstDeloadWeek
+    runType = isTT ? 'tt' : 'easy'
+    optional = !isTT
   } else {
     runType = slot === 'quality' && p.meso === 1 ? 'easy' : slot
   }
@@ -65,14 +70,14 @@ export function runSlotFor(startISO: string, macroNumber: number, target: Date):
 }
 
 // The three Tue/Thu/Sat run slots of one program week (for the Calendar's run row).
-export function runSlotsForWeek(startISO: string, macroNumber: number, weekIndex: number): RunSlot[] {
+export function runSlotsForWeek(startISO: string, macroNumber: number, weekIndex: number, shape: MacroShape = {}): RunSlot[] {
   const start = mondayOf(parseLocalDate(startISO))
   const out: RunSlot[] = []
   ;[1, 3, 5].forEach((offset) => {
     // Tue = Mon+1, Thu = Mon+3, Sat = Mon+5
     const d = new Date(start)
     d.setDate(start.getDate() + weekIndex * 7 + offset)
-    const s = runSlotFor(startISO, macroNumber, d)
+    const s = runSlotFor(startISO, macroNumber, d, shape)
     if (s) out.push(s)
   })
   return out
@@ -105,10 +110,12 @@ export function derivedPaceS(distanceKm: number | null | undefined, durationS: n
 
 // ---- structure descriptions ---------------------------------------------------
 
-// Which RUN_STRUCTURE text a slot shows. W15 and reactive-deload weeks both
-// collapse to the pressure-free deload text; everything else is what the day
-// RESOLVES to (a C1 Thursday resolves to easy, so it reads the easy text).
+// Which RUN_STRUCTURE text a slot shows. The TT keeps its own text wherever it
+// falls (it now lives on the deload week's Saturday); other deload-week and
+// reactive-deload runs collapse to the pressure-free deload text; everything
+// else is what the day RESOLVES to (a C1 Thursday resolves to easy).
 export function runStructureKey(slot: RunSlot, deloadWeek: boolean): RunStructureKey {
+  if (slot.runType === 'tt') return 'tt'
   if (slot.weekType === 'deload' || deloadWeek) return 'deload'
   return slot.runType
 }

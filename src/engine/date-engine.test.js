@@ -65,41 +65,85 @@ test('before macro start -> beforeStart', () => {
   assert.equal(p.phase, 'upcoming')
 })
 
-test('testing weeks (index 12-13): Mon/Fri = test, Wed = light', () => {
-  const mon = corePosition(START, MACRO, dayAfterStart(12 * 7)) // week 13 Monday
+// ---- 13-week macro (default shape) ------------------------------------------
+test('13-week default: weekIndex 12 = deload, complete after it', () => {
+  const deload = corePosition(START, MACRO, dayAfterStart(12 * 7))
+  assert.equal(deload.weekType, 'deload')
+  assert.equal(deload.meso, null)
+  assert.equal(deload.week, null)
+  assert.equal(deload.testRole, null) // no testing weeks in the 13-week schedule
+  assert.equal(deload.totalWeeks, 13)
+  const done = corePosition(START, MACRO, dayAfterStart(13 * 7))
+  assert.equal(done.complete, true)
+  assert.equal(done.phase, 'complete')
+})
+
+test('deload extension: week 13 is a second deload week, complete after 14', () => {
+  const ext = { deloadExtended: true }
+  const second = corePosition(START, MACRO, dayAfterStart(13 * 7), ext)
+  assert.equal(second.weekType, 'deload')
+  assert.equal(second.totalWeeks, 14)
+  assert.equal(corePosition(START, MACRO, dayAfterStart(14 * 7), ext).complete, true)
+  // Without the extension the same date is past the macro.
+  assert.equal(corePosition(START, MACRO, dayAfterStart(13 * 7)).complete, true)
+})
+
+// ---- ACCEPTANCE (13-week restructure) ----------------------------------------
+test('acceptance: 2026-07-20 under M2 (weeks 15) -> deload week', () => {
+  const p = corePosition('2026-04-13', 2, parseLocalDate('2026-07-20'), { weeks: 15 })
+  assert.equal(p.weekType, 'deload')
+  assert.equal(p.displayWeekGlobal, 15)
+  assert.equal(p.totalWeeks, 15)
+  // Macro completes after that week.
+  assert.equal(corePosition('2026-04-13', 2, parseLocalDate('2026-07-27'), { weeks: 15 }).complete, true)
+})
+
+test('acceptance: 2026-07-27 under a new M3 anchor -> M3 C1 W1 Deadlift Hard', () => {
+  const p = corePosition('2026-07-27', 3, parseLocalDate('2026-07-27'))
+  assert.equal(p.weekType, 'training')
+  assert.equal(p.macro, 3)
+  assert.equal(p.meso, 1)
+  assert.equal(p.week, 1)
+  assert.equal(p.dayType, 'deadlift')
+  assert.equal(p.difficulty, 'hard')
+  assert.equal(p.totalWeeks, 13)
+})
+
+// ---- legacy 15-week macros (lived testing weeks stay renderable) --------------
+const LEGACY = { weeks: 15 }
+
+test('legacy weeks=15: testing weeks (index 12-13): Mon/Fri = test, Wed = light', () => {
+  const mon = corePosition(START, MACRO, dayAfterStart(12 * 7), LEGACY) // week 13 Monday
   assert.equal(mon.weekType, 'testing')
   assert.equal(mon.testRole, 'test')
-  const wed = corePosition(START, MACRO, dayAfterStart(12 * 7 + 2))
+  const wed = corePosition(START, MACRO, dayAfterStart(12 * 7 + 2), LEGACY)
   assert.equal(wed.weekType, 'testing')
   assert.equal(wed.testRole, 'light')
   assert.equal(mon.meso, null) // no meso/week in special weeks
   assert.equal(mon.week, null)
 })
 
-test('testing schedule: W13 Mon=DL/Fri=Dips, W14 Mon=Squat/Fri=OHP', () => {
-  const w13mon = corePosition(START, MACRO, dayAfterStart(12 * 7)) // W13 Mon
+test('legacy weeks=15: testing schedule W13 Mon=DL/Fri=Dips, W14 Mon=Squat/Fri=OHP', () => {
+  const w13mon = corePosition(START, MACRO, dayAfterStart(12 * 7), LEGACY) // W13 Mon
   assert.equal(w13mon.testRole, 'test')
   assert.equal(w13mon.testLift, 'deadlift')
-  const w13fri = corePosition(START, MACRO, dayAfterStart(12 * 7 + 4))
+  const w13fri = corePosition(START, MACRO, dayAfterStart(12 * 7 + 4), LEGACY)
   assert.equal(w13fri.testLift, 'dips')
-  const w13wed = corePosition(START, MACRO, dayAfterStart(12 * 7 + 2))
+  const w13wed = corePosition(START, MACRO, dayAfterStart(12 * 7 + 2), LEGACY)
   assert.equal(w13wed.testRole, 'light')
   assert.equal(w13wed.testLift, null)
-  const w14mon = corePosition(START, MACRO, dayAfterStart(13 * 7))
+  const w14mon = corePosition(START, MACRO, dayAfterStart(13 * 7), LEGACY)
   assert.equal(w14mon.testLift, 'squat')
-  const w14fri = corePosition(START, MACRO, dayAfterStart(13 * 7 + 4))
+  const w14fri = corePosition(START, MACRO, dayAfterStart(13 * 7 + 4), LEGACY)
   assert.equal(w14fri.testLift, 'ohp')
 })
 
-test('deload week (index 14) -> deload', () => {
-  const p = corePosition(START, MACRO, dayAfterStart(14 * 7))
+test('legacy weeks=15: deload week (index 14), complete after 15', () => {
+  const p = corePosition(START, MACRO, dayAfterStart(14 * 7), LEGACY)
   assert.equal(p.weekType, 'deload')
-})
-
-test('past week 15 -> complete', () => {
-  const p = corePosition(START, MACRO, dayAfterStart(15 * 7))
-  assert.equal(p.complete, true)
-  assert.equal(p.phase, 'complete')
+  const done = corePosition(START, MACRO, dayAfterStart(15 * 7), LEGACY)
+  assert.equal(done.complete, true)
+  assert.equal(done.phase, 'complete')
 })
 
 test('start date is snapped to its Monday', () => {
@@ -123,15 +167,24 @@ test('nextSessionFrom on a session day returns that same day', () => {
   assert.equal(ns.dayType, 'deadlift')
 })
 
-test('enumerateMacro: 15 weeks, correct boundaries', () => {
+test('enumerateMacro: 13 rows by default, 14 extended, legacy 15 keeps testing rows', () => {
   const rows = enumerateMacro(START, MACRO)
-  assert.equal(rows.length, 15)
+  assert.equal(rows.length, 13)
   assert.equal(rows[0].cells.length, 3)
   assert.equal(rows[0].cells[0].date, '2026-04-13')
   assert.equal(rows[0].cells[0].dayType, 'deadlift')
   assert.equal(rows[0].cells[0].difficulty, 'hard')
-  assert.equal(rows[12].weekType, 'testing')
-  assert.equal(rows[14].weekType, 'deload')
+  assert.equal(rows[11].weekType, 'training')
+  assert.equal(rows[12].weekType, 'deload')
+
+  const ext = enumerateMacro(START, MACRO, { deloadExtended: true })
+  assert.equal(ext.length, 14)
+  assert.equal(ext[13].weekType, 'deload')
+
+  const legacy = enumerateMacro(START, MACRO, { weeks: 15 })
+  assert.equal(legacy.length, 15)
+  assert.equal(legacy[12].weekType, 'testing')
+  assert.equal(legacy[14].weekType, 'deload')
 })
 
 test('helpers: mondayOf + isoLocal round-trip', () => {

@@ -79,6 +79,9 @@ interface TodayProps {
   runs?: Run[]
   runTargets?: RunTargetsByCycle
   refPaceS?: number | null
+  // The macro's shape (weeks + athlete deload extension) — feeds the engine.
+  macroWeeks?: number
+  deloadExtended?: boolean
   // The date the position was computed for (honours the dev ?today override).
   dateISO?: string
   onSaveSession: (record: SessionDraft) => Promise<Session>
@@ -88,6 +91,7 @@ interface TodayProps {
   onDeleteTestingResult: (id: string) => void
   onSaveRun?: (record: RunDraft) => Promise<Run>
   onSetRefPace?: (refPaceS: number | null) => Promise<void>
+  onExtendDeload?: (on: boolean) => Promise<void>
   onRunningChange?: (running: boolean) => void
 }
 
@@ -103,6 +107,8 @@ export function Today({
   runs = [],
   runTargets = {},
   refPaceS = null,
+  macroWeeks,
+  deloadExtended = false,
   dateISO,
   onSaveSession,
   onDeleteSession,
@@ -111,8 +117,10 @@ export function Today({
   onDeleteTestingResult,
   onSaveRun,
   onSetRefPace,
+  onExtendDeload,
   onRunningChange,
 }: TodayProps) {
+  const shape = { weeks: macroWeeks, deloadExtended }
   const [viewDiff, setViewDiff] = useState<Difficulty | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -128,8 +136,8 @@ export function Today({
       <Card style={{ border: `1px solid ${C.gold}`, textAlign: 'center', padding: 30 }}>
         <div style={{ fontFamily: HEADING, fontSize: 24, color: C.gold, letterSpacing: '0.05em', marginBottom: 8 }}>MACRO COMPLETE</div>
         <div style={{ fontSize: 13, color: C.off, lineHeight: 1.5 }}>
-          All 15 weeks done. Head to Setup to start the next macrocycle — carry your C3 weights forward as the new starting
-          loads.
+          All {computed.totalWeeks} weeks done. Head to Setup to start the next macrocycle — carry your C3 weights forward
+          as the new starting loads.
         </div>
       </Card>
     )
@@ -137,7 +145,7 @@ export function Today({
   // training + deload weeks render the run session; the testing-week Saturday is
   // the 5k time trial. Reactive-deload weeks collapse to short-easy-only.
   const today = dateISO || todayISO()
-  const runSlot = computed.startISO ? runSlotFor(computed.startISO, computed.macro, parseLocalDate(today)) : null
+  const runSlot = computed.startISO ? runSlotFor(computed.startISO, computed.macro, parseLocalDate(today), shape) : null
   if (runSlot && onSaveRun) {
     const runDeloadWeek =
       runSlot.weekType === 'training' &&
@@ -212,12 +220,15 @@ export function Today({
       <div>
         <PositionHeader computed={computed} label="Deload Week" />
         <Card style={{ border: `1px solid ${C.gold}` }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: C.gold, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>End-of-macro deload</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.gold, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>
+            End-of-macro deload{deloadExtended ? ' · extended' : ''}
+          </div>
           <div style={{ fontSize: 13, color: C.off, lineHeight: 1.5 }}>
             Giant Block only at 50–60% of working loads, hard rep scheme. No volume, no carries. Keep skill days. This should
             feel easy — that's correct.
           </div>
         </Card>
+        {onExtendDeload && <DeloadExtend extended={deloadExtended} onExtendDeload={onExtendDeload} />}
       </div>
     )
 
@@ -333,6 +344,64 @@ export function Today({
         setSaved={setSaved}
       />
     </div>
+  )
+}
+
+// "Extend deload one week" — decided during the deload itself, never
+// pre-planned. Confirm-gated (like Start-next-macro); undoable while extended.
+function DeloadExtend({ extended, onExtendDeload }: { extended: boolean; onExtendDeload: (on: boolean) => Promise<void> }) {
+  const [confirm, setConfirm] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  async function apply(on: boolean) {
+    setBusy(true)
+    setErr('')
+    try {
+      await onExtendDeload(on)
+      setConfirm(false)
+    } catch (e) {
+      setErr(errMsg(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Card>
+      {extended ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', color: C.gold, textTransform: 'uppercase' }}>Deload extended</div>
+            <div style={{ fontSize: 12, color: C.off, marginTop: 4 }}>A second identical deload week follows; the macro completes after it.</div>
+          </div>
+          <button onClick={() => apply(false)} disabled={busy} style={{ background: 'transparent', color: C.muted, border: `1px solid ${C.muted}`, borderRadius: 2, fontSize: 11, padding: '5px 10px', cursor: busy ? 'wait' : 'pointer' }}>
+            {busy ? '…' : 'Undo'}
+          </button>
+        </div>
+      ) : !confirm ? (
+        <>
+          <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 10 }}>
+            Still cooked? You can extend the deload by one identical week — decide here, during the deload, not in advance.
+          </div>
+          <button
+            onClick={() => setConfirm(true)}
+            style={{ background: 'transparent', color: C.gold, border: `1px solid ${C.gold}`, borderRadius: 2, padding: '10px 16px', fontSize: 13, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer' }}
+          >
+            Extend deload one week…
+          </button>
+        </>
+      ) : (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: C.off }}>Add a second deload week?</span>
+          <button onClick={() => apply(true)} disabled={busy} style={{ background: C.gold, color: C.dark, border: 'none', borderRadius: 2, padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: busy ? 'wait' : 'pointer' }}>
+            {busy ? 'Saving…' : 'Yes, extend'}
+          </button>
+          <button onClick={() => setConfirm(false)} disabled={busy} style={{ background: 'transparent', color: C.muted, border: `1px solid ${C.muted}`, borderRadius: 2, padding: '8px 14px', fontSize: 12, cursor: 'pointer' }}>
+            Cancel
+          </button>
+        </div>
+      )}
+      {err && <div style={{ marginTop: 8, fontSize: 12, color: C.red }}>Couldn't save — {err}.</div>}
+    </Card>
   )
 }
 

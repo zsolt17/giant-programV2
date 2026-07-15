@@ -136,7 +136,7 @@ export function toAttendance(macros: Macro[], sessions: Session[], deloads: Delo
     .slice()
     .sort((a, b) => a.number - b.number)
     .map((m) => {
-      const rows = enumerateMacro(m.startISO, m.number)
+      const rows = enumerateMacro(m.startISO, m.number, { weeks: m.weeks, deloadExtended: m.deloadExtended })
       const cycleMap: Record<number, AttCycle> = {}
       const endRows: AttMacro['endRows'] = []
       let epDone = 0
@@ -164,7 +164,7 @@ export function toAttendance(macros: Macro[], sessions: Session[], deloads: Delo
           })
         } else if (row.weekType === 'testing' || row.weekType === 'deload') {
           const isDeloadRow = row.weekType === 'deload'
-          const label = isDeloadRow ? 'W15' : `T${endRows.filter((r) => r.row.startsWith('T')).length + 1}`
+          const label = isDeloadRow ? `W${row.displayWeek}` : `T${endRows.filter((r) => r.row.startsWith('T')).length + 1}`
           const cells: AttStatus[] = row.cells.map((cell) => {
             const planned = isDeloadRow || cell.testRole === 'test' // a counted slot
             if (breakDays[cell.date]) {

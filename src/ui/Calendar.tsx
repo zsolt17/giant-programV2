@@ -42,6 +42,9 @@ interface CalendarProps {
   runs?: Run[]
   runTargets?: RunTargetsByCycle
   refPaceS?: number | null
+  // The macro's shape (weeks + athlete deload extension) — drives the row count.
+  macroWeeks?: number
+  deloadExtended?: boolean
   onToggleBreak: (iso: string, on: boolean) => void
   onSaveSession: (record: SessionDraft) => Promise<Session>
   onDeleteSession: (id: string) => Promise<void>
@@ -52,8 +55,9 @@ interface CalendarProps {
   onSetRefPace?: (refPaceS: number | null) => Promise<void>
 }
 
-export function Calendar({ startISO, macroNumber, macroId, weights, accessory, sessions, deloads, breakDays, testingResults, runs = [], runTargets = {}, refPaceS = null, onToggleBreak, onSaveSession, onDeleteSession, onSaveTestingResult, onDeleteTestingResult, onSaveRun, onDeleteRun, onSetRefPace }: CalendarProps) {
-  const rows = enumerateMacro(startISO, macroNumber)
+export function Calendar({ startISO, macroNumber, macroId, weights, accessory, sessions, deloads, breakDays, testingResults, runs = [], runTargets = {}, refPaceS = null, macroWeeks, deloadExtended = false, onToggleBreak, onSaveSession, onDeleteSession, onSaveTestingResult, onDeleteTestingResult, onSaveRun, onDeleteRun, onSetRefPace }: CalendarProps) {
+  const shape = { weeks: macroWeeks, deloadExtended }
+  const rows = enumerateMacro(startISO, macroNumber, shape)
   const todayStr = todayISO()
   const [modal, setModal] = useState<{ cell: MacroCell } | { runSlot: RunSlot } | null>(null)
   const currentRowRef = useRef<HTMLDivElement | null>(null)
@@ -104,8 +108,8 @@ export function Calendar({ startISO, macroNumber, macroId, weights, accessory, s
     <div>
       <Card>
         <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, marginBottom: 4 }}>
-          Macro {macroNumber} · 15 weeks from {shortDate(isoLocal(mondayOf(parseLocalDate(startISO))))}. Tap any session to log,
-          edit, or mark a break.
+          Macro {macroNumber} · {rows.length} weeks from {shortDate(isoLocal(mondayOf(parseLocalDate(startISO))))}. Tap any
+          session to log, edit, or mark a break.
         </div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8 }}>
           {([
@@ -126,7 +130,14 @@ export function Calendar({ startISO, macroNumber, macroId, weights, accessory, s
       {rows.map((row) => {
         const isTest = row.weekType === 'testing'
         const isDeload = row.weekType === 'deload'
-        const rowLabel = isTest ? 'Testing' : isDeload ? 'Deload' : `C${row.meso} · W${row.week}`
+        // The extension week is the last row when the athlete extended the deload.
+        const rowLabel = isTest
+          ? 'Testing'
+          : isDeload
+            ? deloadExtended && row.weekIndex === rows.length - 1
+              ? 'Deload · extended'
+              : 'Deload'
+            : `C${row.meso} · W${row.week}`
         return (
           <div
             key={row.weekIndex}
@@ -137,7 +148,7 @@ export function Calendar({ startISO, macroNumber, macroId, weights, accessory, s
               <span style={{ fontFamily: HEADING, fontSize: 16, letterSpacing: '0.06em', color: isTest || isDeload ? C.gold : C.off }}>
                 {rowLabel}
               </span>
-              <span style={{ fontSize: 10, color: C.muted }}>wk {row.displayWeek}/15</span>
+              <span style={{ fontSize: 10, color: C.muted }}>wk {row.displayWeek}/{rows.length}</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
               {row.cells.map((cell) => {
@@ -198,7 +209,7 @@ export function Calendar({ startISO, macroNumber, macroId, weights, accessory, s
             {/* Giant Run row — Tue/Thu/Sat under the lift row (the week block grows
                 vertically; cells stay 3-up so iPhone sizing matches the lift row). */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginTop: 6 }}>
-              {runSlotsForWeek(startISO, macroNumber, row.weekIndex).map((slot) => {
+              {runSlotsForWeek(startISO, macroNumber, row.weekIndex, shape).map((slot) => {
                 const st = runCellState(slot)
                 const loggedRun = runOnDate[slot.date]
                 const pace = loggedRun ? derivedPaceS(loggedRun.distanceKm, loggedRun.durationS) : null

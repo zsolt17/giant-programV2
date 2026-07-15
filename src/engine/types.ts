@@ -39,6 +39,15 @@ export interface NextSession {
   deload?: boolean
 }
 
+// The per-macro structure the date engine computes against: total weeks as
+// stored on the macro (13 for new macros; legacy 15-week macros keep their
+// lived testing weeks renderable) and the athlete's deload extension. Every
+// engine entry point takes this as an optional trailing argument.
+export interface MacroShape {
+  weeks?: number
+  deloadExtended?: boolean
+}
+
 // Result of the date engine's position math. Special states set beforeStart /
 // complete; the normal training/testing/deload state fills the rest.
 export interface Position {
@@ -57,6 +66,9 @@ export interface Position {
   testLift?: Lift | null
   isSessionDay?: boolean
   displayWeekGlobal?: number
+  // Total weeks of this macro incl. a deload extension (13/14, legacy 15/16) —
+  // drives every "wk X/Y" label.
+  totalWeeks?: number
   nextSession?: NextSession | null
   startISO?: string
 }
@@ -223,6 +235,9 @@ export interface Macro {
   // Giant Run reference pace P (seconds/km) — the single per-macro run anchor.
   // Null = talk-test mode. Never rounded; typically set from a time-trial result.
   refPaceS: number | null
+  // Athlete extended the deload by one identical week (decided during the
+  // deload, never pre-planned). Adds one week to the macro's total.
+  deloadExtended: boolean
 }
 
 export interface LiftWeights {

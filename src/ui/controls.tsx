@@ -190,7 +190,7 @@ export function PositionHeader({
         <div style={{ fontSize: 11, color: C.muted, letterSpacing: '0.1em' }}>
           M{computed.macro}
           {computed.meso ? ` · C${computed.meso}` : ''}
-          {computed.week ? ` · W${computed.week}` : ''} · wk {computed.displayWeekGlobal}/15
+          {computed.week ? ` · W${computed.week}` : ''} · wk {computed.displayWeekGlobal}/{computed.totalWeeks}
         </div>
         <div style={{ fontFamily: HEADING, fontSize: 26, letterSpacing: '0.05em' }}>
           {label ? label : shownLift ? LIFT_LABEL[shownLift] : '—'}

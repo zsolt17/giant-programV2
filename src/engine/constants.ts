@@ -110,12 +110,17 @@ export const SIGNALS: { id: string; label: string }[] = [
   { id: 'S5', label: 'Bar speed ↓ on top set in 2+ sessions' },
 ]
 
-// Macro shape.
-export const MACRO_WEEKS = 15
+// Macro shape: 12 training weeks (three 4-week mesocycles) + 1 deload week,
+// extendable to a second identical deload week by the athlete (macro-level
+// deload_extended flag). This is the DEFAULT — the engine reads the macro's
+// stored `weeks` so legacy 15-week macros (lived testing weeks) keep rendering.
+export const MACRO_WEEKS = 13
 export const DAY_SLOT: Record<number, Difficulty> = { 1: 'hard', 3: 'medium', 5: 'light' } // Mon/Wed/Fri -> difficulty
 
-// Testing weeks (book §10): which lift is tested on which day.
-// Keyed by weekIndex (12 = W13, 13 = W14) then weekday (1 Mon, 5 Fri). Wed = light.
+// LEGACY testing weeks (removed from the 13-week schedule; reachable only via
+// weeks=15 macros so their logged history stays renderable): which lift was
+// tested on which day. Keyed by weekIndex (12 = W13, 13 = W14) then weekday
+// (1 Mon, 5 Fri). Wed = light.
 export const TESTING_SCHEDULE: Record<number, Record<number, Lift>> = {
   12: { 1: 'deadlift', 5: 'dips' },
   13: { 1: 'squat', 5: 'ohp' },

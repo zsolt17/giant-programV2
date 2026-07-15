@@ -359,6 +359,18 @@ export function App() {
     [macro]
   )
 
+  // Extend (or un-extend) the deload by one identical week — decided during the
+  // deload itself, from the deload-week view.
+  const onExtendDeload = useCallback(
+    async (on: boolean) => {
+      if (!macro) return
+      const updated = await repo.updateMacro(macro.id, { deloadExtended: on })
+      setMacro(updated)
+      setMacros((prev) => prev.map((m) => (m.id === updated.id ? updated : m)))
+    },
+    [macro]
+  )
+
   const onToggleBreak = useCallback(async (iso: string, on: boolean) => {
     await repo.setBreakDay(iso, on)
     setBreakDays((prev) => {
@@ -453,7 +465,9 @@ export function App() {
       </Shell>
     )
 
-  const computed = macro ? computePosition(macro.startISO, macro.number, devNow()) : null
+  const computed = macro
+    ? computePosition(macro.startISO, macro.number, devNow(), { weeks: macro.weeks, deloadExtended: macro.deloadExtended })
+    : null
   if (computed && macro) computed.startISO = macro.startISO
 
   const needsMacro = !macro
@@ -486,6 +500,8 @@ export function App() {
           runs={runs}
           runTargets={runTargets}
           refPaceS={macro.refPaceS}
+          macroWeeks={macro.weeks}
+          deloadExtended={macro.deloadExtended}
           dateISO={isoLocal(devNow())}
           onSaveSession={onSaveSession}
           onDeleteSession={onDeleteSession}
@@ -494,6 +510,7 @@ export function App() {
           onDeleteTestingResult={onDeleteTestingResult}
           onSaveRun={onSaveRun}
           onSetRefPace={onSetRefPace}
+          onExtendDeload={onExtendDeload}
           onRunningChange={setSessionRunning}
         />
       )}
@@ -512,6 +529,8 @@ export function App() {
           runs={runs}
           runTargets={runTargets}
           refPaceS={macro.refPaceS}
+          macroWeeks={macro.weeks}
+          deloadExtended={macro.deloadExtended}
           onToggleBreak={onToggleBreak}
           onSaveSession={onSaveSession}
           onDeleteSession={onDeleteSession}

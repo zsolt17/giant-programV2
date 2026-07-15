@@ -57,22 +57,46 @@ test('lift days and Sunday are not run days', () => {
   assert.equal(runSlotFor(START, MACRO, parseLocalDate('2026-04-19')), null) // Sun
 })
 
-test('testing week: Sat = 5k time trial, Tue/Thu = optional easy', () => {
-  const sat = runSlotFor(START, MACRO, parseLocalDate('2026-07-11')) // W13 Sat
-  assert.equal(sat.weekType, 'testing')
-  assert.equal(sat.runType, 'tt')
-  assert.equal(sat.optional, false)
-  assert.equal(sat.cycle, null)
+test('deload week (13-week macro): Tue/Thu optional easy, Sat = the 5k TT', () => {
+  // Week 12 (0-based) = deload under the default 13-week shape: Jul 6–12.
   const tue = runSlotFor(START, MACRO, parseLocalDate('2026-07-07'))
+  assert.equal(tue.weekType, 'deload')
   assert.equal(tue.runType, 'easy')
   assert.equal(tue.optional, true)
+  const sat = runSlotFor(START, MACRO, parseLocalDate('2026-07-11'))
+  assert.equal(sat.weekType, 'deload')
+  assert.equal(sat.runType, 'tt')
+  assert.equal(sat.optional, false) // the macro's measurement — prescribed
+  assert.equal(sat.cycle, null)
 })
 
-test('deload W15: all runs optional short easy', () => {
-  const s = runSlotFor(START, MACRO, parseLocalDate('2026-07-25')) // W15 Sat
-  assert.equal(s.weekType, 'deload')
-  assert.equal(s.runType, 'easy')
-  assert.equal(s.optional, true)
+test('extended deload: second week all optional easy — the TT happens once', () => {
+  const ext = { deloadExtended: true }
+  const sat2 = runSlotFor(START, MACRO, parseLocalDate('2026-07-18'), ext) // week 13 Sat
+  assert.equal(sat2.weekType, 'deload')
+  assert.equal(sat2.runType, 'easy')
+  assert.equal(sat2.optional, true)
+  // First deload week's Sat keeps the TT even when extended.
+  assert.equal(runSlotFor(START, MACRO, parseLocalDate('2026-07-11'), ext).runType, 'tt')
+  // Without the extension, week 13 is past the macro.
+  assert.equal(runSlotFor(START, MACRO, parseLocalDate('2026-07-18')), null)
+})
+
+test('legacy weeks=15: historical testing Sats keep their TT; deload Sat (Jul 25) = the TT', () => {
+  const LEGACY = { weeks: 15 }
+  const sat = runSlotFor(START, MACRO, parseLocalDate('2026-07-11'), LEGACY) // W13 Sat (history)
+  assert.equal(sat.weekType, 'testing')
+  assert.equal(sat.runType, 'tt')
+  // The deload week's Saturday carries the TT for M2 going forward (acceptance:
+  // deload week Jul 20–26, TT on Jul 25).
+  const w15sat = runSlotFor(START, MACRO, parseLocalDate('2026-07-25'), LEGACY)
+  assert.equal(w15sat.weekType, 'deload')
+  assert.equal(w15sat.runType, 'tt')
+  assert.equal(w15sat.optional, false)
+  // Tue of the same deload week stays optional easy.
+  const w15tue = runSlotFor(START, MACRO, parseLocalDate('2026-07-21'), LEGACY)
+  assert.equal(w15tue.runType, 'easy')
+  assert.equal(w15tue.optional, true)
 })
 
 test('before start / after macro complete -> null', () => {
@@ -224,17 +248,20 @@ test('parseClock: iOS decimal-keypad forms — "." "," separators + bare digits'
 import { runStructureKey, runStructureText } from './runs'
 import { RUN_STRUCTURE, RUN_TERRAIN_NOTE } from './constants'
 
-test('runStructureKey: resolves by run type; deload overrides (W15 + reactive)', () => {
+test('runStructureKey: resolves by run type; TT wins; deload overrides the rest', () => {
   const c1Thu = runSlotFor(START, MACRO, parseLocalDate('2026-04-16')) // quality slot, resolves easy
   assert.equal(runStructureKey(c1Thu, false), 'easy')
   const c2Thu = runSlotFor(START, MACRO, parseLocalDate('2026-05-14'))
   assert.equal(runStructureKey(c2Thu, false), 'quality')
   const sat = runSlotFor(START, MACRO, parseLocalDate('2026-04-18'))
   assert.equal(runStructureKey(sat, false), 'long')
+  // The TT lives on the deload week's Saturday — it keeps its own text there.
   const ttSat = runSlotFor(START, MACRO, parseLocalDate('2026-07-11'))
+  assert.equal(ttSat.weekType, 'deload')
   assert.equal(runStructureKey(ttSat, false), 'tt')
-  const w15 = runSlotFor(START, MACRO, parseLocalDate('2026-07-25'))
-  assert.equal(runStructureKey(w15, false), 'deload')
+  // Other deload-week runs read the deload text.
+  const deloadTue = runSlotFor(START, MACRO, parseLocalDate('2026-07-07'))
+  assert.equal(runStructureKey(deloadTue, false), 'deload')
   // Reactive deload collapses a normal training run day to the deload text.
   assert.equal(runStructureKey(sat, true), 'deload')
 })

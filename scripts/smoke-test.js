@@ -46,7 +46,15 @@ async function main() {
   if (staleNext) await supabase.from('macros').delete().eq('id', staleNext.id)
   const macro = await repo.createMacro({ number: TEST_MACRO_NUMBER, startISO: '2099-01-04', status: 'completed' })
   ok('created throwaway macro', !!macro && macro.number === TEST_MACRO_NUMBER, macro)
+  ok('new macro defaults to 13 weeks', macro.weeks === 13, macro.weeks)
+  ok('new macro deload not extended', macro.deloadExtended === false, macro.deloadExtended)
   const id = macro.id
+
+  // Deload extension (0013): boolean round-trips both ways.
+  let mExt = await repo.updateMacro(id, { deloadExtended: true })
+  ok('deload_extended set = true', mExt.deloadExtended === true, mExt.deloadExtended)
+  mExt = await repo.updateMacro(id, { deloadExtended: false })
+  ok('deload_extended cleared = false', mExt.deloadExtended === false, mExt.deloadExtended)
 
   try {
     console.log('Working weights (single-anchor — only Hard is stored, Med/Light computed)')
@@ -213,6 +221,7 @@ async function main() {
     console.log('Roll to next macro (carries C3 + ref pace)')
     const next = await repo.rollToNextMacro({ currentMacroId: id, currentMacroNumber: TEST_MACRO_NUMBER, newStartISO: '2099-04-20' })
     ok('next macro created (number 1000)', next.number === TEST_MACRO_NUMBER + 1, next.number)
+    ok('rolled macro is 13 weeks, not extended', next.weeks === 13 && next.deloadExtended === false, { w: next.weeks, e: next.deloadExtended })
     ok('ref pace carried -> 337', next.refPaceS === 337, next.refPaceS)
     const nrt = await repo.getRunTargets(next.id)
     ok('C3 run targets carried as new C1 (long 7)', nrt?.[1]?.long === 7, nrt?.[1])

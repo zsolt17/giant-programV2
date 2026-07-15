@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 import { C, cardStyle, inp, lbl, pillColor } from './theme'
 import { Card, BlockTitle } from './components'
 import * as repo from '../data/repository'
-import { computePosition, parseLocalDate, mondayOf, isoLocal } from '../engine/date-engine'
+import { computePosition, totalWeeksOf, parseLocalDate, mondayOf, isoLocal } from '../engine/date-engine'
 import { LIFT_LABEL, SET_LADDER, VOLUME_PCT, PULLUP, PACE_ROUND_S } from '../engine/constants'
 import { expandDayTops, giantSets, volumeWeight, liftMode } from '../engine/loading'
 import { runMode, easyPace, qualityRange, fmtPace, parseClock } from '../engine/runs'
@@ -199,7 +199,7 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
   const [err, setErr] = useState('')
   const defaultNextStart = (() => {
     const d = mondayOf(parseLocalDate(startISO))
-    d.setDate(d.getDate() + 15 * 7)
+    d.setDate(d.getDate() + totalWeeksOf(macro ? { weeks: macro.weeks, deloadExtended: macro.deloadExtended } : {}) * 7)
     return isoLocal(d)
   })()
   const [nextStart, setNextStart] = useState(defaultNextStart)
@@ -224,16 +224,16 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
   const setA = (c: number, it: string, v: string) => setAcc((p) => ({ ...p, [c]: { ...p[c], [it]: v } }) as EditAcc)
   const setR = (c: number, s: RunSlotKey, v: string) => setRunT((p) => ({ ...p, [c]: { ...p[c], [s]: v } }) as EditRunTargets)
 
-  const pos = computePosition(startISO, number, new Date())
+  const pos = computePosition(startISO, number, new Date(), macro ? { weeks: macro.weeks, deloadExtended: macro.deloadExtended } : {})
   const posText = pos.beforeStart
     ? 'Before macro start'
     : pos.complete
       ? 'Macro complete'
       : pos.weekType === 'testing'
-        ? `Testing week (wk ${pos.displayWeekGlobal}/15)`
+        ? `Testing week (wk ${pos.displayWeekGlobal}/${pos.totalWeeks})`
         : pos.weekType === 'deload'
-          ? `Deload week (wk ${pos.displayWeekGlobal}/15)`
-          : `M${pos.macro} · C${pos.meso} · W${pos.week}  (wk ${pos.displayWeekGlobal}/15)`
+          ? `Deload week (wk ${pos.displayWeekGlobal}/${pos.totalWeeks})`
+          : `M${pos.macro} · C${pos.meso} · W${pos.week}  (wk ${pos.displayWeekGlobal}/${pos.totalWeeks})`
 
   async function save() {
     setSaving(true)

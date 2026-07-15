@@ -40,6 +40,7 @@ export interface MacroRow {
   weeks: number
   status: MacroStatus
   ref_pace_s: number | null // Giant Run reference pace P (s/km); null = talk-test mode
+  deload_extended: boolean | null // athlete extended the deload by one week (null = no)
 }
 // Single-anchor model: only the Hard top set is stored. Medium/Light day tops and
 // the within-day ladder are computed live (see rowsToWeights / engine/loading.ts).
@@ -97,7 +98,15 @@ export interface TestingRow {
 
 // ---- macro -----------------------------------------------------------------
 export function rowToMacro(r: MacroRow): Macro {
-  return { id: r.id, number: r.number, startISO: r.start_date, weeks: r.weeks, status: r.status, refPaceS: toNum(r.ref_pace_s) }
+  return {
+    id: r.id,
+    number: r.number,
+    startISO: r.start_date,
+    weeks: r.weeks,
+    status: r.status,
+    refPaceS: toNum(r.ref_pace_s),
+    deloadExtended: !!r.deload_extended,
+  }
 }
 
 // ---- working weights -------------------------------------------------------

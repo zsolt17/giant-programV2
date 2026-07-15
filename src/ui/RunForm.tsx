@@ -59,9 +59,10 @@ export function RunForm({ slot, refPaceS, targetKm, deloadWeek, draft, setField 
     setField('durationS', parseClock(v))
   }
 
-  // Reactive deload: the prescription collapses to a short easy run.
+  // Reactive deload: the prescription collapses to a short easy run. The TT
+  // (now on the deload week's Saturday) keeps its fixed distance either way.
   const shownType = deloadWeek ? 'easy' : slot.runType
-  const target = deloadWeek || slot.weekType === 'deload' ? 'short & easy' : isTT ? `${TT_KM} km` : targetKm != null ? `${targetKm} km` : '—'
+  const target = isTT ? `${TT_KM} km` : deloadWeek || slot.weekType === 'deload' ? 'short & easy' : targetKm != null ? `${targetKm} km` : '—'
   // Structure description (engine-composed: pace guidance in pace mode, terrain
   // wording per the toggle — re-composes live when Trail is selected).
   const structure = runStructureText(runStructureKey(slot, deloadWeek), refPaceS, (draft.terrain as Terrain) || 'road')

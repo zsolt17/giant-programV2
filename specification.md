@@ -50,7 +50,8 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
   Giant Block, volume, carry) and logging. **Optional session
   timer:** Start → live timer → End, duration derived from `started_at`/`ended_at`,
   90-min auto-end safeguard, manual duration edit.
-- **Calendar** — 15-week × Mon/Wed/Fri grid; log/edit/delete any session; mark breaks.
+- **Calendar** — program-week × Mon/Wed/Fri grid (13 weeks; 14 with an extended deload; legacy
+  macros 15) + the Tue/Thu/Sat run row; log/edit/delete any session; mark breaks.
 - **History** — latest top sets, recent-session feed, pull-up cluster trend, testing results.
 - **Deload** — per-week fatigue signals + reactive-deload recommend/apply (advise-and-confirm).
 - **Setup** — per-cycle (C1/C2/C3) **Hard-top anchor** per lift (Medium/Light, the Giant Block
@@ -73,7 +74,8 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
   breaks work, optional days never "missed"), TT → explicit-confirm "set as new P", run deload
   signals (R1/R2/R3) pooled into the weekly trigger, runs in Data list/copy/CSV + a Trends
   pace-over-time view.
-- **Testing weeks** — record 2–3RM results per lift.
+- **Testing weeks (legacy)** — removed from the 13-week schedule; historical results from
+  15-week macros stay viewable/exportable.
 - **Global loading states** — branded pre-React splash (home-screen-icon mark + shimmer bar);
   **first login is held** (sign-in button spinner spans auth + the first data fetch, then Today
   paints complete in one fade-in); slim top progress bar on later in-app reloads.
@@ -85,6 +87,23 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ---
 
 ## Change log
+
+## 2026-07-15
+- `feat(program)`: **13-week macro — testing weeks removed, extendable deload, TT on deload
+  Saturday.** The date engine is now **weeks-driven**: every entry point
+  (`corePosition`/`computePosition`/`nextSessionFrom`/`enumerateMacro`/`runSlotFor`/
+  `runSlotsForWeek`) takes the macro's `{ weeks, deloadExtended }`. Training = weeks 1–12
+  always; the deload = the final week, athlete-extendable to a second identical week via a new
+  confirm-gated **"Extend deload one week"** control on Today's deload view (undoable; per-macro
+  `deload_extended`, migration `0013` which also defaults `macros.weeks` to 13). Runs: deload
+  Tue/Thu optional easy; the **first deload Saturday = the 5k TT** (prescribed, with the existing
+  confirm-P flow); an extended second Saturday is optional easy. **Legacy 15-week macros (M2)
+  keep their lived testing weeks renderable** — testing components/`testing_results`/Data entries
+  are dormant, not deleted, and M2's schedule resolves with the deload on 20–26 Jul (acceptance
+  goldens: 20.07 under M2 → deload wk 15/15; 27.07 under a new M3 anchor → M3C1W1 Deadlift Hard).
+  Calendar renders 13/14/15 rows with dynamic `wk X/Y` labels and an "extended" deload row tag;
+  Setup's next-macro default start follows the macro's total weeks. typecheck + **120 tests** +
+  build green.
 
 ## 2026-07-13
 - `fix(run/mobile)` + `feat(run)`: **run-log field fixes + visible target pace**. (1) The
