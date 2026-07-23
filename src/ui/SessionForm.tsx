@@ -31,7 +31,7 @@ export function buildBlankSession({
   isDeload,
 }: BlankSessionArgs): SessionDraft {
   const scheme = difficulty ? SCHEMES[difficulty] : null
-  const top = baseTop != null && isDeload ? deloadTop(baseTop, dayType ?? undefined) : baseTop ?? null
+  const top = baseTop != null && isDeload ? deloadTop(baseTop) : baseTop ?? null
   return {
     id: `${date}-${dayType || 'x'}-${difficulty ? difficulty[0].toUpperCase() : 'X'}`,
     macroId,
@@ -94,7 +94,7 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
   // Two-mode pull-ups (dips-day secondary): anchor > 0 = weighted (full cascade at 0.5 kg).
   const pullupWeighted = dayType === 'dips' && liftMode(pullupCell?.hard) === 'weighted'
   const pullupTop = pullupWeighted ? pullupCell?.[difficulty] ?? null : null
-  const pullupSets = pullupTop != null ? giantSets(pullupTop, difficulty, 'pullup') : null
+  const pullupSets = pullupTop != null ? giantSets(pullupTop, difficulty) : null
   // Prefer the per-cycle carry weight set in Setup; fall back to the descriptive
   // default when it hasn't been configured for this cycle.
   const carryNum = carryLoad === '' || carryLoad == null ? null : Number(carryLoad)
@@ -104,8 +104,8 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
   const secondaryWeighted = meta.secondaryType === 'rdl' || meta.secondaryType === 'dbrow' || meta.secondaryType === 'lunge'
   const secondaryDisplay = secondaryWeighted ? (secondaryNum != null && !Number.isNaN(secondaryNum) ? fmt(secondaryNum) : '—') : 'BW'
   const hasTop = hasWeight && top != null && !dipsBW
-  const wu = hasTop && top != null ? warmupSets(top, dayType) : null
-  const gsets = hasTop && top != null ? giantSets(top, difficulty, dayType) : null
+  const wu = hasTop && top != null ? warmupSets(top) : null
+  const gsets = hasTop && top != null ? giantSets(top, difficulty) : null
   // Tiny dips build-up loads can round to 0 — that's bodyweight.
   const wuCell = (w: number): string => (w === 0 ? 'BW' : fmt(w))
   // Every day is now A Warm-Up · B Giant Block · C Volume · D Carry (no clean block).
@@ -204,7 +204,7 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
           {dayType === 'dips' ? (
             <Row a="Push-ups" b={`2 × ${scheme.vol} (BW — elbow protocol)`} c="BW" cls={C.blue} />
           ) : (
-            <Row a={LIFT_LABEL[dayType]} b={`2 × ${scheme.vol} @ 80%`} c={hasTop && top != null ? fmt(volumeWeight(top, dayType)) : '—'} cls={C.blue} />
+            <Row a={LIFT_LABEL[dayType]} b={`2 × ${scheme.vol} @ 80%`} c={hasTop && top != null ? fmt(volumeWeight(top)) : '—'} cls={C.blue} />
           )}
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.off, marginTop: 10 }}>
             <input type="checkbox" checked={draft.volDone} onChange={(e) => setField('volDone', e.target.checked)} /> Both sets

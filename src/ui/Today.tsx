@@ -260,7 +260,7 @@ export function Today({
   const hasWeight = base != null
   const weekKey = weekKeyFor(macro, cycle, week)
   const isDeload = !!deloads[weekKey]
-  const top = base != null ? (isDeload ? deloadTop(base, dayType) : base) : null
+  const top = base != null ? (isDeload ? deloadTop(base) : base) : null
   const carryDefault = accessory?.[cycle]?.[`carry_${dayType}`] ?? ''
   const secondaryItem = SECONDARY_ITEM[dayType]
   const secondaryDefault = secondaryItem ? accessory?.[cycle]?.[secondaryItem] ?? '' : ''

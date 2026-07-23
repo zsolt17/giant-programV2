@@ -23,8 +23,13 @@ import type {
   Run,
   RunDraft,
   RunTargetsByCycle,
+  CapacityVariant,
+  CapacityConfig,
+  CapacityLog,
+  CapacityLogDraft,
 } from '../engine/types'
 import type { Joint, Phase } from '../engine/recovery-content'
+import { ANCHOR_LIFTS } from '../engine/constants'
 
 // Browser-only offline handling (Node smoke test has no navigator/window).
 const isBrowser = typeof navigator !== 'undefined' && typeof window !== 'undefined'
@@ -278,6 +283,58 @@ export async function saveRunTargets(macroId: string, cycle: number, bySlot: Rec
   if (error) throw error
 }
 
+// ---- GiantFit capacity config (user-scoped, like break_days) ----------------
+// Reads both capacity_config (per-movement rep/weight overrides) and
+// capacity_settings (rounds), returning a full config with app defaults merged.
+export async function getCapacityConfig(): Promise<CapacityConfig> {
+  const [cfg, settings] = await Promise.all([
+    supabase.from('capacity_config').select('*'),
+    supabase.from('capacity_settings').select('rounds').maybeSingle(),
+  ])
+  if (cfg.error) throw cfg.error
+  if (settings.error) throw settings.error
+  return M.rowsToCapacityConfig(cfg.data || [], settings.data?.rounds)
+}
+
+// byMovement = { db_snatch: {reps: 8, weight: 17.5}, ... } for one variant.
+export async function saveCapacityConfig(
+  variant: CapacityVariant,
+  byMovement: Record<string, { reps: number | string | null; weight: number | string | null }>
+): Promise<void> {
+  assertWritable()
+  const rows = M.capacityConfigToRows(variant, byMovement)
+  const { error } = await supabase.from('capacity_config').upsert(rows, { onConflict: 'user_id,variant,movement_key' })
+  if (error) throw error
+}
+
+export async function setCapacityRounds(rounds: number): Promise<void> {
+  assertWritable()
+  const { error } = await supabase.from('capacity_settings').upsert({ rounds }, { onConflict: 'user_id' })
+  if (error) throw error
+}
+
+// ---- capacity logs (one per session; no UI until Phase 3) -------------------
+export async function getCapacityLog(sessionId: string): Promise<CapacityLog | null> {
+  const { data, error } = await supabase.from('capacity_logs').select('*').eq('session_id', sessionId).maybeSingle()
+  if (error) throw error
+  return data ? M.rowToCapacityLog(data) : null
+}
+
+// Idempotent: upsert on session_id (one capacity result per session).
+export async function saveCapacityLog(log: CapacityLogDraft): Promise<CapacityLog> {
+  assertWritable()
+  const row = M.capacityLogToRow(log)
+  const { data, error } = await supabase.from('capacity_logs').upsert(row, { onConflict: 'session_id' }).select().single()
+  if (error) throw error
+  return M.rowToCapacityLog(data)
+}
+
+export async function deleteCapacityLog(sessionId: string): Promise<void> {
+  assertWritable()
+  const { error } = await supabase.from('capacity_logs').delete().eq('session_id', sessionId)
+  if (error) throw error
+}
+
 // Replay queued offline writes. Call on reconnect and at startup.
 const QUEUE_EXECUTORS: QueueExecutors = {
   async saveSession(row) {
@@ -394,7 +451,13 @@ export async function rollToNextMacro({
   if (current.error) throw current.error
   await setMacroStatus(currentMacroId, 'completed')
   const next = await createMacro({ number: currentMacroNumber + 1, startISO: newStartISO, status: 'active' })
-  if (w[3]) await saveWorkingWeights(next.id, 1, w[3])
+  // Carry only the GiantFit anchors forward — deprecated Giant-era anchors
+  // (dips/pullup) stay on the old macro for history but are never written again.
+  if (w[3]) {
+    const carried: typeof w[3] = {}
+    for (const lift of ANCHOR_LIFTS) if (w[3][lift]) carried[lift] = w[3][lift]
+    if (Object.keys(carried).length) await saveWorkingWeights(next.id, 1, carried)
+  }
   if (acc[3]) await saveAccessoryWeights(next.id, 1, acc[3])
   if (rt[3]) await saveRunTargets(next.id, 1, rt[3])
   const refPaceS = M.rowToMacro(current.data).refPaceS
@@ -539,7 +602,7 @@ export async function setTendonLog(protocolId: string, tendonKey: string, dateIS
 
 // ---- bundle (one round-trip for app boot) ---------------------------------
 export async function loadMacroBundle(macroId: string): Promise<MacroBundle> {
-  const [weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets] = await Promise.all([
+  const [weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity] = await Promise.all([
     getWorkingWeights(macroId),
     getAccessoryWeights(macroId),
     getSessions(macroId),
@@ -548,6 +611,7 @@ export async function loadMacroBundle(macroId: string): Promise<MacroBundle> {
     getTestingResults(macroId),
     getRuns(macroId),
     getRunTargets(macroId),
+    getCapacityConfig(),
   ])
-  return { weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets }
+  return { weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity }
 }

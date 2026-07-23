@@ -107,15 +107,17 @@ test('bodyweight-mode dips (top 0): BW top set, no Sets line, dips cluster shown
   assert.match(out, /\n {2}Pull-ups: 6\+4\n/) // pull-ups still bodyweight (no anchor)
 })
 
-test('weighted dips ladder rounds at 0.5 kg (same engine call as Today)', () => {
+// Legacy weighted dips/pull-up sessions still render, at the uniform 2.5 kg
+// rounding (GiantFit retired the 0.5 kg increment; top set stays exact).
+test('legacy weighted dips ladder renders (2.5 kg rounding, same engine call as Today)', () => {
   const out = sessionSummary(base({ dayType: 'dips', topWeight: 10 }), 2, ACC)
-  assert.match(out, /\n {2}Sets: 8@8.5 · 6@9 · 4@9.5 · 2@10\n/)
+  assert.match(out, /\n {2}Sets: 8@7.5 · 6@10 · 4@10 · 2@10\n/)
 })
 
-test('weighted pull-ups (anchor in weights grid): ladder replaces the cluster line', () => {
+test('legacy weighted pull-ups (anchor in weights grid): ladder replaces the cluster line', () => {
   const W = { 3: { pullup: { hard: 10, medium: 9.5, light: 9 } } }
   const out = sessionSummary(base({ dayType: 'dips', topWeight: 10, pullupCluster: '6+4' }), 2, ACC, W)
-  assert.match(out, /\n {2}Pull-ups \(wtd\): 8@8.5 · 6@9 · 4@9.5 · 2@10\n/)
+  assert.match(out, /\n {2}Pull-ups \(wtd\): 8@7.5 · 6@10 · 4@10 · 2@10\n/)
   assert.doesNotMatch(out, /Pull-ups: 6\+4/)
 })
 

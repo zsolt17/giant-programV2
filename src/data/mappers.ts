@@ -8,7 +8,6 @@ import type {
   Session,
   WeekType,
   Lift,
-  AnchorLift,
   Difficulty,
   SessionDraft,
   WeightsByCycle,
@@ -25,9 +24,15 @@ import type {
   RunSlotKey,
   RunTargetsByCycle,
   Terrain,
+  CapacityVariant,
+  CapacityMovementConfig,
+  CapacityConfig,
+  CapacityLog,
+  CapacityLogDraft,
 } from '../engine/types'
 import type { Joint, Phase } from '../engine/recovery-content'
 import { expandDayTops } from '../engine/loading'
+import { mergeCapacityConfig } from '../engine/capacity'
 
 const blankToNull = (v: string | null | undefined): string | null => (v === '' || v === undefined ? null : v)
 const toNum = (v: unknown): number | null => (v === '' || v === null || v === undefined ? null : Number(v))
@@ -120,7 +125,7 @@ export function rowsToWeights(rows: WorkingWeightRow[]): WeightsByCycle {
   ;(rows || []).forEach((r) => {
     out[r.cycle] = out[r.cycle] || {}
     const anchor = toNum(r.hard)
-    out[r.cycle][r.lift] = anchor == null ? { hard: null, medium: null, light: null } : expandDayTops(anchor, r.lift as AnchorLift)
+    out[r.cycle][r.lift] = anchor == null ? { hard: null, medium: null, light: null } : expandDayTops(anchor)
   })
   return out
 }
@@ -351,6 +356,75 @@ export function runTargetsToRows(macroId: string, cycle: number, bySlot: Record<
     run_type,
     km: toNum(bySlot[run_type]),
   }))
+}
+
+// ---- GiantFit capacity (config + settings + per-session logs) ---------------
+export interface CapacityConfigRow {
+  variant: string
+  movement_key: string
+  rep_target: number | null
+  weight: number | null
+}
+// capacity_config rows + the capacity_settings rounds value -> a full config
+// with the app defaults (engine/capacity.ts) merged in.
+export function rowsToCapacityConfig(rows: CapacityConfigRow[], rounds?: number | null): CapacityConfig {
+  const stored: Partial<Record<CapacityVariant, Record<string, CapacityMovementConfig>>> = {}
+  ;(rows || []).forEach((r) => {
+    const v = r.variant as CapacityVariant
+    ;(stored[v] ||= {})[r.movement_key] = { reps: toNum(r.rep_target), weight: toNum(r.weight) }
+  })
+  return mergeCapacityConfig(stored, toNum(rounds))
+}
+// { [movementKey]: {reps, weight} } for one variant -> rows[] (user_id defaults
+// to auth.uid() at the DB, like break_days).
+export function capacityConfigToRows(
+  variant: CapacityVariant,
+  byMovement: Record<string, { reps: number | string | null; weight: number | string | null }>
+): CapacityConfigRow[] {
+  return Object.keys(byMovement).map((movement_key) => ({
+    variant,
+    movement_key,
+    rep_target: toNum(byMovement[movement_key].reps),
+    weight: toNum(byMovement[movement_key].weight),
+  }))
+}
+
+export interface CapacityLogRow {
+  id?: string
+  session_id: string
+  variant: string
+  rounds_completed: number | null
+  total_time_seconds: number | null
+  calories: number | null
+  rpe: string | null
+  notes: string | null
+  updated_at?: string
+}
+export function rowToCapacityLog(r: CapacityLogRow): CapacityLog {
+  return {
+    id: r.id,
+    sessionId: r.session_id,
+    variant: r.variant as CapacityVariant,
+    roundsCompleted: toNum(r.rounds_completed),
+    totalTimeSeconds: toNum(r.total_time_seconds),
+    calories: toNum(r.calories),
+    rpe: r.rpe || '',
+    notes: r.notes || '',
+    updatedAt: r.updated_at,
+  }
+}
+export function capacityLogToRow(l: CapacityLogDraft): CapacityLogRow {
+  const row: CapacityLogRow = {
+    session_id: l.sessionId,
+    variant: l.variant,
+    rounds_completed: toNum(l.roundsCompleted),
+    total_time_seconds: toNum(l.totalTimeSeconds),
+    calories: toNum(l.calories),
+    rpe: blankToNull(l.rpe),
+    notes: blankToNull(l.notes),
+  }
+  if (l.id) row.id = l.id
+  return row
 }
 
 // ---- recovery (protocols + per-tendon daily logs) --------------------------

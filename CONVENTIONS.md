@@ -25,7 +25,8 @@ src/
     types.ts       shared domain types (Difficulty, Lift, Position, Session, SessionDraft, …)
     constants.ts   ROTATION, SCHEMES, DAY_SPREAD/SET_LADDER/VOLUME_PCT (anchor cascade), DAY_META, SECONDARY_ITEM (day→recorded-accessory), BLOCK_COMPLETION, PULLUP, SIGNALS, TESTING_SCHEDULE, MACRO_WEEKS
     date-engine.ts position math from the macro start date (see §7)
-    loading.ts     single-anchor cascade (dayTop/expandDayTops/giantSets/volumeWeight), 2.5 kg rounding, fmt
+    loading.ts     single-anchor cascade (dayTop/expandDayTops/giantSets/volumeWeight), uniform 2.5 kg rounding, fmt
+    capacity.ts    GiantFit capacity block: static A/B movement definitions + defaults, config merge helpers
     runs.ts        Giant Run: Tue/Thu/Sat schedule (via corePosition), two-mode pace engine
                    (talk-test vs P+offset cascade), pace/duration parse+format, run signals R1/R2/R3
     deload-rule.ts reactive-deload signals + trigger (lift signals + pooled run signals)
@@ -323,16 +324,24 @@ See `ARCHITECTURE.md` §2–§6 for the full domain. In code:
 - **Loading math — `src/engine/loading.ts` (single-anchor model).** Only the **Hard top set**
   is stored per lift/cycle; everything cascades off it via named constants in `constants.ts`
   (`DAY_SPREAD` = Hard 1.0 / Med 0.95 / Light 0.90, `SET_LADDER` = [0.85, 0.90, 0.95, 1.0] uniform
-  for all days, `VOLUME_PCT` = 0.80) — no magic numbers at call sites. `dayTop(anchor, difficulty,
-  lift?)` → a day's top; `expandDayTops(anchor)` → the three day tops; `giantSets(dayTop, difficulty)`
+  for all days, `VOLUME_PCT` = 0.80) — no magic numbers at call sites. `dayTop(anchor, difficulty)`
+  → a day's top; `expandDayTops(anchor)` → the three day tops; `giantSets(dayTop, difficulty)`
   uses `SET_LADDER` (reps still per-difficulty from `SCHEMES`); `volumeWeight`, `set1Weight`,
-  `warmupSets`; `round(w, inc)` at the **lift's increment** (`LOAD_INCREMENT`: barbell 2.5 kg,
-  dips/pullup 0.5 kg — the anchor itself is never rounded); `deloadTop` (70%); `liftMode(anchor)`
-  (dips/pull-ups two-mode: 0/empty anchor = bodyweight, else weighted). Every derived-load call site
-  passes the lift so nothing re-rounds independently. The computed grid is **never persisted** —
-  `mappers.rowsToWeights` expands the stored anchor on every read (so Today/Calendar consumers are
-  unchanged), and `weightsToRows` writes only `hard`. The `lift` arg on `dayTop` is a seam for a
-  future dips-off-bodyweight path (identical for all lifts today). `fmt` is null-safe (returns `—`).
+  `warmupSets`; `round(w)` at the uniform **2.5 kg** (`DEFAULT_INCREMENT` — GiantFit retired the
+  per-lift `LOAD_INCREMENT`/0.5 kg increment; the anchor itself is never rounded); `deloadTop`
+  (70%). The GiantFit anchor set is `ANCHOR_LIFTS` (DL/OHP/Squat/Bench, `constants.ts`) — Setup
+  and `rollToNextMacro` use it; legacy `dips`/`pullup` anchor rows only ever load. `liftMode(anchor)`
+  is **LEGACY** (Giant-era two-mode) — kept solely so old dips-day sessions render; never use it in
+  Setup or new-session logic. The computed grid is **never persisted** — `mappers.rowsToWeights`
+  expands the stored anchor on every read (so Today/Calendar consumers are unchanged), and
+  `weightsToRows` writes only `hard`. `fmt` is null-safe (returns `—`).
+- **GiantFit capacity — `src/engine/capacity.ts`.** Movement definitions (A/B, ordered, which are
+  loaded, default rep targets) are **static app content** — only the user's numbers persist
+  (`capacity_config` per-movement rep/weight, `capacity_settings` rounds), with
+  `mergeCapacityConfig` overlaying stored values on `defaultCapacityConfig()` at read time
+  (unknown stored keys ignored, null reps fall back to the default). Capacity logs are
+  one-per-session (`capacity_logs`, upsert on `session_id`, cascade-deletes with the session);
+  the typed client exists now, the UI lands in Phase 3.
 - **The Giant Run — `src/engine/runs.ts` (single-anchor, two-mode — mirrors the lift engine).**
   `runSlotFor`/`runSlotsForWeek` compute the Tue/Thu/Sat schedule strictly through
   `corePosition` (never duplicate the position math): Tue easy · Thu quality (easy in meso 1) ·

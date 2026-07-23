@@ -4,18 +4,16 @@ import { C, cardStyle, inp, lbl, pillColor } from './theme'
 import { Card, BlockTitle } from './components'
 import * as repo from '../data/repository'
 import { computePosition, totalWeeksOf, parseLocalDate, mondayOf, isoLocal } from '../engine/date-engine'
-import { LIFT_LABEL, SET_LADDER, VOLUME_PCT, PULLUP, PACE_ROUND_S } from '../engine/constants'
-import { expandDayTops, giantSets, volumeWeight, liftMode } from '../engine/loading'
+import { SET_LADDER, VOLUME_PCT, PACE_ROUND_S, ANCHOR_LIFTS, ANCHOR_LABEL } from '../engine/constants'
+import { expandDayTops, giantSets, volumeWeight } from '../engine/loading'
+import { CAPACITY_MOVEMENTS, CAPACITY_VARIANTS, CAPACITY_ROUNDS_OPTIONS } from '../engine/capacity'
 import { runMode, easyPace, qualityRange, fmtPace, parseClock } from '../engine/runs'
 import { errMsg } from './controls'
-import type { Macro, WeightsByCycle, AccessoryByCycle, RunTargetsByCycle, RunSlotKey, Lift, AnchorLift, Difficulty } from '../engine/types'
+import type { Macro, WeightsByCycle, AccessoryByCycle, RunTargetsByCycle, RunSlotKey, CapacityConfig, CapacityVariant, Difficulty } from '../engine/types'
 
-const LIFTS: Lift[] = ['deadlift', 'ohp', 'squat', 'dips']
-// Anchor rows in the weights card: the 4 day lifts + pull-ups (dips-day secondary,
-// anchored for its weighted mode). Dips + pull-ups are two-mode: 0/empty = bodyweight.
-const ANCHORS: AnchorLift[] = [...LIFTS, 'pullup']
-const ANCHOR_LABEL: Record<AnchorLift, string> = { ...LIFT_LABEL, pullup: 'Pull-ups' }
-const TWO_MODE: AnchorLift[] = ['dips', 'pullup']
+// Anchor rows in the weights card: the GiantFit lifts (DL/OHP/Squat/Bench).
+// Legacy dips/pull-up anchors are read-only history — never shown or written here.
+const ANCHORS = ANCHOR_LIFTS
 const DIFFS: Difficulty[] = ['hard', 'medium', 'light']
 const CYCLES: number[] = [1, 2, 3]
 const ACC_LABEL: Record<string, string> = {
@@ -49,6 +47,7 @@ type WeightCell = { hard: number | string; medium: number | string; light: numbe
 type EditWeights = Record<number, Record<string, WeightCell>>
 type EditAcc = Record<number, Record<string, number | string>>
 type EditRunTargets = Record<number, Record<RunSlotKey, number | string>>
+type EditCapacity = Record<CapacityVariant, Record<string, { reps: number | string; weight: number | string }>>
 
 // Build editable state: every cycle/anchor-lift present, blank if unset.
 function initWeights(loaded?: WeightsByCycle): EditWeights {
@@ -95,9 +94,23 @@ function initRunTargets(loaded?: RunTargetsByCycle): EditRunTargets {
   return t
 }
 
+// Capacity config arrives with app defaults already merged (repo read); weight
+// null = unset → blank input.
+function initCapacity(loaded?: CapacityConfig): EditCapacity {
+  const out = {} as EditCapacity
+  for (const v of CAPACITY_VARIANTS) {
+    out[v] = {}
+    for (const m of CAPACITY_MOVEMENTS[v]) {
+      const s = loaded?.movements?.[v]?.[m.key]
+      out[v][m.key] = { reps: s?.reps ?? m.reps, weight: s?.weight ?? '' }
+    }
+  }
+  return out
+}
+
 interface SetupProps {
   macro: Macro | null
-  bundle: { weights: WeightsByCycle; accessory: AccessoryByCycle; runTargets: RunTargetsByCycle }
+  bundle: { weights: WeightsByCycle; accessory: AccessoryByCycle; runTargets: RunTargetsByCycle; capacity: CapacityConfig }
   macros?: Macro[]
   onReload: () => Promise<void>
   onSelectMacro: (id: string) => void
@@ -106,27 +119,13 @@ interface SetupProps {
 
 // Read-only live preview of the full cascade from one Hard anchor: the three day
 // tops (Hard/Med/Light) and, per day, the four Giant Block sets + the Volume load.
-// kg prominent, % secondary. Computed via the engine — never stored. Dips and
-// pull-ups are two-mode: a 0/empty anchor = bodyweight mode (cluster targets),
-// any weight = the full cascade at 0.5 kg rounding.
-function CascadePreview({ anchor, lift }: { anchor: number | string; lift: AnchorLift }) {
+// kg prominent, % secondary. Computed via the engine — never stored.
+function CascadePreview({ anchor }: { anchor: number | string }) {
   const a = anchor === '' || anchor == null ? NaN : Number(anchor)
-  const twoMode = TWO_MODE.includes(lift)
-  if (twoMode && liftMode(Number.isFinite(a) ? a : null) === 'bodyweight') {
-    return (
-      <div style={{ marginTop: 10, background: 'rgba(0,0,0,0.18)', border: `1px solid ${C.border}`, borderRadius: 2, padding: 10 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: C.green, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 4 }}>Bodyweight mode</div>
-        <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.5 }}>
-          No load cascade. Targets {PULLUP.hard}/{PULLUP.medium}/{PULLUP.light} reps/round (H/M/L); log the final-round
-          cluster (e.g. 6+4). Enter a weight to switch to the full cascade (0.5 kg steps).
-        </div>
-      </div>
-    )
-  }
   if (!Number.isFinite(a) || a <= 0) {
     return <div style={{ fontSize: 11, color: C.muted, fontStyle: 'italic', marginTop: 8 }}>Enter the Hard top to preview the computed loads.</div>
   }
-  const tops = expandDayTops(a, lift)
+  const tops = expandDayTops(a)
   const kg = (n: number) => (n % 1 === 0 ? String(n) : n.toFixed(1))
   const colLabel = ['Set 1', 'Set 2', 'Set 3', 'Top', 'Vol']
   const colPct = [...SET_LADDER.map((p) => Math.round(p * 100)), Math.round(VOLUME_PCT * 100)]
@@ -142,8 +141,8 @@ function CascadePreview({ anchor, lift }: { anchor: number | string; lift: Ancho
           </div>
         ))}
         {DIFFS.map((d) => {
-          const sets = giantSets(tops[d], d, lift)
-          const vals = [sets[0].weight, sets[1].weight, sets[2].weight, sets[3].weight, volumeWeight(tops[d], lift)]
+          const sets = giantSets(tops[d], d)
+          const vals = [sets[0].weight, sets[1].weight, sets[2].weight, sets[3].weight, volumeWeight(tops[d])]
           return (
             <Fragment key={d}>
               <span style={{ fontSize: 10, fontWeight: 700, color: pillColor(d), textTransform: 'uppercase' }}>{d === 'medium' ? 'Med' : d}</span>
@@ -192,6 +191,10 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
   const [weights, setWeights] = useState<EditWeights>(() => initWeights(bundle?.weights))
   const [acc, setAcc] = useState<EditAcc>(() => initAcc(bundle?.accessory))
   const [runT, setRunT] = useState<EditRunTargets>(() => initRunTargets(bundle?.runTargets))
+  // Capacity block: per-movement rep/weight edits, the viewed variant, and rounds.
+  const [cap, setCap] = useState<EditCapacity>(() => initCapacity(bundle?.capacity))
+  const [capVariant, setCapVariant] = useState<CapacityVariant>('A')
+  const [capRounds, setCapRounds] = useState<number>(bundle?.capacity?.rounds ?? 3)
   // Reference pace P held as min:sec text; parsed (never rounded) on save.
   const [pace, setPace] = useState(() => (macro?.refPaceS != null ? fmtPace(macro.refPaceS) : ''))
   const [saving, setSaving] = useState(false)
@@ -223,6 +226,8 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
     setWeights((p) => ({ ...p, [c]: { ...p[c], [l]: { ...p[c][l], [d]: v } } }) as EditWeights)
   const setA = (c: number, it: string, v: string) => setAcc((p) => ({ ...p, [c]: { ...p[c], [it]: v } }) as EditAcc)
   const setR = (c: number, s: RunSlotKey, v: string) => setRunT((p) => ({ ...p, [c]: { ...p[c], [s]: v } }) as EditRunTargets)
+  const setCapField = (v: CapacityVariant, key: string, field: 'reps' | 'weight', val: string) =>
+    setCap((p) => ({ ...p, [v]: { ...p[v], [key]: { ...p[v][key], [field]: val } } }))
 
   const pos = computePosition(startISO, number, new Date(), macro ? { weeks: macro.weeks, deloadExtended: macro.deloadExtended } : {})
   const posText = pos.beforeStart
@@ -251,6 +256,8 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
         await repo.saveAccessoryWeights(m.id, c, acc[c])
         await repo.saveRunTargets(m.id, c, runT[c])
       }
+      for (const v of CAPACITY_VARIANTS) await repo.saveCapacityConfig(v, cap[v])
+      await repo.setCapacityRounds(capRounds)
       setSaved(true)
       setTimeout(() => setSaved(false), 1600)
       await onReload()
@@ -347,7 +354,6 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: 8, alignItems: 'center' }}>
               <label htmlFor={`hard-${cycle}-${lift}`} style={{ fontSize: 13, color: C.off, fontWeight: 600 }}>
                 {ANCHOR_LABEL[lift]} <span style={{ color: pillColor('hard') }}>· Hard top</span>
-                {TWO_MODE.includes(lift) && <span style={{ fontSize: 10, color: C.muted, fontWeight: 400 }}> (added wt · 0 = BW)</span>}
               </label>
               <input
                 id={`hard-${cycle}-${lift}`}
@@ -356,15 +362,131 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
                 aria-label={`${ANCHOR_LABEL[lift]} Hard top, cycle ${cycle} (kg)`}
                 style={{ ...inp, padding: '6px', textAlign: 'center' }}
                 type="number"
-                step={TWO_MODE.includes(lift) ? '0.5' : '2.5'}
+                step="2.5"
                 inputMode="decimal"
                 value={weights[cycle][lift].hard}
                 onChange={(e) => setW(cycle, lift, 'hard', e.target.value)}
               />
             </div>
-            <CascadePreview anchor={weights[cycle][lift].hard} lift={lift} />
+            <CascadePreview anchor={weights[cycle][lift].hard} />
           </div>
         ))}
+      </Card>
+
+      {/* GiantFit capacity block — two circuit variants, editable targets */}
+      <Card>
+        <BlockTitle tag="giantfit">Capacity</BlockTitle>
+        <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>
+          Two circuit variants, 8 movements each, done top to bottom for the set number of rounds. Rep targets are
+          editable; loaded movements also take a weight (kg). Blank weight = choose on the day.
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+          <span style={{ ...lbl, marginBottom: 0 }}>Rounds</span>
+          <div style={{ display: 'flex', gap: 8 }} role="group" aria-label="Capacity rounds">
+            {CAPACITY_ROUNDS_OPTIONS.map((r) => (
+              <button
+                key={r}
+                data-cap-rounds={r}
+                onClick={() => setCapRounds(r)}
+                aria-pressed={capRounds === r}
+                style={{
+                  flex: 1,
+                  background: capRounds === r ? C.gold : 'transparent',
+                  color: capRounds === r ? C.dark : C.muted,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 2,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: '8px 4px',
+                  cursor: 'pointer',
+                }}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }} role="group" aria-label="Capacity variant">
+          {CAPACITY_VARIANTS.map((v) => (
+            <button
+              key={v}
+              data-cap-variant={v}
+              onClick={() => setCapVariant(v)}
+              aria-pressed={capVariant === v}
+              style={{
+                flex: 1,
+                background: capVariant === v ? C.gold : 'transparent',
+                color: capVariant === v ? C.dark : C.muted,
+                border: `1px solid ${C.border}`,
+                borderRadius: 2,
+                fontSize: 12,
+                fontWeight: 600,
+                padding: '8px 4px',
+                cursor: 'pointer',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Variant {v}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 64px 74px', gap: 8, alignItems: 'center', marginBottom: 2 }}>
+          <span />
+          <span style={{ fontSize: 9.5, color: C.muted, textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Reps</span>
+          <span style={{ fontSize: 9.5, color: C.muted, textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.04em' }}>kg</span>
+        </div>
+        {CAPACITY_MOVEMENTS[capVariant].map((m, i) => (
+          <div
+            key={m.key}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 64px 74px',
+              gap: 8,
+              alignItems: 'center',
+              padding: '6px 0',
+              borderBottom: '1px solid rgba(255,255,255,0.04)',
+            }}
+          >
+            <span style={{ fontSize: 13, color: C.off }}>
+              <span style={{ color: C.muted, fontVariantNumeric: 'tabular-nums' }}>{i + 1}. </span>
+              {m.name}
+              {(m.note || m.repUnit || m.loadOptional) && (
+                <span style={{ fontSize: 10, color: C.muted }}>
+                  {' '}
+                  {[m.repUnit, m.note, m.loadOptional ? 'weight optional' : null].filter(Boolean).join(' · ')}
+                </span>
+              )}
+            </span>
+            <input
+              data-cap-reps={m.key}
+              aria-label={`${m.name} rep target, variant ${capVariant}`}
+              style={{ ...inp, padding: '6px', textAlign: 'center' }}
+              type="number"
+              step="1"
+              inputMode="numeric"
+              value={cap[capVariant][m.key].reps}
+              onChange={(e) => setCapField(capVariant, m.key, 'reps', e.target.value)}
+            />
+            {m.loaded ? (
+              <input
+                data-cap-weight={m.key}
+                aria-label={`${m.name} weight, variant ${capVariant} (kg)`}
+                style={{ ...inp, padding: '6px', textAlign: 'center' }}
+                type="number"
+                step="0.5"
+                inputMode="decimal"
+                value={cap[capVariant][m.key].weight}
+                onChange={(e) => setCapField(capVariant, m.key, 'weight', e.target.value)}
+              />
+            ) : (
+              <span style={{ fontSize: 11, color: C.muted, textAlign: 'center' }}>—</span>
+            )}
+          </div>
+        ))}
+        <div style={{ fontSize: 9.5, color: C.muted, marginTop: 6, textAlign: 'right' }}>
+          logged as one block — timer &amp; logging arrive with the session views
+        </div>
       </Card>
 
       {/* Accessory loads for the selected cycle */}

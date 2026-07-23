@@ -80,11 +80,18 @@ async function main() {
     ok('upsert updates C1 deadlift hard -> 162.5', w?.[1]?.deadlift?.hard === 162.5, w?.[1]?.deadlift?.hard)
     ok('cascade follows edit: C1 deadlift medium -> 155', w?.[1]?.deadlift?.medium === 155, w?.[1]?.deadlift?.medium)
 
-    // Pull-up anchor (0009): stored like any lift; cascade rounds at 0.5, anchor exact.
+    // Bench anchor (0014, GiantFit): stored like any lift; cascade rounds at 2.5.
+    await repo.saveWorkingWeights(id, 1, { bench: { hard: 100 } })
+    w = await repo.getWorkingWeights(id)
+    ok('C1 bench anchor = 100 (0014 CHECK accepts bench)', w?.[1]?.bench?.hard === 100, w?.[1]?.bench)
+    ok('bench medium computed at 2.5 kg = 95', w?.[1]?.bench?.medium === 95, w?.[1]?.bench?.medium)
+
+    // LEGACY anchors (dips/pullup) still store/load so old macros' history renders;
+    // rounding is now uniform 2.5 kg (0.5 retired) and the anchor itself stays exact.
     await repo.saveWorkingWeights(id, 1, { pullup: { hard: 10 }, dips: { hard: 1 } })
     w = await repo.getWorkingWeights(id)
-    ok('C1 pullup anchor = 10', w?.[1]?.pullup?.hard === 10, w?.[1]?.pullup)
-    ok('pullup medium computed at 0.5 kg = 9.5', w?.[1]?.pullup?.medium === 9.5, w?.[1]?.pullup?.medium)
+    ok('legacy C1 pullup anchor = 10', w?.[1]?.pullup?.hard === 10, w?.[1]?.pullup)
+    ok('pullup medium computed at 2.5 kg = 10', w?.[1]?.pullup?.medium === 10, w?.[1]?.pullup?.medium)
     ok('dips 1 kg anchor stays exact (never rounded)', w?.[1]?.dips?.hard === 1, w?.[1]?.dips?.hard)
 
     console.log('Accessory weights (recorded per-cycle secondaries: lunge / RDL / row / carries)')
@@ -126,8 +133,28 @@ async function main() {
     const sessions = await repo.getSessions(id)
     ok('session update: topWeight -> 162.5', sessions.find((s) => s.id === sid)?.topWeight === 162.5)
     ok('no duplicate session id', sessions.filter((s) => s.id === sid).length === 1)
+
+    console.log('Capacity (GiantFit 0014: config read + per-session log round-trip)')
+    // Config is USER-scoped (not throwaway-macro-scoped), so smoke only READS it —
+    // never mutate the real config. The read also proves 0014's tables are live.
+    const capCfg = await repo.getCapacityConfig()
+    ok('capacity config loads with defaults merged (A/B × 8 movements)',
+      Object.keys(capCfg.movements.A).length === 8 && Object.keys(capCfg.movements.B).length === 8, capCfg.movements)
+    ok('capacity rounds is 3 or 4', capCfg.rounds === 3 || capCfg.rounds === 4, capCfg.rounds)
+
+    // capacity_logs hangs off the throwaway macro's session — safe to write.
+    const cl = await repo.saveCapacityLog({
+      sessionId: sid, variant: 'A', roundsCompleted: 3, totalTimeSeconds: 754, calories: '', rpe: 'R8', notes: 'smoke',
+    })
+    ok('capacity log saved (A, 3 rounds, 754s)', cl.variant === 'A' && cl.roundsCompleted === 3 && cl.totalTimeSeconds === 754, cl)
+    ok('capacity log "" calories -> NULL', cl.calories === null, cl.calories)
+    await repo.saveCapacityLog({ ...cl, totalTimeSeconds: 700 })
+    const cl2 = await repo.getCapacityLog(sid)
+    ok('capacity log upserts on session_id -> 700', cl2?.totalTimeSeconds === 700, cl2?.totalTimeSeconds)
+
     await repo.deleteSession(sid)
     ok('session deleted', !(await repo.getSessions(id)).find((s) => s.id === sid))
+    ok('capacity log cascaded with the session delete', !(await repo.getCapacityLog(sid)))
 
     console.log('Testing results (idempotent on macro_id, lift, tested_on)')
     const t1 = await repo.saveTestingResult({ macroId: id, lift: 'deadlift', weight: 180, reps: 2, notes: 'first', testedOn: '2099-01-08' })
@@ -219,6 +246,8 @@ async function main() {
     // The rolled macro (number 1000) is briefly ACTIVE — deleted right here, and
     // the finally block also sweeps it so a crash can't leave it behind.
     console.log('Roll to next macro (carries C3 + ref pace)')
+    // A legacy C3 anchor (pullup) must NOT be carried — GiantFit anchors only.
+    await repo.saveWorkingWeights(id, 3, { pullup: { hard: 12 } })
     const next = await repo.rollToNextMacro({ currentMacroId: id, currentMacroNumber: TEST_MACRO_NUMBER, newStartISO: '2099-04-20' })
     ok('next macro created (number 1000)', next.number === TEST_MACRO_NUMBER + 1, next.number)
     ok('rolled macro is 13 weeks, not extended', next.weeks === 13 && next.deloadExtended === false, { w: next.weeks, e: next.deloadExtended })
@@ -227,6 +256,7 @@ async function main() {
     ok('C3 run targets carried as new C1 (long 7)', nrt?.[1]?.long === 7, nrt?.[1])
     const nw = await repo.getWorkingWeights(next.id)
     ok('C3 weights carried as new C1 (deadlift 170)', nw?.[1]?.deadlift?.hard === 170, nw?.[1]?.deadlift)
+    ok('legacy C3 pullup anchor NOT carried (GiantFit anchors only)', nw?.[1]?.pullup === undefined, nw?.[1]?.pullup)
     await supabase.from('macros').delete().eq('id', next.id)
     ok('rolled throwaway macro removed', !(await repo.getMacroByNumber(TEST_MACRO_NUMBER + 1)))
 

@@ -49,7 +49,9 @@ import type {
   Run,
   RunDraft,
   RunTargetsByCycle,
+  CapacityConfig,
 } from '../engine/types'
+import { defaultCapacityConfig } from '../engine/capacity'
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -120,6 +122,7 @@ export function App() {
   const [testing, setTesting] = useState<TestingResult[]>([])
   const [runs, setRuns] = useState<Run[]>([])
   const [runTargets, setRunTargets] = useState<RunTargetsByCycle>({})
+  const [capacity, setCapacity] = useState<CapacityConfig>(() => defaultCapacityConfig())
   const [status, setStatus] = useState<LoadStatus>('idle')
   const [err, setErr] = useState('')
   const [online, setOnline] = useState(typeof navigator === 'undefined' || navigator.onLine !== false)
@@ -147,6 +150,7 @@ export function App() {
     setTesting(snap.testing || [])
     setRuns(snap.runs || [])
     setRunTargets(snap.runTargets || {})
+    setCapacity(snap.capacity || defaultCapacityConfig())
   }
 
   const load = useCallback(async () => {
@@ -163,7 +167,7 @@ export function App() {
         null
       const b: MacroBundle = target
         ? await repo.loadMacroBundle(target.id)
-        : { weights: {}, accessory: {}, sessions: [], deloads: {}, breakDays: {}, testing: [], runs: [], runTargets: {} }
+        : { weights: {}, accessory: {}, sessions: [], deloads: {}, breakDays: {}, testing: [], runs: [], runTargets: {}, capacity: defaultCapacityConfig() }
       setMacros(all)
       setMacro(target)
       setViewedMacroId(target?.id ?? null)
@@ -175,6 +179,7 @@ export function App() {
       setTesting(b.testing)
       setRuns(b.runs)
       setRunTargets(b.runTargets)
+      setCapacity(b.capacity)
       setStatus('ready')
       setBooted(true)
     } catch (e) {
@@ -313,9 +318,9 @@ export function App() {
   // optimistic offline writes, since those flow through state).
   useEffect(() => {
     if (status === 'ready' && user && macro) {
-      saveSnapshot({ macros, viewedMacroId, macro, weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets })
+      saveSnapshot({ macros, viewedMacroId, macro, weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity })
     }
-  }, [status, user, macro, macros, viewedMacroId, weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets])
+  }, [status, user, macro, macros, viewedMacroId, weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity])
 
   const onSaveSession = useCallback(async (record: SessionDraft): Promise<Session> => {
     const saved = await repo.saveSession(record)
@@ -546,7 +551,7 @@ export function App() {
         <Setup
           key={macro?.id || 'new'}
           macro={macro}
-          bundle={{ weights, accessory, runTargets }}
+          bundle={{ weights, accessory, runTargets, capacity }}
           macros={macros}
           onReload={load}
           onSelectMacro={onSelectMacro}

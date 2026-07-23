@@ -65,7 +65,7 @@ export function SessionModal({
   const hasWeight = base != null
   const weekKey = `M${macroNumber}C${cycle}W${cell.week}`
   const isDeload = !isSpecial && !!deloads[weekKey]
-  const top = base != null ? (isDeload ? deloadTop(base, dayType ?? undefined) : base) : null
+  const top = base != null ? (isDeload ? deloadTop(base) : base) : null
   const carryDefault = cycle != null && dayType ? accessory?.[cycle]?.[`carry_${dayType}`] ?? '' : ''
   const secondaryItem = dayType ? SECONDARY_ITEM[dayType] : undefined
   const secondaryDefault = cycle != null && secondaryItem ? accessory?.[cycle]?.[secondaryItem] ?? '' : ''

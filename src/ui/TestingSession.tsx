@@ -71,8 +71,8 @@ export function TestingSessionView({ macroId, lift, c3Hard, testedOn, results, o
 
   const hasAnchor = c3Hard != null && c3Hard > 0
   const scheme = SCHEMES.hard
-  const wu = hasAnchor ? warmupSets(c3Hard, lift) : null
-  const gsets = hasAnchor ? giantSets(c3Hard, 'hard', lift) : null
+  const wu = hasAnchor ? warmupSets(c3Hard) : null
+  const gsets = hasAnchor ? giantSets(c3Hard, 'hard') : null
   const wuCell = (w: number): string => (w === 0 ? 'BW' : fmt(w))
 
   async function save() {
@@ -154,7 +154,7 @@ export function TestingSessionView({ macroId, lift, c3Hard, testedOn, results, o
         </div>
         <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.5, marginTop: 8 }}>
           {hasAnchor
-            ? `Anything from C3 top (${fmt(c3Hard)}) upward, moving cleanly at 1 RIR, is a valid result. Ceiling: ~+5% (${fmt(testCeiling(c3Hard, lift))}). No grinders.`
+            ? `Anything from C3 top (${fmt(c3Hard)}) upward, moving cleanly at 1 RIR, is a valid result. Ceiling: ~+5% (${fmt(testCeiling(c3Hard))}). No grinders.`
             : 'No C3 Hard anchor set for this lift — find a clean 2–3RM with 1 rep in reserve; no grinders. Record what you hit (not a target).'}
         </div>
         <LogRpe label="Test attempt" rpe={rpe} speed={barSpeed} onRpe={setRpe} onSpeed={setBarSpeed} />
@@ -168,7 +168,7 @@ export function TestingSessionView({ macroId, lift, c3Hard, testedOn, results, o
       {/* C. Volume — normal 2×6 @ 80% of the C3 anchor */}
       <Card>
         {blockTitle('C. Volume Block', '2 sets · 80%')}
-        <Row a={LIFT_LABEL[lift]} b={`2 × ${scheme.vol} @ 80%`} c={hasAnchor ? fmt(volumeWeight(c3Hard, lift)) : '—'} cls={C.blue} />
+        <Row a={LIFT_LABEL[lift]} b={`2 × ${scheme.vol} @ 80%`} c={hasAnchor ? fmt(volumeWeight(c3Hard)) : '—'} cls={C.blue} />
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.off, marginTop: 10 }}>
           <input type="checkbox" checked={volDone} onChange={(e) => setVolDone(e.target.checked)} /> Both sets completed
         </label>

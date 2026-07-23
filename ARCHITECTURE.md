@@ -20,6 +20,17 @@ once read as a "to build" brief, it now reads as "this is what the app does and 
 **Guiding principle** (mirrored from the training philosophy it serves): **resist scope creep,
 build one solid piece at a time, don't stack changes before the last one is verified.**
 
+> **GiantFit migration in progress (2026-07-23 →).** The app is migrating from The Giant
+> Program v7 to its successor, **GiantFit** — same loading engine (single Hard anchor,
+> 100/95/90 day spread, 85/90/95/100 ladder, 80% volume), new lift set
+> (**DL / OHP / Squat / Bench** — dips retired as a main lift) and a new **capacity block**
+> (two 8-movement circuit variants). Old Giant data is **deprecated, never deleted**: every
+> logged session stays readable in History forever. Giant Run (§13) and Recovery (§12) are
+> untouched. **Phase 1 (landed):** anchors + Setup Capacity section + `capacity_logs` (§9).
+> Still to come: rotation/position engine (2), session views/capacity timer/carries (3),
+> deload signals (4), Trends/CSV (5) — until Phase 2, the sections below still describe the
+> live Giant rotation/session behaviour.
+
 ---
 
 ## 1. What this app is
@@ -154,17 +165,18 @@ else computes off it:
 - **Day tops:** Hard = the anchor (100%), Medium = anchor × 0.95, Light = anchor × 0.90.
 - **Giant Block sets:** 85 / 90 / 95 / 100% of that day's top (uniform ladder — §2.4).
 - **Volume:** 80% of that day's top.
-- Derived loads round **per lift**: DL/OHP/Squat at **2.5 kg**; dips and pull-ups at **0.5 kg**
-  (`LOAD_INCREMENT`). The **anchor itself is never rounded** — user input stays exactly as entered.
+- Derived loads round at the uniform **2.5 kg** (`DEFAULT_INCREMENT` — all GiantFit anchor lifts
+  are barbell moves; the Giant-era 0.5 kg dips/pull-up increment is retired). The **anchor itself
+  is never rounded** — user input stays exactly as entered.
+- **GiantFit anchors (2026-07-23): DL / OHP / Squat / Bench** (`ANCHOR_LIFTS`). Setup shows and
+  writes only these; legacy `dips`/`pullup` anchor rows still load so old sessions render, but are
+  never written again and are not carried forward by "start next macro".
 
-**Two-mode dips & pull-ups** (identical logic, decided purely by the cycle's anchor — no toggle):
-- **Anchor 0/empty → bodyweight/unbroken mode:** no load cascade; targets 10/8/6 reps/round by
-  difficulty (§4); final-round cluster logging + trend (dips log `dips_cluster`, pull-ups
-  `pullup_cluster`).
-- **Anchor > 0 → weighted mode:** the full standard cascade at 0.5 kg — day spread, ladder, day rep
-  scheme, 80% volume. Weighted pull-ups are treated like a primary lift across the four Giant Block
-  rounds; weight display replaces cluster logging. The dips warm-up build-up also rounds at 0.5 kg
-  (small values may round to 0 = shown as BW).
+**Two-mode dips & pull-ups — LEGACY (retired from Setup + new-session logic 2026-07-23):**
+decided purely by the cycle's anchor (0/empty = bodyweight cluster mode with 10/8/6 targets and
+`dips_cluster`/`pullup_cluster` logging; any weight = the full cascade, formerly at 0.5 kg).
+Kept only as a render path (`liftMode`) so pre-GiantFit dips-day sessions keep displaying in
+History / the Calendar modal / copy-summaries — computed ladders in those views now round at 2.5 kg.
 
 A logged session reads its own **(macro, cycle)** anchor and recomputes — essential for correct
 retroactive logging (the bug that motivated the rebuild: a C1 session must not use C3's heavier
@@ -333,7 +345,9 @@ and adds `sessions.block_completion`; `0008_recovery.sql` adds the Recovery tabl
 `pullup` anchor lift + `sessions.dips_cluster` for the two-mode logic — §3; `0010_giant_run.sql` adds
 `macros.ref_pace_s` + the `runs` and `run_targets` tables — §13; `0011_run_terrain.sql` adds
 `runs.terrain` — §13; `0012_run_bulletproof.sql` adds `runs.bulletproof` — §13;
-`0013_macro_13_weeks.sql` adds `macros.deload_extended` + defaults `weeks` to 13 — §2.5).
+`0013_macro_13_weeks.sql` adds `macros.deload_extended` + defaults `weeks` to 13 — §2.5;
+`0014_giantfit_phase1.sql` adds `bench` to the `working_weights` lift CHECK and the three
+GiantFit capacity tables below).
 See `supabase/MIGRATIONS.md` for how migrations are applied and the DB kept reproducible.
 Tables:
 
@@ -358,9 +372,9 @@ working_weights (
   id            uuid primary key default gen_random_uuid(),
   macro_id      uuid references macros not null,
   cycle         int not null,              -- 1, 2, 3
-  lift          text not null,             -- deadlift | ohp | squat | dips | pullup
+  lift          text not null,             -- deadlift | ohp | squat | bench (GiantFit)
+                                           --   | dips | pullup (DEPRECATED Giant-era — read-only legacy)
   hard          numeric,                   -- the Hard top set (anchor); everything cascades off it
-                                           -- dips/pullup: 0/empty = bodyweight mode (§3 two-mode)
   unique (macro_id, cycle, lift)
 )
 
@@ -497,6 +511,40 @@ run_targets (
   km            numeric,
   unique (macro_id, cycle, run_type)
 )
+
+-- GiantFit capacity block (0014). Movement DEFINITIONS (names, order, which are
+-- loaded, defaults) are static app content in engine/capacity.ts — only the
+-- user's editable numbers are stored; app defaults are merged on read.
+capacity_config (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid references auth.users not null default auth.uid(),
+  variant       text not null,             -- A | B
+  movement_key  text not null,             -- e.g. db_snatch, bb_clean (app-defined)
+  rep_target    int,                       -- null = the movement's app default
+  weight        numeric,                   -- kg; loaded movements only
+  unique (user_id, variant, movement_key)
+)
+
+-- Shared capacity settings — one row per user
+capacity_settings (
+  user_id  uuid primary key references auth.users default auth.uid(),
+  rounds   int not null default 3          -- 3 | 4
+)
+
+-- One capacity-block result per session (upsert on session_id; cascade-deletes
+-- with the session). RLS transitive via session -> macro. No UI until Phase 3.
+capacity_logs (
+  id                  uuid primary key default gen_random_uuid(),
+  session_id          text references sessions on delete cascade not null,
+  variant             text not null,       -- A | B
+  rounds_completed    int,
+  total_time_seconds  int,
+  calories            int,                 -- nullable; from the Bike movement (variant B)
+  rpe                 text,                -- R6..R10 scale (same CHECK as sessions)
+  notes               text,
+  updated_at          timestamptz default now(),
+  unique (session_id)
+)
 ```
 
 Notes:
@@ -525,6 +573,14 @@ repeated here. The two load-bearing domain invariants to preserve, wherever the 
 
 ## 11. Decisions log (settled — don't relitigate)
 
+- **GiantFit Phase 1 (2026-07-23):** the successor program's data model lands first —
+  anchors become DL/OHP/Squat/**Bench**; the dips + pull-up anchors, the two-mode
+  engine, and the 0.5 kg rounding increment are retired (deprecate, never delete —
+  legacy rows/rendering stay); capacity config is relational (`capacity_config` +
+  `capacity_settings`, app-side movement definitions with defaults merged on read)
+  and capacity results log one-per-session (`capacity_logs`). Rotation/session
+  types/deload/Trends migrate in later phases; Giant Run + Recovery are untouched
+  throughout.
 - **13-week macro (2026-07-15):** testing weeks removed from the schedule; the deload
   is the final week, athlete-extendable by one identical week (decided during the
   deload, never pre-planned); the 5k TT moved to the first deload Saturday. The

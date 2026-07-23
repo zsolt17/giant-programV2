@@ -3,9 +3,11 @@
 
 export type Difficulty = 'hard' | 'medium' | 'light'
 export type Lift = 'deadlift' | 'ohp' | 'squat' | 'dips'
-// Lifts with a per-cycle Hard-top anchor in working_weights: the 4 day lifts +
-// pull-ups (the dips-day secondary, anchored since its weighted mode).
-export type AnchorLift = Lift | 'pullup'
+// Lifts that can hold a per-cycle Hard-top anchor in working_weights. GiantFit
+// anchors are DL/OHP/Squat/Bench (ANCHOR_LIFTS in constants.ts); 'dips' and
+// 'pullup' are DEPRECATED Giant-era anchors — stored rows keep loading so old
+// sessions render, but Setup no longer shows or writes them.
+export type AnchorLift = Lift | 'pullup' | 'bench'
 export type WeekType = 'training' | 'testing' | 'deload'
 export type TestRole = 'test' | 'light'
 
@@ -224,6 +226,45 @@ export interface RunSignalHits {
   runIds: Set<string>
 }
 
+// ---- GiantFit capacity block ------------------------------------------------
+// Two fixed 8-movement circuit variants. The movement DEFINITIONS (names, order,
+// which are loaded, defaults) are static app content in engine/capacity.ts;
+// only the editable numbers (rep target, weight, rounds) are persisted.
+export type CapacityVariant = 'A' | 'B'
+// Editable per-movement values. null reps = use the movement's default target;
+// weight is only meaningful for loaded movements (null = unset).
+export interface CapacityMovementConfig {
+  reps: number | null
+  weight: number | null
+}
+// variant -> movement_key -> {reps, weight}
+export type CapacityMovementsConfig = Record<CapacityVariant, Record<string, CapacityMovementConfig>>
+export interface CapacityConfig {
+  rounds: number // 3 | 4 (CAPACITY_ROUNDS options; default 3)
+  movements: CapacityMovementsConfig
+}
+
+// One capacity-block result per session (capacity_logs; upsert on sessionId).
+// No UI until Phase 3 — the typed client lands with the table.
+export interface CapacityLog {
+  id?: string
+  sessionId: string
+  variant: CapacityVariant
+  roundsCompleted: number | null
+  totalTimeSeconds: number | null
+  calories: number | null // from the Bike movement (variant B); null otherwise
+  rpe: string
+  notes: string
+  updatedAt?: string
+}
+// Form-state shape (numeric inputs hold raw strings until the mappers coerce
+// them — same pattern as SessionDraft).
+export interface CapacityLogDraft extends Omit<CapacityLog, 'roundsCompleted' | 'totalTimeSeconds' | 'calories'> {
+  roundsCompleted: number | string | null
+  totalTimeSeconds: number | string | null
+  calories: number | string | null
+}
+
 // ---- data-layer domain types ----------------------------------------------
 export type MacroStatus = 'active' | 'completed'
 export interface Macro {
@@ -280,6 +321,9 @@ export interface MacroBundle {
   testing: TestingResult[]
   runs: Run[]
   runTargets: RunTargetsByCycle
+  // User-scoped (like breakDays), loaded with the bundle: GiantFit capacity
+  // config with app defaults already merged in.
+  capacity: CapacityConfig
 }
 
 // ---- Trends tab ------------------------------------------------------------

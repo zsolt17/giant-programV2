@@ -29,16 +29,20 @@ export const DAY_SPREAD: Record<Difficulty, number> = { hard: 1.0, medium: 0.95,
 export const SET_LADDER: number[] = [0.85, 0.9, 0.95, 1.0]
 // Volume block = this fraction of the day's top set.
 export const VOLUME_PCT = 0.8
-// Per-lift rounding increment for DERIVED loads (the anchor itself is never
-// rounded — user input stays exactly as entered). Barbell lifts move in 2.5 kg
-// plates; dips/pull-ups added weight moves in 0.5 kg.
+// Rounding increment for DERIVED loads (the anchor itself is never rounded —
+// user input stays exactly as entered). All lifts are barbell moves in 2.5 kg
+// plates. (The Giant-era 0.5 kg dips/pull-up increment is retired with GiantFit.)
 export const DEFAULT_INCREMENT = 2.5
-export const LOAD_INCREMENT: Record<AnchorLift, number> = {
-  deadlift: 2.5,
-  ohp: 2.5,
-  squat: 2.5,
-  dips: 0.5,
-  pullup: 0.5,
+
+// GiantFit anchor lifts — the per-cycle Hard-top anchors Setup shows and writes,
+// and the set rollToNextMacro carries forward. Legacy 'dips'/'pullup' anchor rows
+// still LOAD (old sessions render off them) but are never written again.
+export const ANCHOR_LIFTS: AnchorLift[] = ['deadlift', 'ohp', 'squat', 'bench']
+export const ANCHOR_LABEL: Record<string, string> = {
+  deadlift: 'Deadlift',
+  ohp: 'Overhead Press',
+  squat: 'Back Squat',
+  bench: 'Bench Press',
 }
 
 // Barbell build-up sets: 8-5-3-2 reps at ~40/55/70/85% of Giant Block Set 1.

@@ -54,9 +54,11 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
   macros 15) + the Tue/Thu/Sat run row; log/edit/delete any session; mark breaks.
 - **History** — latest top sets, recent-session feed, pull-up cluster trend, testing results.
 - **Deload** — per-week fatigue signals + reactive-deload recommend/apply (advise-and-confirm).
-- **Setup** — per-cycle (C1/C2/C3) **Hard-top anchor** per lift (Medium/Light, the Giant Block
-  ladder and Volume all compute live, with a read-only preview) + recorded accessories (RDL/row, auto-seeded) & carries, macro anchor,
-  macro picker, and "start next macro" archiving (carries C3→C1).
+- **Setup** — per-cycle (C1/C2/C3) **Hard-top anchor** per GiantFit lift (DL/OHP/Squat/**Bench**;
+  Medium/Light, the Giant Block ladder and Volume all compute live, with a read-only preview) +
+  the **Capacity** section (variants A/B, editable rep targets + weights, rounds 3/4) + recorded
+  accessories (RDL/row, auto-seeded) & carries, macro anchor, macro picker, and "start next macro"
+  archiving (carries C3→C1, GiantFit anchors only).
 - **Data** — export all data as CSV (sessions incl. a deload_week column + a separate
   testing-results file), and copy a plain-text summary of **any** logged session — training, test,
   or deload, each with a type-appropriate format — to the clipboard for coaching conversations.
@@ -64,8 +66,9 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 - **Recovery → Tendon Health** — joint-specific isometric loading protocol: pick a joint, phase
   auto-advances (Acute/Build/Maintenance, overridable), per-tendon 30s hold timer + light per-day
   "done" logging, position diagrams. One active protocol at a time. (Burger menu → Recovery; first item.)
-- **Pull-ups & dips** — two-mode (dips day): a 0/empty per-cycle anchor = bodyweight cluster logging
-  (10/8/6 targets) + trend; any anchor = the full weighted cascade at 0.5 kg rounding. Mode flips in Setup.
+- **Pull-ups & dips (LEGACY, Giant era)** — the two-mode engine (bodyweight cluster vs weighted
+  ladder) is retired from Setup and all new-session logic; old dips-day sessions keep rendering
+  (History, Calendar modal, copy-summaries). Computed ladders now round at the uniform 2.5 kg.
 - **The Giant Run** — Tue/Thu/Sat companion running program (ARCHITECTURE §13): date-computed
   schedule (Thu quality runs easy in meso 1; testing Sat = 5k TT; W15 optional short easy),
   two-mode pace engine off a per-macro reference pace P (talk-test when unset; Easy P+75s /
@@ -87,6 +90,34 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ---
 
 ## Change log
+
+## 2026-07-23
+- `feat(giantfit)`: **GiantFit migration — Phase 1 (data model & Setup)**. The app starts migrating
+  from The Giant Program v7 to **GiantFit** (same single-anchor loading engine); old Giant data is
+  **deprecated, never deleted** — everything logged stays readable in History. **Anchors:** Setup's
+  Working Weights card now shows the GiantFit lifts **DL / OHP / Squat / Bench** (new `bench` value
+  in the `working_weights` CHECK); the dips + pull-up anchors are gone from Setup and every write
+  path (rows stay in the DB; legacy sessions keep rendering), and `rollToNextMacro` carries only
+  the GiantFit anchors forward. The **two-mode dips/pull-up engine** (`liftMode`) is retired from
+  Setup and new-session logic — kept only as a legacy render path for old dips-day sessions. The
+  **0.5 kg rounding rule is removed**: `LOAD_INCREMENT`/`incFor` deleted, every derived load rounds
+  at the uniform 2.5 kg (`DEFAULT_INCREMENT`); the loading engine's per-lift `lift?` params are
+  gone from all call sites. **Capacity (new Setup section):** two 8-movement circuit variants A/B
+  (static definitions + defaults in new `engine/capacity.ts` — DB Snatch/Pull-ups/Dips/Reverse
+  Lunges/GHD/Goblet Curl/Single Unders/Box-over Burpees · BB Clean/Chin-ups/Push-ups/Walking
+  Lunges/Toes-to-Bar/BB Curl/Double Unders/Bike 30 sec-for-cals), editable rep target per movement
+  + weight (kg) on loaded ones, rounds 3/4 (default 3). Stored relationally: `capacity_config`
+  (user-scoped rows, app defaults merged on read) + `capacity_settings` (rounds); loaded with the
+  bundle, cached in the offline snapshot. **Logging table (no UI until Phase 3):** `capacity_logs`
+  — one row per session (`session_id` FK, cascade-deletes with it), variant, rounds_completed,
+  total_time_seconds, calories (Bike), RPE, notes — with a typed client
+  (`get/save/deleteCapacityLog`, upsert on `session_id`). Migration `0014_giantfit_phase1.sql`
+  (applied). Giant Run + Recovery untouched. Out of scope for later phases: rotation/position
+  engine (2), session views/capacity timer/carries (3), deload signals (4), Trends/CSV (5).
+  typecheck + **121 tests** + build green; **smoke 85/85** (bench anchor CHECK, capacity-log
+  round-trip incl. cascade delete, legacy-anchor roll-forward exclusion); Setup UI verified in the
+  browser (anchor rows exactly DL/OHP/Squat/Bench; both capacity variants render all 8 movements
+  with spec defaults).
 
 ## 2026-07-15
 - `feat(program)`: **13-week macro — testing weeks removed, extendable deload, TT on deload

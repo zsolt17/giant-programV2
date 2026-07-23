@@ -91,7 +91,7 @@ export function sessionSummary(s: Session, macroNumber: number, accessory?: Acce
   // Full computed set ladder for the day (same engine call Today renders, at the
   // lift's own rounding increment). Bodyweight-mode dips have no ladder.
   if (s.topWeight != null && s.topWeight > 0 && s.difficulty) {
-    const sets = giantSets(s.topWeight, s.difficulty, s.dayType ?? undefined)
+    const sets = giantSets(s.topWeight, s.difficulty)
     lines.push(`  Sets: ${sets.map((g) => `${g.reps}@${kg(g.weight)}`).join(' · ')}`)
   }
   // Bodyweight-mode dips log a final-round cluster instead of loads.
@@ -121,7 +121,7 @@ export function sessionSummary(s: Session, macroNumber: number, accessory?: Acce
   if (s.dayType === 'dips') {
     const pullupCell = s.cycle != null ? weights?.[s.cycle]?.pullup : undefined
     if (pullupCell && liftMode(pullupCell.hard) === 'weighted' && s.difficulty && pullupCell[s.difficulty] != null) {
-      const sets = giantSets(pullupCell[s.difficulty] as number, s.difficulty, 'pullup')
+      const sets = giantSets(pullupCell[s.difficulty] as number, s.difficulty)
       lines.push(`  Pull-ups (wtd): ${sets.map((g) => `${g.reps}@${kg(g.weight)}`).join(' · ')}`)
     } else if (s.pullupCluster) {
       lines.push(`  Pull-ups: ${s.pullupCluster}`)
@@ -137,7 +137,7 @@ export function sessionSummary(s: Session, macroNumber: number, accessory?: Acce
     const rx =
       s.dayType === 'dips'
         ? `Push-ups 2×${scheme.vol} (BW)`
-        : `2×${scheme.vol}${s.topWeight != null ? ` @ ${kg(volumeWeight(s.topWeight, s.dayType ?? undefined))}` : ''}`
+        : `2×${scheme.vol}${s.topWeight != null ? ` @ ${kg(volumeWeight(s.topWeight))}` : ''}`
     lines.push(`Volume Block: ${seg(rx, rpeStr(s.volRpe), arrow(s.volSpeed), s.volDone === false ? 'incomplete' : '')}`)
   }
 
@@ -233,7 +233,7 @@ export function testSummary(r: TestingResult, macroNumber: number, week: number 
   // Ramp = sets 1–3 of the hard ladder off the C3 anchor (per-lift rounding).
   const c3Hard = weights?.[3]?.[r.lift]?.hard
   if (c3Hard != null && c3Hard > 0) {
-    const ramp = giantSets(c3Hard, 'hard', lift)
+    const ramp = giantSets(c3Hard, 'hard')
       .slice(0, 3)
       .map((g) => `${g.reps}@${kg(g.weight)}`)
       .join(' · ')
@@ -245,7 +245,7 @@ export function testSummary(r: TestingResult, macroNumber: number, week: number 
 
   const { vol, rest } = splitVolNote(r.notes || '')
   if (vol) {
-    const volRx = c3Hard != null && c3Hard > 0 ? `2×6 @ ${kg(volumeWeight(c3Hard, lift))}` : '2×6 @ 80%'
+    const volRx = c3Hard != null && c3Hard > 0 ? `2×6 @ ${kg(volumeWeight(c3Hard))}` : '2×6 @ 80%'
     lines.push(`Volume Block: ${volRx} | ${vol}`)
   }
 
