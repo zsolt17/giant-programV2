@@ -3,7 +3,8 @@
 // export. Framework-agnostic and unit-tested. The macro NUMBER is resolved from
 // the macros list (rows only carry macroId).
 import { derivedPaceS } from './runs'
-import type { Session, Macro, TestingResult, DeloadMap, Run } from './types'
+import { perRoundSeconds } from './capacity'
+import type { Session, Macro, TestingResult, DeloadMap, Run, CapacityLog } from './types'
 
 // Column order = header order. Each entry maps a Session to its cell value.
 const COLUMNS: { header: string; value: (s: Session, macroNumber: number | '') => unknown }[] = [
@@ -24,6 +25,9 @@ const COLUMNS: { header: string; value: (s: Session, macroNumber: number | '') =
   { header: 'vol_done', value: (s) => s.volDone },
   { header: 'vol_rpe', value: (s) => s.volRpe },
   { header: 'vol_speed', value: (s) => s.volSpeed },
+  // GiantFit paired-row weight; blank on legacy Giant rows and squat days.
+  // The export is a UNION of both eras' columns — old rows are never rewritten.
+  { header: 'pair_weight', value: (s) => s.pairWeight },
   { header: 'pullup_cluster', value: (s) => s.pullupCluster },
   { header: 'dips_cluster', value: (s) => s.dipsCluster },
   { header: 'carry_skipped', value: (s) => s.carrySkipped },
@@ -67,6 +71,39 @@ export function testingToCsv(results: TestingResult[], macros: Macro[]): string 
     .slice()
     .sort((a, b) => ((a.testedOn || '') < (b.testedOn || '') ? -1 : 1))
     .map((r) => [r.testedOn, numberById.get(r.macroId) ?? '', r.lift, r.weight, r.reps, r.notes].map(csvCell).join(','))
+  return [header, ...rows].join('\n')
+}
+
+// GiantFit capacity export — fourth CSV file (one row per capacity result,
+// positioned via its session). per_round_s is DERIVED at export time with the
+// same helper the S6 signal reads; it is never stored.
+export function capacityToCsv(logs: CapacityLog[], sessions: Session[], macros: Macro[]): string {
+  const numberById = new Map(macros.map((m) => [m.id, m.number]))
+  const byId = new Map(sessions.map((s) => [s.id, s]))
+  const header = 'date,macro,cycle,week,day_type,difficulty,variant,rounds_completed,total_time_seconds,per_round_s,calories,rpe,notes'
+  const rows = logs
+    .map((l) => ({ l, s: byId.get(l.sessionId) }))
+    .sort((a, b) => ((a.s?.date || '') < (b.s?.date || '') ? -1 : 1))
+    .map(({ l, s }) => {
+      const perRound = perRoundSeconds(l)
+      return [
+        s?.date,
+        s ? numberById.get(s.macroId) ?? '' : '',
+        s?.cycle,
+        s?.week,
+        s?.dayType,
+        s?.difficulty,
+        l.variant,
+        l.roundsCompleted,
+        l.totalTimeSeconds,
+        perRound != null ? Math.round(perRound * 10) / 10 : null,
+        l.calories,
+        l.rpe,
+        l.notes,
+      ]
+        .map(csvCell)
+        .join(',')
+    })
   return [header, ...rows].join('\n')
 }
 

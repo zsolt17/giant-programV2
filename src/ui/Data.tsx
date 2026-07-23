@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { C } from './theme'
 import { Card, BlockTitle } from './components'
-import { sessionsToCsv, testingToCsv, runsToCsv } from '../engine/export-csv'
+import { sessionsToCsv, testingToCsv, runsToCsv, capacityToCsv } from '../engine/export-csv'
 import { sessionSummary, testSummary, runSummary } from '../engine/session-summary'
 import { todayISO } from '../engine/date-engine'
 import { daysSinceStart } from '../engine/recovery'
 import { weekKeyFor } from '../engine/deload-rule'
 import { LIFT_SHORT, RUN_TYPE_LABEL } from '../engine/constants'
-import type { Session, Macro, Lift, AccessoryByCycle, WeightsByCycle, TestingResult, DeloadMap, Run } from '../engine/types'
+import type { Session, Macro, Lift, AccessoryByCycle, WeightsByCycle, TestingResult, DeloadMap, Run, CapacityLog } from '../engine/types'
 
 const btn = (disabled = false) => ({
   background: disabled ? 'rgba(201,168,76,0.3)' : C.gold,
@@ -90,9 +90,10 @@ interface DataProps {
   testing?: TestingResult[]
   deloads?: DeloadMap
   runs?: Run[]
+  capacityLogs?: CapacityLog[]
 }
 
-export function Data({ sessions, macros, accessory = {}, weights = {}, testing = [], deloads = {}, runs = [] }: DataProps) {
+export function Data({ sessions, macros, accessory = {}, weights = {}, testing = [], deloads = {}, runs = [], capacityLogs = [] }: DataProps) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [copyErr, setCopyErr] = useState('')
@@ -145,7 +146,8 @@ export function Data({ sessions, macros, accessory = {}, weights = {}, testing =
   function summaryFor(e: Entry): string {
     if (e.kind === 'test') return testSummary(e.r, numberById.get(e.r.macroId) ?? 0, e.week, weights[e.r.macroId])
     if (e.kind === 'run') return runSummary(e.run, numberById.get(e.run.macroId) ?? 0)
-    return sessionSummary(e.s, numberById.get(e.s.macroId) ?? 0, accessory[e.s.macroId], weights[e.s.macroId], e.isDeload)
+    const capLog = capacityLogs.find((l) => l.sessionId === e.s.id) ?? null
+    return sessionSummary(e.s, numberById.get(e.s.macroId) ?? 0, accessory[e.s.macroId], weights[e.s.macroId], e.isDeload, capLog)
   }
 
   async function onCopy() {
@@ -166,8 +168,9 @@ export function Data({ sessions, macros, accessory = {}, weights = {}, testing =
       <Card>
         <BlockTitle tag="CSV">Download all data</BlockTitle>
         <p style={{ fontSize: 13, color: C.muted, margin: '0 0 14px' }}>
-          Sessions (with a deload_week column), testing results, and runs export as three CSV files — each lives in its
-          own table.
+          Sessions (with pair_weight + deload_week columns), capacity results, runs, and legacy testing results export
+          as four CSV files — each lives in its own table. Exports are a union of both program eras; legacy rows keep
+          their original columns.
         </p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button
@@ -178,11 +181,18 @@ export function Data({ sessions, macros, accessory = {}, weights = {}, testing =
             Sessions CSV
           </button>
           <button
+            onClick={() => downloadCsv(capacityToCsv(capacityLogs, sessions, macros), `giant-program-capacity-${todayISO()}.csv`)}
+            style={btn(capacityLogs.length === 0)}
+            disabled={capacityLogs.length === 0}
+          >
+            Capacity CSV
+          </button>
+          <button
             onClick={() => downloadCsv(testingToCsv(testing, macros), `giant-program-testing-results-${todayISO()}.csv`)}
             style={btn(testing.length === 0)}
             disabled={testing.length === 0}
           >
-            Testing results CSV
+            Testing CSV (legacy)
           </button>
           <button
             onClick={() => downloadCsv(runsToCsv(runs, macros), `giant-program-runs-${todayISO()}.csv`)}

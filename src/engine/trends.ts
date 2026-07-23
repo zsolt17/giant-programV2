@@ -1,9 +1,10 @@
 // Pure derivation: our persisted Session/Macro/deload data -> the flat row shape
 // the Trends charts consume (TrendSession). No DB calls, no React. The deload
 // signal flags mirror deload-rule.ts exactly so Trends never disagrees with Deload.
-import type { Session, Macro, Run, DeloadMap, BreakDayMap, AccessoryByCycle, TrendSession, TrendDay, TrendAccessory, TrendCarry, TrendRun, CarryType, AttStatus, AttMacro, AttCycle } from './types'
+import type { Session, Macro, Run, DeloadMap, BreakDayMap, AccessoryByCycle, CapacityLog, TrendSession, TrendDay, TrendAccessory, TrendCapacity, TrendCarry, TrendRun, CarryType, AttStatus, AttMacro, AttCycle } from './types'
 import { weekKeyFor } from './deload-rule'
 import { enumerateMacro, todayISO } from './date-engine'
+import { perRoundSeconds } from './capacity'
 import { derivedPaceS } from './runs'
 
 const DAY_LABEL: Record<string, TrendDay> = { deadlift: 'DL', ohp: 'OHP', squat: 'Squat', bench: 'Bench', dips: 'Dips' }
@@ -74,6 +75,38 @@ export function toRunTrend(runs: Run[], macros: Macro[]): TrendRun[] {
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
 }
 
+// GiantFit capacity: every completed log (time + rounds both usable) joined to
+// its session, oldest → newest, for the Capacity trend view. Per-round time
+// comes from the SAME engine helper the S6 deload signal reads
+// (capacity.perRoundSeconds) — never re-derived here.
+export function toCapacityTrend(logs: CapacityLog[], sessions: Session[], macros: Macro[]): TrendCapacity[] {
+  const numById: Record<string, number> = {}
+  macros.forEach((m) => {
+    numById[m.id] = m.number
+  })
+  const byId = new Map(sessions.map((s) => [s.id, s]))
+  return (logs || [])
+    .map((log): TrendCapacity | null => {
+      const s = byId.get(log.sessionId)
+      const perRoundS = perRoundSeconds(log)
+      if (!s || perRoundS == null) return null
+      const num = numById[s.macroId] ?? 0
+      return {
+        macro: `M${num}`,
+        macroNumber: num,
+        date: s.date,
+        variant: log.variant,
+        perRoundS,
+        rounds: log.roundsCompleted as number,
+        totalS: log.totalTimeSeconds as number,
+        calories: log.calories,
+        rpe: parseRpe(log.rpe),
+      }
+    })
+    .filter((p): p is TrendCapacity => p != null)
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+}
+
 // Recorded per-cycle accessory weight (one-arm DB row / B-stance RDL) over time:
 // one point per (macro, cycle) that has a value, ordered M1C1, M1C2, … MnC3.
 // These are Setup values (no per-session log), so the series is per cycle, not per session.
@@ -99,7 +132,8 @@ const CARRY_OF: Record<string, { type: CarryType; item: string }> = {
   deadlift: { type: 'Farmer', item: 'carry_deadlift' },
   ohp: { type: 'Overhead', item: 'carry_ohp' },
   squat: { type: 'Sandbag', item: 'carry_squat' },
-  dips: { type: 'Suitcase', item: 'carry_dips' },
+  bench: { type: 'Suitcase', item: 'carry_bench' }, // GiantFit bench day
+  dips: { type: 'Suitcase', item: 'carry_dips' }, // legacy Giant dips day
 }
 export function toCarrySessions(sessions: Session[], macros: Macro[], accessory: Record<string, AccessoryByCycle>): TrendCarry[] {
   const numById: Record<string, number> = {}

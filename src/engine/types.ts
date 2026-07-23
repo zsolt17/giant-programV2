@@ -357,6 +357,7 @@ export interface TrendsData {
   deloads: DeloadMap // weekKey ("M2C3W4") is globally unique, so one map spans macros
   breakDays: BreakDayMap
   runs: Run[]
+  capacityLogs: CapacityLog[]
 }
 
 // A training session flattened to the shape the Trends charts consume (mirrors the
@@ -390,6 +391,22 @@ export interface TrendAccessory {
   cycle: string
   label: string // "M2C1"
   weight: number
+}
+
+// One completed capacity session for the Capacity trend view: per-round time
+// over date, one series per variant (A and B are different circuits — never
+// mixed). Derived via engine/trends.ts toCapacityTrend on the SAME per-round
+// math the S6 deload signal reads (engine/capacity.ts) — never re-derived.
+export interface TrendCapacity {
+  macro: string // "M3"
+  macroNumber: number
+  date: string
+  variant: CapacityVariant
+  perRoundS: number // total_time_seconds / rounds_completed
+  rounds: number
+  totalS: number
+  calories: number | null // Bike (variant B) only
+  rpe: number | null
 }
 
 // One logged run with a derivable pace, for the Runs trend view (pace over time,

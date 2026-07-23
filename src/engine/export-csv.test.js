@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { sessionsToCsv, testingToCsv } from './export-csv'
+import { sessionsToCsv, testingToCsv, capacityToCsv } from './export-csv'
 
 const macros = [
   { id: 'm1', number: 1, startISO: '2026-01-05', weeks: 15, status: 'completed' },
@@ -33,6 +33,7 @@ function session(over = {}) {
     carryRounds: 3,
     carryDistance: 30,
     carryRpe: 'R6',
+    pairWeight: null,
     notes: 'felt strong',
     startedAt: null,
     endedAt: null,
@@ -44,18 +45,28 @@ test('header row lists all columns in order', () => {
   const csv = sessionsToCsv([], macros)
   assert.equal(
     csv,
-    'date,macro,cycle,week,week_type,day_type,difficulty,top_weight,top_reps,rpe,bar_speed,cardio_cals,block_completion,vol_done,vol_rpe,vol_speed,pullup_cluster,dips_cluster,carry_skipped,carry_skip_reason,carry_rounds,carry_distance,carry_rpe,started_at,ended_at,notes,deload_week'
+    'date,macro,cycle,week,week_type,day_type,difficulty,top_weight,top_reps,rpe,bar_speed,cardio_cals,block_completion,vol_done,vol_rpe,vol_speed,pair_weight,pullup_cluster,dips_cluster,carry_skipped,carry_skip_reason,carry_rounds,carry_distance,carry_rpe,started_at,ended_at,notes,deload_week'
   )
 })
 
 test('serializes a row, resolves macro number, collapses cardio, renders nulls as empty', () => {
   const csv = sessionsToCsv([session()], macros)
   const row = csv.split('\n')[1]
-  // date,macro,cycle,week,week_type,day_type,difficulty,top_weight,top_reps,rpe,bar_speed,cardio_cals,...,deload_week
+  // Legacy row: pair_weight (GiantFit-only) stays an empty cell — export is a union.
   assert.equal(
     row,
-    '2026-06-22,2,3,3,training,squat,hard,145,2,R9.5,up,15/14//15,completed,true,R8,normal,,,false,,3,30,R6,,,felt strong,'
+    '2026-06-22,2,3,3,training,squat,hard,145,2,R9.5,up,15/14//15,completed,true,R8,normal,,,,false,,3,30,R6,,,felt strong,'
   )
+})
+
+test('GiantFit row: pair_weight fills its cell; legacy columns stay empty (union export)', () => {
+  const csv = sessionsToCsv(
+    [session({ id: '2026-08-03-bench-H', date: '2026-08-03', cycle: 1, week: 2, dayType: 'bench', pairWeight: 42.5, cardioCals: [null, null, null, null], carryRpe: '' })],
+    macros
+  )
+  const row = csv.split('\n')[1]
+  assert.match(row, /^2026-08-03,2,1,2,training,bench,hard,/)
+  assert.match(row, /,normal,42.5,,,false,/) // ...vol_speed,pair_weight,pullup_cluster,dips_cluster,carry_skipped...
 })
 
 test('deload_week column: true/false from the deloads map, blank without week key', () => {
@@ -109,4 +120,19 @@ test('runsToCsv: header, derived pace column, date-sorted, escaping intact', () 
   assert.equal(lines[1], '2026-07-14,2,1,2,training,easy,road,5.2,1980,381,148,completed,false,')
   // 1000/3 = 333.3 → 333; comma-bearing notes are quoted.
   assert.equal(lines[2], '2026-07-16,2,1,2,training,quality,road,3,1000,333,,felt_heavy,false,"hills, wind"')
+})
+
+test('capacityToCsv: positioned via the session join, per_round_s derived, sorted by date', () => {
+  const sessions = [
+    session({ id: '2026-08-03-bench-H', date: '2026-08-03', cycle: 1, week: 2, dayType: 'bench' }),
+    session({ id: '2026-07-27-deadlift-M', date: '2026-07-27', cycle: 1, week: 1, dayType: 'deadlift', difficulty: 'medium' }),
+  ]
+  const logs = [
+    { sessionId: '2026-08-03-bench-H', variant: 'B', roundsCompleted: 3, totalTimeSeconds: 702, calories: 27, rpe: 'R7', notes: '' },
+    { sessionId: '2026-07-27-deadlift-M', variant: 'A', roundsCompleted: 3, totalTimeSeconds: 300, calories: null, rpe: 'R8', notes: 'smooth' },
+  ]
+  const lines = capacityToCsv(logs, sessions, macros).split('\n')
+  assert.equal(lines[0], 'date,macro,cycle,week,day_type,difficulty,variant,rounds_completed,total_time_seconds,per_round_s,calories,rpe,notes')
+  assert.equal(lines[1], '2026-07-27,2,1,1,deadlift,medium,A,3,300,100,,R8,smooth')
+  assert.equal(lines[2], '2026-08-03,2,1,2,bench,hard,B,3,702,234,27,R7,')
 })

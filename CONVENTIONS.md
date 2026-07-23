@@ -30,8 +30,8 @@ src/
     runs.ts        Giant Run: Tue/Thu/Sat schedule (via corePosition), two-mode pace engine
                    (talk-test vs P+offset cascade), pace/duration parse+format, run signals R1/R2/R3
     deload-rule.ts reactive-deload signals + trigger (lift signals + pooled run signals)
-    trends.ts      pure derivations: Session/accessory/deload -> Trends chart view-models
-    export-csv.ts  pure Session[] -> CSV string (Data page "Download all data")
+    trends.ts      pure derivations: Session/accessory/capacity/deload -> Trends chart view-models
+    export-csv.ts  pure -> CSV strings (Data page): sessions / capacity / runs / legacy testing — a UNION of both eras' columns
     session-summary.ts  pure Session -> plain-text share summary (Data page "Copy")
     recovery-content.ts  static Recovery content (joints/tendons/exercises + 64x64 SVGs, PHASE_DOSE)
     recovery.ts    local-date phase/day helpers for Recovery (suggestedPhase/effectivePhase/protocolDay)

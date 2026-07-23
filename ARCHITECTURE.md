@@ -40,7 +40,11 @@ build one solid piece at a time, don't stack changes before the last one is veri
 > deload rule gained **S6 "Capacity time ↑"** (per-round capacity time vs the rolling
 > same-variant average — §5), the Giant-era block-completion signal was renumbered S6→**S7**,
 > and deload weeks carry no capacity block and are excluded from the S6 series entirely.
-> Remaining: Trends/CSV/copy-summaries (5).
+> **Phase 5 (landed) — MIGRATION COMPLETE:** Trends gained Bench + the Capacity view
+> (per-round time per variant, Bike calories) with Dips frozen as a legacy series ending at
+> the cutover; exports are a union of both eras (sessions CSV + `pair_weight`, a fourth
+> capacity CSV) and copy-summaries speak each era's format. The app now implements GiantFit;
+> the Giant Program v7 lives on paper and its data is read-only History.
 
 ---
 
@@ -636,6 +640,13 @@ repeated here. The two load-bearing domain invariants to preserve, wherever the 
 
 ## 11. Decisions log (settled — don't relitigate)
 
+- **GiantFit Phase 5 (2026-07-23):** two-era data stays uncontaminated by construction —
+  trend series are drawn only where their era has data (Bench post-cutover, Dips frozen at
+  the cutover with no empty tail), capacity charts split by variant (A and B are different
+  circuits — never averaged together), CSV exports are a **union** of both eras' columns
+  (legacy rows keep their original cells, never rewritten), and copy-summaries render each
+  session in its own era's format. The capacity chart and the S6 signal read the SAME
+  per-round series (`engine/capacity.ts`) — one derivation, two consumers.
 - **GiantFit Phase 4 (2026-07-23):** capacity feeds the reactive deload rule as **S6**
   ("Capacity time ↑" — per-round time vs rolling same-variant average ×1.15, 2+ consecutive
   slow sessions = one occurrence, cold start at 3 sessions/variant); the Giant-era

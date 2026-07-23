@@ -105,6 +105,7 @@ export function App() {
   const [allTesting, setAllTesting] = useState<TestingResult[]>([]) // all-macro test results (Data list + copy)
   const [allDeloads, setAllDeloads] = useState<DeloadMap>({}) // all-macro deload week flags (Data labels)
   const [allRuns, setAllRuns] = useState<Run[]>([]) // all-macro runs (Data list + runs CSV)
+  const [allCapacityLogs, setAllCapacityLogs] = useState<CapacityLog[]>([]) // all-macro capacity results (Data CSV + summaries)
   const [dataErr, setDataErr] = useState('')
   // Recovery (Tendon Health) — independent of macros, loaded on first Recovery open.
   const [recovery, setRecovery] = useState<{ protocol: RecoveryProtocol | null; logs: RecoveryLogMap } | null>(null)
@@ -251,14 +252,15 @@ export function App() {
     if (tab !== 'data' || !user || allSessions) return
     let cancelled = false
     setDataErr('')
-    Promise.all([repo.getAllSessions(), repo.getAllAccessoryWeights(), repo.getAllWorkingWeights(), repo.getAllTestingResults(), repo.getAllDeloads(), repo.getAllRuns()])
-      .then(([s, acc, w, t, d, r]) => {
+    Promise.all([repo.getAllSessions(), repo.getAllAccessoryWeights(), repo.getAllWorkingWeights(), repo.getAllTestingResults(), repo.getAllDeloads(), repo.getAllRuns(), repo.getAllCapacityLogs()])
+      .then(([s, acc, w, t, d, r, cl]) => {
         if (cancelled) return
         setAllAccessory(acc)
         setAllWeights(w)
         setAllTesting(t)
         setAllDeloads(d)
         setAllRuns(r)
+        setAllCapacityLogs(cl)
         setAllSessions(s)
       })
       .catch((e) => !cancelled && setDataErr(errMsg(e)))
@@ -607,7 +609,7 @@ export function App() {
         (dataErr ? (
           <Card style={{ textAlign: 'center', color: C.red }}>Couldn't load data — {dataErr}.</Card>
         ) : allSessions ? (
-          <Data sessions={allSessions} macros={macros} accessory={allAccessory} weights={allWeights} testing={allTesting} deloads={allDeloads} runs={allRuns} />
+          <Data sessions={allSessions} macros={macros} accessory={allAccessory} weights={allWeights} testing={allTesting} deloads={allDeloads} runs={allRuns} capacityLogs={allCapacityLogs} />
         ) : (
           <Center>
             <Spinner /> Loading data…

@@ -223,3 +223,30 @@ test('runSummary: Bulletproof line when done, no residue when not', () => {
   assert.equal(done, ['Run — M2C1W2 — Easy — 14.07.2026', '5.2 km in 33:00 → 6:21/km | avg HR 148', 'Completion: Completed ✓', 'Bulletproof: ✓'].join('\n'))
   assert.ok(!runSummary(baseRun({ bulletproof: false }), 2).includes('Bulletproof'))
 })
+
+// ---- GiantFit era (post-cutover dates) --------------------------------------
+
+test('GiantFit session: pairing line with logged weight replaces the legacy secondary; capacity line appended', () => {
+  const s = base({ id: '2026-08-03-bench-H', date: '2026-08-03', cycle: 1, week: 2, dayType: 'bench', topWeight: 100, topReps: 2, pairWeight: 42.5, cardioCals: [null, null, null, null] })
+  const cap = { sessionId: s.id, variant: 'B', roundsCompleted: 3, totalTimeSeconds: 702, calories: 27, rpe: 'R7', notes: '' }
+  const out = sessionSummary(s, 3, ACC, undefined, false, cap)
+  assert.match(out, /Bench Hard — 03.08.2026/)
+  assert.match(out, /\n {2}Pair: Pendlay Row 42.5kg\n/)
+  assert.match(out, /\nCapacity B — 3 rds, 11:42, 27 cal, R7\n/)
+  assert.doesNotMatch(out, /Secondary:/) // legacy line never renders post-cutover
+  assert.doesNotMatch(out, /Cardio:/) // no per-round cardio in GiantFit
+})
+
+test('GiantFit squat trains alone: no pairing line; capacity segments drop when unlogged', () => {
+  const s = base({ id: '2026-07-31-squat-L', date: '2026-07-31', cycle: 1, week: 1, dayType: 'squat', difficulty: 'light' })
+  const cap = { sessionId: s.id, variant: 'A', roundsCompleted: 3, totalTimeSeconds: 612, calories: null, rpe: '', notes: '' }
+  const out = sessionSummary(s, 3, ACC, undefined, false, cap)
+  assert.doesNotMatch(out, /Pair:/)
+  assert.match(out, /\nCapacity A — 3 rds, 10:12\n/) // no cal, no RPE — dropped, not faked
+})
+
+test('legacy sessions are untouched by the capacity param (no capacity line without a log)', () => {
+  const out = sessionSummary(base({}), 2, ACC)
+  assert.doesNotMatch(out, /Capacity/)
+  assert.match(out, /Secondary:/) // pre-cutover keeps the Giant format
+})

@@ -71,10 +71,15 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
   the **Capacity** section (variants A/B, editable rep targets + weights, rounds 3/4) + recorded
   accessories (RDL/row, auto-seeded) & carries, macro anchor, macro picker, and "start next macro"
   archiving (carries C3→C1, GiantFit anchors only).
-- **Data** — export all data as CSV (sessions incl. a deload_week column + a separate
-  testing-results file), and copy a plain-text summary of **any** logged session — training, test,
-  or deload, each with a type-appropriate format — to the clipboard for coaching conversations.
-  (Burger menu → Data.)
+- **Data** — export all data as four CSVs (sessions incl. pair_weight + deload_week columns,
+  capacity results incl. derived per_round_s, runs, legacy testing results — a union of both
+  program eras, old rows never rewritten), and copy a plain-text summary of **any** logged
+  session — GiantFit summaries carry the pairing weight + a capacity line — to the clipboard
+  for coaching conversations. (Burger menu → Data.)
+- **Trends** — Lifts (DL/OHP/Squat/**Bench**; Dips frozen as a legacy series that ends at the
+  cutover) · Runs · **Capacity** (per-round time over date, one line per variant, Bike-calories
+  chart) · Accessories (legacy) · Carries · Session views; multi-macro range picker; lazy
+  recharts chunk.
 - **Recovery → Tendon Health** — joint-specific isometric loading protocol: pick a joint, phase
   auto-advances (Acute/Build/Maintenance, overridable), per-tendon 30s hold timer + light per-day
   "done" logging, position diagrams. One active protocol at a time. (Burger menu → Recovery; first item.)
@@ -102,6 +107,35 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ---
 
 ## Change log
+
+## 2026-07-23 (later still)
+- `feat(giantfit)`: **GiantFit migration — Phase 5 (trends, data page, export) — MIGRATION
+  COMPLETE.** History spans two eras and Trends/Data handle the mix without contamination.
+  **Lift trends:** **Bench** joins the Lifts view (weight + RPE + bar-speed series, green —
+  post-cutover data only, automatic since bench can't predate the cutover); **Dips is frozen as
+  legacy** — muted color, "Dips (legacy)" chip, still fully viewable for its historical range,
+  and the weight/RPE legends now list only lifts with data in the selected range so a retired
+  series ends cleanly at the cutover with no empty tail; DL/OHP/Squat continue seamlessly across
+  eras. Fixed a crash the harness caught: `toCarrySessions` had no bench mapping — a bench
+  session with a carry distance took down the whole Trends tab (bench → Suitcase/`carry_bench`).
+  **Capacity view (new):** per-round time (total ÷ rounds) over date, **one line per variant —
+  A and B never mix**; per-point tooltip (date, variant, rounds, total, per-round, RPE); a Bike
+  Calories chart (variant B) below; consumes the same `perRoundSeconds` math as the S6 signal
+  (`toCapacityTrend` in `engine/trends.ts`; `loadTrends` now fetches capacity logs).
+  **Data/CSV:** sessions CSV gains **`pair_weight`** (union export — legacy rows keep their
+  original columns, blank cells fine, old rows never rewritten); new **fourth CSV**
+  `giant-program-capacity-…` (date, macro/cycle/week, day_type, difficulty, variant, rounds,
+  total_time_seconds, derived per_round_s, calories, rpe, notes) via `capacityToCsv` + the new
+  `getAllCapacityLogs` read; the testing button is labeled "Testing CSV (legacy)".
+  **Copy-summaries** updated for the era: GiantFit sessions replace the legacy Secondary line
+  with the pairing + logged weight (`Pair: Pendlay Row 42.5kg`, squat alone omits it) and append
+  a capacity line — `Capacity B — 3 rds, 11:42, 27 cal, R7` (unlogged segments dropped);
+  pre-cutover summaries byte-identical. **Testing references** scrubbed from standing labels:
+  the attendance legend shows "Test (legacy)" only while a legacy macro with lived test cells is
+  in view; Accessories view labeled legacy. typecheck + **147 tests** + build green; **smoke
+  90/90**; verified in-browser — M3 range shows Bench with no dips residue, the M2–M3 span draws
+  all five series with dips ending at its last pre-cutover point, and the Capacity view renders
+  separate A/B lines + the calories chart.
 
 ## 2026-07-23 (late night)
 - `feat(giantfit)`: **GiantFit migration — Phase 4 (deload signals & deload week)**. **New S6 —

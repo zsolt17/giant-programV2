@@ -118,3 +118,25 @@ test('toRunTrend: derives pace, drops paceless runs, sorts oldest first', () => 
   assert.equal(t[0].macro, 'M2')
   assert.equal(t[1].type, 'quality')
 })
+
+// ---- toCapacityTrend (GiantFit capacity view) -------------------------------
+import { toCapacityTrend } from './trends'
+
+test('toCapacityTrend: joins logs to sessions, derives per-round, drops incomplete, sorts by date', () => {
+  const macros = [{ id: 'm3', number: 3, startISO: '2026-07-27', weeks: 13, status: 'active' }]
+  const sess = (id, date) => ({ id, macroId: 'm3', date, weekType: 'training', cycle: 1, week: 1, dayType: 'deadlift' })
+  const sessions = [sess('b', '2026-07-29'), sess('a', '2026-07-27')]
+  const logs = [
+    { sessionId: 'b', variant: 'B', roundsCompleted: 3, totalTimeSeconds: 702, calories: 27, rpe: 'R7', notes: '' },
+    { sessionId: 'a', variant: 'A', roundsCompleted: 2, totalTimeSeconds: 300, calories: null, rpe: '', notes: '' },
+    { sessionId: 'a', variant: 'A', roundsCompleted: 0, totalTimeSeconds: 300, calories: null, rpe: '', notes: '' }, // unusable -> dropped
+    { sessionId: 'ghost', variant: 'A', roundsCompleted: 3, totalTimeSeconds: 300, calories: null, rpe: '', notes: '' }, // no session -> dropped
+  ]
+  const pts = toCapacityTrend(logs, sessions, macros)
+  assert.equal(pts.length, 2)
+  assert.deepEqual(pts.map((p) => [p.date, p.variant, p.perRoundS, p.rounds, p.calories, p.rpe]), [
+    ['2026-07-27', 'A', 150, 2, null, null], // short session normalizes per round
+    ['2026-07-29', 'B', 234, 3, 27, 7],
+  ])
+  assert.equal(pts[0].macro, 'M3')
+})

@@ -166,6 +166,8 @@ async function main() {
     // Macro-scoped read (inner-join through sessions) — powers the boot bundle.
     const macroLogs = await repo.getCapacityLogs(id)
     ok('getCapacityLogs(macroId) finds the log via the session join', macroLogs.some((l) => l.sessionId === sid), macroLogs.length)
+    // All-macro read (Data page capacity CSV + summaries).
+    ok('getAllCapacityLogs spans macros (includes throwaway log)', (await repo.getAllCapacityLogs()).some((l) => l.sessionId === sid))
 
     await repo.deleteSession(sid)
     ok('session deleted', !(await repo.getSessions(id)).find((s) => s.id === sid))

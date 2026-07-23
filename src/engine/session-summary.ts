@@ -3,10 +3,11 @@
 // and unit-tested. Captures the complete session picture: the Giant Block set
 // ladder comes from the SAME loading-engine computation Today renders (giantSets/
 // volumeWeight), never re-derived. Non-applicable / unlogged lines are omitted.
-import { LIFT_SHORT, SCHEMES, DAY_META, SECONDARY_ITEM, BLOCK_COMPLETION, RUN_TYPE_LABEL, RUN_COMPLETION } from './constants'
+import { LIFT_SHORT, SCHEMES, DAY_META, SECONDARY_ITEM, BLOCK_COMPLETION, RUN_TYPE_LABEL, RUN_COMPLETION, GIANTFIT_PAIRING } from './constants'
 import { giantSets, volumeWeight, liftMode, fmt } from './loading'
+import { isGiantFitDate } from './date-engine'
 import { derivedPaceS, fmtPace, fmtRunDuration } from './runs'
-import type { Session, Lift, AccessoryByCycle, WeightsByCycle, TestingResult, Run } from './types'
+import type { Session, Lift, AccessoryByCycle, WeightsByCycle, TestingResult, Run, CapacityLog } from './types'
 import type { DayMeta } from './types'
 
 // 'up' -> ↑, 'down' -> ↓, 'normal' -> →; blank -> '' (no stray arrow when unlogged).
@@ -62,7 +63,14 @@ export function splitVolNote(notes: string): { vol: string | null; rest: string 
 // lines degrade gracefully without them. `deloadWeek` marks a reactive-deload
 // training week (from the deloads map): the header flips to "Deload — …" and a
 // ~70% context line is added; the full logged body is kept.
-export function sessionSummary(s: Session, macroNumber: number, accessory?: AccessoryByCycle, weights?: WeightsByCycle, deloadWeek?: boolean): string {
+export function sessionSummary(
+  s: Session,
+  macroNumber: number,
+  accessory?: AccessoryByCycle,
+  weights?: WeightsByCycle,
+  deloadWeek?: boolean,
+  capacityLog?: CapacityLog | null
+): string {
   // Legacy/hypothetical weekType 'deload' rows (W15): minimal format — the app
   // never writes these today, but the schema allows them.
   if (s.weekType === 'deload') return w15DeloadSummary(s, macroNumber)
@@ -70,6 +78,9 @@ export function sessionSummary(s: Session, macroNumber: number, accessory?: Acce
   const lines: string[] = []
   const meta = s.dayType ? DAY_META[s.dayType] : null
   const acc = s.cycle != null ? accessory?.[s.cycle] : undefined
+  // GiantFit era (per DATE): paired row instead of the legacy secondary, plus a
+  // capacity line. Pre-cutover sessions keep the Giant format untouched.
+  const giantfit = isGiantFitDate(s.date)
   // Bodyweight-mode dips: no load — the session's stamped top is 0/null.
   const dipsBW = s.dayType === 'dips' && liftMode(s.topWeight) === 'bodyweight'
 
@@ -104,9 +115,13 @@ export function sessionSummary(s: Session, macroNumber: number, accessory?: Acce
       : BLOCK_COMPLETION.find((o) => o.id === s.blockCompletion)?.label || s.blockCompletion
   lines.push(`  Completion: ${completion}`)
 
-  // Weighted secondary (lunge/row/RDL days) with its recorded per-cycle weight;
+  // GiantFit: the paired row with its logged per-session weight (squat trains
+  // alone). Legacy: the weighted secondary with its recorded per-cycle weight;
   // dips day is bodyweight pull-ups — the cluster line below covers it.
-  if (meta && s.dayType) {
+  if (giantfit) {
+    const pairing = s.dayType ? GIANTFIT_PAIRING[s.dayType] : null
+    if (pairing) lines.push(`  Pair: ${pairing}${s.pairWeight != null ? ` ${kg(s.pairWeight)}kg` : ''}`)
+  } else if (meta && s.dayType) {
     const reps = SECONDARY_REPS[meta.secondaryType]
     if (reps) {
       const item = SECONDARY_ITEM[s.dayType]
@@ -139,6 +154,18 @@ export function sessionSummary(s: Session, macroNumber: number, accessory?: Acce
         ? `Push-ups 2×${scheme.vol} (BW)`
         : `2×${scheme.vol}${s.topWeight != null ? ` @ ${kg(volumeWeight(s.topWeight))}` : ''}`
     lines.push(`Volume Block: ${seg(rx, rpeStr(s.volRpe), arrow(s.volSpeed), s.volDone === false ? 'incomplete' : '')}`)
+  }
+
+  // ---- Capacity (GiantFit) ----------------------------------------------------
+  // "Capacity B — 3 rds, 11:42, 27 cal, R7" — unlogged segments are dropped.
+  if (capacityLog) {
+    const parts = [
+      capacityLog.roundsCompleted != null ? `${capacityLog.roundsCompleted} rds` : '',
+      capacityLog.totalTimeSeconds != null ? fmtRunDuration(capacityLog.totalTimeSeconds) : '',
+      capacityLog.calories != null ? `${capacityLog.calories} cal` : '',
+      rpeStr(capacityLog.rpe),
+    ].filter(Boolean)
+    if (parts.length) lines.push(`Capacity ${capacityLog.variant} — ${parts.join(', ')}`)
   }
 
   // ---- Carry ------------------------------------------------------------------

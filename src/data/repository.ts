@@ -521,7 +521,7 @@ export async function rollToNextMacro({
 // unfiltered select returns only their rows across all macros). Per-macro weight
 // grids are grouped by macro_id; deload week_keys are globally unique.
 export async function loadTrends(): Promise<TrendsData> {
-  const [macros, sess, wRows, aRows, tRows, dRows, breakDays, rRows] = await Promise.all([
+  const [macros, sess, wRows, aRows, tRows, dRows, breakDays, rRows, cRows] = await Promise.all([
     getMacros(),
     supabase.from('sessions').select('*'),
     supabase.from('working_weights').select('*'),
@@ -530,8 +530,9 @@ export async function loadTrends(): Promise<TrendsData> {
     supabase.from('deloads').select('*'),
     getBreakDays(),
     supabase.from('runs').select('*'),
+    supabase.from('capacity_logs').select('*'),
   ])
-  for (const r of [sess, wRows, aRows, tRows, dRows, rRows]) if (r.error) throw r.error
+  for (const r of [sess, wRows, aRows, tRows, dRows, rRows, cRows]) if (r.error) throw r.error
 
   const byMacro = <T extends { macro_id: string }>(rows: T[]) => {
     const out: Record<string, T[]> = {}
@@ -556,7 +557,16 @@ export async function loadTrends(): Promise<TrendsData> {
     deloads: M.rowsToDeloads(dRows.data || []),
     breakDays,
     runs: (rRows.data || []).map(M.rowToRun),
+    capacityLogs: (cRows.data || []).map(M.rowToCapacityLog),
   }
+}
+
+// All capacity logs across every macro (RLS-scoped via the session→macro chain) —
+// the Data page's capacity CSV + copy-summary capacity lines.
+export async function getAllCapacityLogs(): Promise<CapacityLog[]> {
+  const { data, error } = await supabase.from('capacity_logs').select('*')
+  if (error) throw error
+  return (data || []).map(M.rowToCapacityLog)
 }
 
 // All testing results across every macro (RLS-scoped) — tests live only in
