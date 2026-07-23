@@ -148,13 +148,18 @@ export const DAY_META: Record<Lift, DayMeta> = {
 export const GIANTFIT_ACC_ITEMS = ['carry_deadlift', 'carry_ohp', 'carry_squat', 'carry_bench']
 
 // Reactive-deload signals (revised rule — brief §5; supersedes the v7 book §7).
-// S4 (Set 1 > R7) was retired. S6 is driven by the giant-block completion control.
+// S4 (Set 1 > R7) was retired. S6 = the GiantFit capacity time trend
+// (S6_THRESHOLD in capacity.ts); S7 (giant-block completion — numbered S6 in
+// the Giant era, renumbered when GiantFit claimed S6) keeps firing off the
+// completion control. Signals are computed, never stored, so history simply
+// re-renders under the new numbers.
 export const SIGNALS: { id: string; label: string }[] = [
   { id: 'S1', label: 'Any day, top set R9.5+' },
-  { id: 'S6', label: 'Giant block not completed as prescribed' },
   { id: 'S2', label: 'Volume block incomplete' },
   { id: 'S3', label: 'Carry skipped (fatigue)' },
   { id: 'S5', label: 'Bar speed ↓ on top set in 2+ sessions' },
+  { id: 'S6', label: 'Capacity time ↑' },
+  { id: 'S7', label: 'Giant block not completed as prescribed' },
 ]
 
 // Macro shape: 12 training weeks (three 4-week mesocycles) + 1 deload week,

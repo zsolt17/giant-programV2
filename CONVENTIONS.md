@@ -364,11 +364,19 @@ See `ARCHITECTURE.md` §2–§6 for the full domain. In code:
   `computeWeekSignals(sessions, runs, priorRuns)`; keep the additive signature so lift-only
   callers/tests stay valid. Optional run days (testing Tue/Thu, W15) are never marked missed.
 - **Reactive deload — `src/engine/deload-rule.ts`.** The revised rule (brief §5,
-  supersedes the v7 book): `computeWeekSignals` (S1 R9.5+, S6 giant block not completed
-  as prescribed, S2 volume incomplete, S3 carry skipped for fatigue, S5 bar-speed down
-  in 2+ sessions; S4 Set-1>R7 retired).
-  Trigger = 3+ occurrences across ≥2 sessions. `shouldRecommendDeload` adds the
-  cap/already-deloaded/break-coming exemptions. Advise-and-confirm, never auto-forced.
+  supersedes the v7 book): `computeWeekSignals(weekSessions, weekRuns, priorRuns,
+  capacityPoints)` — S1 R9.5+, S2 volume incomplete, S3 carry skipped for fatigue,
+  S5 bar-speed down in 2+ sessions, **S6 capacity time ↑** (2+ consecutive slow points
+  in the shared series = one occurrence; slow/averages live on the points, not here),
+  S7 giant block not completed (the Giant-era S6, renumbered); S4 retired. All trailing
+  params default empty — keep the signature additive. Build the S6 series ONLY via
+  `capacityPointsForSignals(logs, sessions, macroNumber, deloads)` (excludes deload
+  weeks from evaluation AND averages); the underlying `buildCapacityPoints` /
+  `rollingVariantAvg` / `S6_THRESHOLD` / `CAPACITY_ROLLING_N` live in
+  `engine/capacity.ts` and are the SAME series Trends consumes — never reimplement the
+  rolling average. Trigger = 3+ occurrences across ≥2 sessions. `shouldRecommendDeload`
+  adds the cap/already-deloaded/break-coming exemptions. Advise-and-confirm, never
+  auto-forced; `WeekSignals.s6Dates` carries the offending dates for the card.
 - **Constants — `src/engine/constants.ts`.** `ROTATION`, `DAY_META`, `PULLUP`,
   `MACRO_WEEKS = 13` (default shape; the engine reads the macro's stored `weeks`),
   `TESTING_SCHEDULE` (LEGACY — dormant, renders 15-week macros' lived testing weeks).

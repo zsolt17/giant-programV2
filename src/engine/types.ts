@@ -173,6 +173,9 @@ export interface WeekSignals {
   occurrences: number
   sessionCount: number
   fired: boolean
+  // The offending capacity-session dates when S6 (capacity time ↑) is among
+  // the types — surfaced on the recommendation card. Empty otherwise.
+  s6Dates?: string[]
 }
 
 // ---- The Giant Run ----------------------------------------------------------
@@ -374,7 +377,7 @@ export interface TrendSession {
   S2: 0 | 1
   S3: 0 | 1
   S5: 0 | 1
-  S6: 0 | 1 // giant block not completed as prescribed
+  S7: 0 | 1 // giant block not completed as prescribed (numbered S6 in the Giant era)
   volOk: boolean
   status: 'done' | 'deload'
   sets: number[] // per-round cardio kcal (cardio_cals)

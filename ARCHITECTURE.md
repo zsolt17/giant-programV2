@@ -36,8 +36,11 @@ build one solid piece at a time, don't stack changes before the last one is veri
 > Giant Block (ladder + paired row, free per-session weight) → Volume → **Capacity**
 > (variant prescription + count-up stopwatch → one `capacity_logs` row per session) →
 > Carry (§2.9b) — while pre-cutover sessions keep the legacy layout (§2.2–§2.3 describe
-> the Giant-era structure, preserved for history). Remaining: deload signals (4),
-> Trends/CSV/copy-summaries (5).
+> the Giant-era structure, preserved for history). **Phase 4 (landed):** the reactive
+> deload rule gained **S6 "Capacity time ↑"** (per-round capacity time vs the rolling
+> same-variant average — §5), the Giant-era block-completion signal was renumbered S6→**S7**,
+> and deload weeks carry no capacity block and are excluded from the S6 series entirely.
+> Remaining: Trends/CSV/copy-summaries (5).
 
 ---
 
@@ -250,11 +253,22 @@ rule supersedes the version in the v7 program book.**
 
 **Signals (auto-detected):**
 - **S1** — any day, top set logged at **R9.5+** (past the intended ceiling on any difficulty).
-- **S6** — **giant block not completed as prescribed** (any non-"completed" state of the completion control, §2.10).
 - **S2** — volume block incomplete (cut reps / dropped set).
 - **S3** — carry skipped due to **fatigue** (not schedule).
 - **S5** — bar speed ↓ on the top set in **2+ sessions** within the week (any lifts).
-- *(S4 — Set 1 > R7 — retired; the logger captures only the top set, and the new S6 covers in-block breakdown categorically.)*
+- **S6 — "Capacity time ↑" (GiantFit, 2026-07-23):** a capacity session is *slow* when its
+  **per-round time** (total ÷ rounds completed — normalizes short sessions) exceeds its own
+  variant's rolling average (last **3** completed same-variant sessions) × **1.15**
+  (`S6_THRESHOLD`, tunable in `engine/capacity.ts`). **2+ consecutive** slow capacity sessions
+  (any variant mix, consecutive by session order, each judged against its own variant's average)
+  = **one** occurrence, attributed to the week holding the streak's later session. Cold start:
+  a variant isn't evaluated until it has 3 completed sessions. Deload weeks are excluded on
+  both sides — never evaluated, never in the averages.
+- **S7** — **giant block not completed as prescribed** (any non-"completed" state of the
+  completion control, §2.10). *Numbered S6 in the Giant era — renumbered when GiantFit claimed
+  S6 for the capacity trend; signals are computed, never stored, so history re-renders under
+  the new number with identical facts.*
+- *(S4 — Set 1 > R7 — retired; the logger captures only the top set, and S7 covers in-block breakdown categorically.)*
 
 **Trigger:** fires when there are **3+ total signal occurrences spanning at least 2 different
 sessions** in the week. (Three occurrences = severity; two sessions = it's a pattern, not one
@@ -622,6 +636,13 @@ repeated here. The two load-bearing domain invariants to preserve, wherever the 
 
 ## 11. Decisions log (settled — don't relitigate)
 
+- **GiantFit Phase 4 (2026-07-23):** capacity feeds the reactive deload rule as **S6**
+  ("Capacity time ↑" — per-round time vs rolling same-variant average ×1.15, 2+ consecutive
+  slow sessions = one occurrence, cold start at 3 sessions/variant); the Giant-era
+  block-completion signal was **renumbered S6→S7** to free the id (computed, never stored —
+  a display-only renumber, behavior identical). Deload weeks have **no capacity block** and
+  are excluded from the S6 series on both sides. Trigger/cap/break/CONFIRM semantics
+  unchanged; Giant Run deload behavior untouched.
 - **GiantFit Phase 3 (2026-07-23):** post-cutover session structure = Warm-Up → Giant →
   Volume → Capacity → Carry (no core circuit, no per-round cardio, no clean/skill/testing
   surfaces). Paired rows are **unanchored, logged per session** (`sessions.pair_weight`,

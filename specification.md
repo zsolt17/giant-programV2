@@ -62,7 +62,10 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 - **Calendar** — program-week × Mon/Wed/Fri grid (13 weeks; 14 with an extended deload; legacy
   macros 15) + the Tue/Thu/Sat run row; log/edit/delete any session; mark breaks.
 - **History** — latest top sets, recent-session feed, pull-up cluster trend, testing results.
-- **Deload** — per-week fatigue signals + reactive-deload recommend/apply (advise-and-confirm).
+- **Deload** — per-week fatigue signals + reactive-deload recommend/apply (advise-and-confirm;
+  pooled lift + run + capacity signals — S6 "Capacity time ↑" watches per-round time vs the
+  rolling same-variant average; the recommendation card lists every fired signal incl. S6's
+  offending dates).
 - **Setup** — per-cycle (C1/C2/C3) **Hard-top anchor** per GiantFit lift (DL/OHP/Squat/**Bench**;
   Medium/Light, the Giant Block ladder and Volume all compute live, with a read-only preview) +
   the **Capacity** section (variants A/B, editable rep targets + weights, rounds 3/4) + recorded
@@ -99,6 +102,35 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ---
 
 ## Change log
+
+## 2026-07-23 (late night)
+- `feat(giantfit)`: **GiantFit migration — Phase 4 (deload signals & deload week)**. **New S6 —
+  "Capacity time ↑":** a capacity session is *slow* when its **per-round time** (total ÷ rounds —
+  normalizes short sessions) exceeds its own variant's rolling average (last **3** completed
+  same-variant sessions, `CAPACITY_ROLLING_N`) × **`S6_THRESHOLD` = 1.15**; **2+ CONSECUTIVE**
+  slow capacity sessions (any variant mix, consecutive by session order) = **ONE** weekly
+  occurrence, attributed to the week holding the streak's later session, both sessions counting
+  toward the 2-session spread. Cold start: a variant is never evaluated until it has 3 completed
+  sessions. Built as shared helpers in `engine/capacity.ts` (`buildCapacityPoints` /
+  `rollingVariantAvg` / `perRoundSeconds` — the Phase 5 Trends capacity view consumes the same
+  series). S1/S2/S3/S5, the 3-occurrences-across-2-sessions trigger, the meso cap, break
+  exemption and CONFIRM mode are all unchanged. **Renumber:** the Giant-era block-completion
+  signal (previously "S6") is now **S7** — same behavior, same label; signals are computed, never
+  stored, so history re-renders identically under the new number (Trends chart + types updated).
+  **Deload weeks:** capacity is absent (the block never renders on reactive-deload sessions —
+  Phase 3 behavior, now load-bearing; end-of-macro deload sessions are note cards) and deload
+  weeks are excluded from S6 on BOTH sides — never evaluated, never in the rolling averages
+  (`capacityPointsForSignals` filters by weekType + the applied-deload map), so averages skip a
+  deload gap cleanly. Giant Run deload behavior untouched (TT Saturday stays). **UI:** S6 appears
+  in the Deload tab's per-week listing/reference and the Today signal banner exactly like
+  S1–S5/R1–R3 ("Capacity time ↑"); the recommendation card now **lists every fired signal**, with
+  S6 showing the offending capacity-session dates; deload copy notes "no capacity block"
+  post-cutover. No schema change. typecheck + **141 tests** + build green (8 new S6 tests:
+  consecutive/one-occurrence/dates, cold start, slow-ok-slow, 3-streak still one, variant mix,
+  deload exclusion both sides, per-round normalization, pooled trigger; + 3 helper tests);
+  verified in-browser — synthetic slow week fires S6 with dates on the recommendation card, the
+  Deload tab lists "Capacity time ↑", and a deload-flagged session renders Warm-Up + ~70% Giant
+  Block only.
 
 ## 2026-07-23 (night)
 - `feat(giantfit)`: **GiantFit migration — Phase 3 (session views, capacity block, carries)**.

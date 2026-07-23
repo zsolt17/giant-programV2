@@ -726,18 +726,18 @@ function AttendanceChart({ macros }: { macros: AttMacro[] }) {
 
 function DeloadChart({ sessions }: { sessions: TrendSession[] }) {
   const weeks = useMemo(() => {
-    const map: Record<string, { label: string; S1: number; S6: number; S2: number; S3: number; S5: number }> = {}
+    const map: Record<string, { label: string; S1: number; S7: number; S2: number; S3: number; S5: number }> = {}
     sessions.forEach((s) => {
       const key = `${s.macro}${s.cycle}${s.week}`
-      if (!map[key]) map[key] = { label: `${s.cycle}${s.week}`, S1: 0, S6: 0, S2: 0, S3: 0, S5: 0 }
+      if (!map[key]) map[key] = { label: `${s.cycle}${s.week}`, S1: 0, S7: 0, S2: 0, S3: 0, S5: 0 }
       map[key].S1 = Math.max(map[key].S1, s.S1)
-      map[key].S6 = Math.max(map[key].S6, s.S6)
+      map[key].S7 = Math.max(map[key].S7, s.S7)
       map[key].S2 = Math.max(map[key].S2, s.S2)
       map[key].S3 = Math.max(map[key].S3, s.S3)
       map[key].S5 = Math.max(map[key].S5, s.S5)
     })
     return Object.values(map).map((w) => {
-      const total = w.S1 + w.S6 + w.S2 + w.S3 + w.S5
+      const total = w.S1 + w.S7 + w.S2 + w.S3 + w.S5
       return { ...w, total, fired: total >= 3 }
     })
   }, [sessions])
@@ -757,7 +757,7 @@ function DeloadChart({ sessions }: { sessions: TrendSession[] }) {
         {weeks.map((d) => {
           const barCol = d.fired ? C.red : d.total >= 2 ? C.amber : d.total >= 1 ? C.slate : C.muted
           const lblCol = d.fired ? C.red : d.total >= 2 ? C.amber : d.total >= 1 ? C.slate : C.dim
-          const flags = (['S1', 'S6', 'S2', 'S3', 'S5'] as const).filter((k) => d[k])
+          const flags = (['S1', 'S7', 'S2', 'S3', 'S5'] as const).filter((k) => d[k])
           return (
             <div key={d.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 9, color: C.dim, width: 48, textAlign: 'right', flexShrink: 0, ...num }}>{d.label}</span>

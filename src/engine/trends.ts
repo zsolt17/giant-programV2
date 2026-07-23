@@ -47,7 +47,7 @@ export function toTrendSessions(sessions: Session[], macros: Macro[], deloads: D
         S2: s.volDone === false ? 1 : 0,
         S3: s.carrySkipped && s.carrySkipReason === 'fatigue' ? 1 : 0,
         S5: s.barSpeed === 'down' ? 1 : 0,
-        S6: s.blockCompletion && s.blockCompletion !== 'completed' ? 1 : 0,
+        S7: s.blockCompletion && s.blockCompletion !== 'completed' ? 1 : 0,
         volOk: s.volDone !== false,
         status: isDeload ? 'deload' : 'done',
         sets: (s.cardioCals || []).filter((c): c is number => c != null),

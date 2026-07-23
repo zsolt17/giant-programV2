@@ -2,11 +2,28 @@ import { C } from './theme'
 import { Card } from './components'
 import { blockTitle, Row } from './controls'
 import { SIGNALS, RUN_SIGNALS } from '../engine/constants'
-import { computeWeekSignals } from '../engine/deload-rule'
+import { computeWeekSignals, capacityPointsForSignals } from '../engine/deload-rule'
 import { daysSinceStart } from '../engine/recovery'
-import type { Session, Run, DeloadMap } from '../engine/types'
+import type { Session, Run, DeloadMap, CapacityLog } from '../engine/types'
 
-export function Deload({ sessions, runs = [], deloads, macroNumber, startISO }: { sessions: Session[]; runs?: Run[]; deloads: DeloadMap; macroNumber: number; startISO: string }) {
+export function Deload({
+  sessions,
+  runs = [],
+  deloads,
+  macroNumber,
+  startISO,
+  capacityLogs = [],
+}: {
+  sessions: Session[]
+  runs?: Run[]
+  deloads: DeloadMap
+  macroNumber: number
+  startISO: string
+  capacityLogs?: CapacityLog[]
+}) {
+  // The macro's full capacity series (S6 time trend) — deload weeks excluded
+  // from evaluation and from the rolling averages.
+  const capacityPoints = capacityPointsForSignals(capacityLogs, sessions, macroNumber, deloads)
   const weeks: Record<string, Session[]> = {}
   const runWeeks: Record<string, Run[]> = {}
   const labels: Record<string, string> = {}
@@ -52,7 +69,7 @@ export function Deload({ sessions, runs = [], deloads, macroNumber, startISO }: 
         </div>
         {keys.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>No data yet.</div>}
         {keys.map((k) => {
-          const sig = computeWeekSignals(weeks[k] || [], runWeeks[k] || [], runs)
+          const sig = computeWeekSignals(weeks[k] || [], runWeeks[k] || [], runs, capacityPoints)
           const confirmed = deloads && deloads[k]
           // Testing weeks: signals stay visible as data, but the trigger label is
           // suppressed — the scheduled W15 deload is already next; the reactive
