@@ -108,6 +108,24 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-07-23 (docs)
+- `docs`: **ARCHITECTURE.md + CONVENTIONS.md rewritten for the completed GiantFit migration.**
+  The phase-by-phase banner is replaced by the current state: the app implements **GiantFit
+  only** — Giant v7 is retired (continues on paper; its data is read-only History), with the
+  `GIANTFIT_START_DATE` cutover documented as the single per-DATE era switch. §2 now defines
+  GiantFit as *the* program (lifts DL/OHP/Squat/Bench at uniform 2.5 kg; Mon/Wed/Fri lifting +
+  Tue/Thu/Sat runs; 4-over-3 rotation realigning every 4 weeks with the C1W1D1 Medium-DL
+  override; Warm-Up → Giant → Volume → Capacity → Carry; A/B alternation by scheduled slot
+  index; carries DL Farmers / OHP Overhead / Squat Bearhug / Bench Suitcase) with new sections
+  **§2.11 The Capacity block** and **§2.12 REMOVED — do not reintroduce** (dips anchor +
+  two-mode engine, 0.5 kg rounding, clean block, secondary/core circuit slots, testing
+  weeks/views, skill days, macro-type selector); Giant-era rules are compressed into marked
+  LEGACY notes (read-only rendering, never scheduling), §4 pull-ups marked legacy, §5 already
+  carried S1/S2/S3/S5 + S6 (+S7), §8 capabilities refreshed. CONVENTIONS §7 gains the same
+  REMOVED list + a note of the untouched subsystems (Giant Run, Recovery, session timer) and
+  the constants inventory now leads with the GiantFit set. Section numbering (§2–§14)
+  preserved so every cross-reference still resolves. No code change.
+
 ## 2026-07-23 (later still)
 - `feat(giantfit)`: **GiantFit migration — Phase 5 (trends, data page, export) — MIGRATION
   COMPLETE.** History spans two eras and Trends/Data handle the mix without contamination.

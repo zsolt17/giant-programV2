@@ -23,7 +23,7 @@ src/
     offline-queue.ts / cache.ts  offline write queue + last-known snapshot (PWA)
   engine/          pure domain logic, framework-agnostic, unit-tested
     types.ts       shared domain types (Difficulty, Lift, Position, Session, SessionDraft, …)
-    constants.ts   ROTATION, SCHEMES, DAY_SPREAD/SET_LADDER/VOLUME_PCT (anchor cascade), DAY_META, SECONDARY_ITEM (day→recorded-accessory), BLOCK_COMPLETION, PULLUP, SIGNALS, TESTING_SCHEDULE, MACRO_WEEKS
+    constants.ts   GIANTFIT_START_DATE (the era cutover), GIANTFIT_ROTATION/GIANTFIT_PAIRING, ANCHOR_LIFTS/ANCHOR_LABEL, SCHEMES, DAY_SPREAD/SET_LADDER/VOLUME_PCT (anchor cascade), GIANTFIT_ACC_ITEMS (carries), DAY_META, BLOCK_COMPLETION, SIGNALS, MACRO_WEEKS + legacy render constants (ROTATION, SECONDARY_ITEM, PULLUP, TESTING_SCHEDULE)
     date-engine.ts position math from the macro start date (see §7)
     loading.ts     single-anchor cascade (dayTop/expandDayTops/giantSets/volumeWeight), uniform 2.5 kg rounding, fmt
     capacity.ts    GiantFit capacity block: static A/B movement definitions + defaults, config merge helpers
@@ -310,7 +310,20 @@ in `.env.production`; blank = off, tree-shaken out). Keep it a no-op when unconf
 
 ## 7. Domain rules encoded in code
 
-See `ARCHITECTURE.md` §2–§6 for the full domain. In code:
+See `ARCHITECTURE.md` §2–§6 for the full domain. **The app implements GiantFit; the Giant
+Program v7 is retired** — pre-cutover dates (`GIANTFIT_START_DATE`, 2026-07-27) render with
+the legacy Giant logic as read-only History, post-cutover dates use GiantFit. In code:
+
+**REMOVED — do not reintroduce** (legacy render paths only, never scheduling/Setup/new-session
+logic): the dips anchor + two-mode dips/pull-up engine (`liftMode` is render-only), 0.5 kg
+rounding (`LOAD_INCREMENT` is gone — `round(w)` is uniform 2.5), the clean block, the
+secondary/core circuit slots (GiantFit pairs a row via `GIANTFIT_PAIRING` + per-session
+`pair_weight`), testing weeks + the testing-day view (reachable only via legacy weeks=15
+macros), skill days, and any macro-type selector (the era is decided per DATE — never add a
+per-macro program flag).
+
+**Untouched across the migration** (don't "modernize" them as part of GiantFit work):
+the Giant Run engine/views, Recovery → Tendon Health, and the session timer.
 
 - **Date engine — `src/engine/date-engine.ts`.** Position is computed strictly from
   the macro start date, never set manually, and is **weeks-driven**: every entry
@@ -377,9 +390,13 @@ See `ARCHITECTURE.md` §2–§6 for the full domain. In code:
   rolling average. Trigger = 3+ occurrences across ≥2 sessions. `shouldRecommendDeload`
   adds the cap/already-deloaded/break-coming exemptions. Advise-and-confirm, never
   auto-forced; `WeekSignals.s6Dates` carries the offending dates for the card.
-- **Constants — `src/engine/constants.ts`.** `ROTATION`, `DAY_META`, `PULLUP`,
-  `MACRO_WEEKS = 13` (default shape; the engine reads the macro's stored `weeks`),
-  `TESTING_SCHEDULE` (LEGACY — dormant, renders 15-week macros' lived testing weeks).
+- **Constants — `src/engine/constants.ts`.** GiantFit: `GIANTFIT_START_DATE` (the cutover),
+  `GIANTFIT_ROTATION`, `GIANTFIT_PAIRING`, `ANCHOR_LIFTS`/`ANCHOR_LABEL`,
+  `GIANTFIT_ACC_ITEMS`, `DAY_META`, `MACRO_WEEKS = 13` (default shape; the engine reads the
+  macro's stored `weeks`). Legacy render-only: `ROTATION`, `SECONDARY_ITEM`, `PULLUP`,
+  `TESTING_SCHEDULE` (dormant — renders 15-week macros' lived testing weeks). Capacity
+  content/thresholds live in `engine/capacity.ts` (`CAPACITY_MOVEMENTS`, `S6_THRESHOLD`,
+  `CAPACITY_ROLLING_N`).
 - **Elapsed time / timers (session timer, `Today.tsx`).** Store **timestamps**
   (`started_at` / `ended_at`, `timestamptz`), never a duration — duration is always
   *derived* (`ended − started`). The live display is **recomputed from `started_at`
