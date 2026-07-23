@@ -129,16 +129,23 @@ export const DAY_META: Record<Lift, DayMeta> = {
     core: 'GHD Back Extension',
     carry: { name: 'Suitcase Carry', load: '50 kg / hand', perHand: true, dist: '20 m / side', sets: '3–4' },
   },
-  // INTERIM bench-day meta so post-cutover bench cells render before Phase 3
-  // rebuilds the session views. The pairing (Pendlay Row) is per GIANTFIT_PAIRING;
-  // core/carry for GiantFit days are defined in Phase 3 — placeholders until then.
+  // GiantFit bench day: paired with Pendlay Row (GIANTFIT_PAIRING); carry =
+  // Suitcase (the GiantFit mapping — DL Farmers / OHP Overhead / Squat Bearhug /
+  // Bench Suitcase; the first three keep their existing entries above). The
+  // descriptive load stays blank — starting loads are set in Setup. `core` is
+  // never rendered on GiantFit days (no core circuit slot).
   bench: {
     secondary: 'Pendlay Row',
     secondaryType: 'pendlay',
     core: '—',
-    carry: { name: 'Carry', load: '—', perHand: false, dist: '—', sets: '—' },
+    carry: { name: 'Suitcase Carry', load: '—', perHand: true, dist: '20 m / side', sets: '3–4' },
   },
 }
+
+// GiantFit accessory items (the four per-day carries) — what Setup shows/writes
+// and what rollToNextMacro carries forward. Legacy items (lunge/rdl/row,
+// carry_dips) stay readable for pre-cutover history but are never written again.
+export const GIANTFIT_ACC_ITEMS = ['carry_deadlift', 'carry_ohp', 'carry_squat', 'carry_bench']
 
 // Reactive-deload signals (revised rule — brief §5; supersedes the v7 book §7).
 // S4 (Set 1 > R7) was retired. S6 is driven by the giant-block completion control.

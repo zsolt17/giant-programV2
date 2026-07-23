@@ -51,6 +51,10 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
   each macro opens on a **Medium deadlift** (C1W1D1 override), capacity variant A/B alternates by
   scheduled strength slot, and off-days are plain rest (no skill days). Pre-cutover days render
   the legacy Giant rules unchanged.
+- **GiantFit sessions (post-cutover)** — Warm-Up → Giant Block (ladder + paired row with free
+  per-session weight entry; squat alone) → Volume → **Capacity** (variant A/B prescription,
+  count-up stopwatch, one `capacity_logs` result per session — rounds/time/Bike cals/RPE/notes,
+  backfillable) → Carry (Farmers/Overhead/Bearhug/Suitcase by day, per-cycle weights in Setup).
 - **Today** — date-computed position; full session prescription (warm-up,
   Giant Block, volume, carry) and logging. **Optional session
   timer:** Start → live timer → End, duration derived from `started_at`/`ended_at`,
@@ -95,6 +99,33 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ---
 
 ## Change log
+
+## 2026-07-23 (night)
+- `feat(giantfit)`: **GiantFit migration — Phase 3 (session views, capacity block, carries)**.
+  Post-cutover strength sessions render the GiantFit structure — **A Warm-Up → B Giant Block →
+  C Volume → D Capacity → E Carry** — while pre-cutover sessions keep the legacy Giant layout
+  untouched (`SessionForm` branches on `isGiantFitDate(draft.date)`; the Calendar modal + Today
+  share it, so the eras can't drift). **Giant Block:** main-lift ladder + the paired row from
+  `GIANTFIT_PAIRING` (DL/OHP + DB Row, Bench + Pendlay Row; squat alone) with a **free
+  per-session weight entry** (`sessions.pair_weight`, migration `0016`) — unanchored, no ladder;
+  secondary/core circuit, per-round cardio, and the dips/pull-up cluster UIs render only on
+  legacy sessions. **Capacity block (new UI, `CapacityBlock.tsx`):** header shows the engine's
+  variant (A/B) + rounds target; movement list from `capacity_config` (reps × name, weight where
+  set); a **count-UP stopwatch** (Start/Pause/Resume/Finish, large display, timestamp-based like
+  the session timer so backgrounding never loses time — no countdown ring); **Finish saves to
+  `capacity_logs`** (variant, rounds, total seconds, Bike cals on variant B, RPE, notes), with
+  manual min:sec entry for backfill, Update/Delete, offline-queued idempotent writes, and the
+  session row auto-upserted first (FK-safe). Logs load with the bundle (`getCapacityLogs` join)
+  and ride the offline snapshot. **Carries:** DL→Farmers · OHP→Overhead · Squat→Bearhug ·
+  **Bench→Suitcase** (`carry_bench`, migration `0016`); Setup's accessories card is now the four
+  carries only (legacy secondaries removed from UI; starting loads blank by design); roll-forward
+  carries only GiantFit items. History's top-set list gains Bench (dips kept for legacy).
+  typecheck + 130 tests + build green; **smoke 89/89** (pair_weight + carry_bench + macro-scoped
+  capacity-log join); verified in-browser — DL/Squat/Bench modals show the right block order,
+  variants (A/A/B) matching the calendar, pairings and carry names; the stopwatch's Finish saved
+  session-then-log; a spring M2 dips session renders the full legacy layout. Known gaps (by
+  phase): copy-summaries/CSV of GiantFit fields land in Phase 5; capacity-aware deload signals
+  in Phase 4.
 
 ## 2026-07-23 (later)
 - `feat(giantfit)`: **GiantFit migration — Phase 2 (position engine & rotation)**. The schedule

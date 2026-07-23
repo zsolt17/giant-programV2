@@ -7,7 +7,8 @@ import { fmt } from '../engine/loading'
 import { clusterTotal, isUnbroken } from '../engine/pullups'
 import type { Session, TestingResult, Lift, Difficulty } from '../engine/types'
 
-const LIFTS: Lift[] = ['deadlift', 'ohp', 'squat', 'dips']
+// GiantFit lifts first; dips kept so legacy Giant top sets stay visible.
+const LIFTS: Lift[] = ['deadlift', 'ohp', 'squat', 'bench', 'dips']
 const DIFFS: Difficulty[] = ['hard', 'medium', 'light']
 
 // Compact ` · …` suffixes for the recent-sessions feed line (empty = nothing logged).

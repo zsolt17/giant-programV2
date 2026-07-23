@@ -79,6 +79,7 @@ export interface SessionRow {
   vol_done: boolean | null
   vol_rpe: string | null
   vol_speed: string | null
+  pair_weight: number | null
   pullup_cluster: string | null
   dips_cluster: string | null
   carry_skipped: boolean | null
@@ -192,6 +193,7 @@ export function rowToSession(r: SessionRow): Session {
     volDone: r.vol_done ?? true,
     volRpe: r.vol_rpe || '',
     volSpeed: r.vol_speed || '',
+    pairWeight: toNum(r.pair_weight),
     pullupCluster: r.pullup_cluster || '',
     dipsCluster: r.dips_cluster || '',
     carrySkipped: !!r.carry_skipped,
@@ -224,6 +226,7 @@ export function sessionToRow(s: SessionDraft): SessionRow {
     vol_done: s.volDone ?? true,
     vol_rpe: blankToNull(s.volRpe),
     vol_speed: blankToNull(s.volSpeed),
+    pair_weight: toNum(s.pairWeight),
     pullup_cluster: blankToNull(s.pullupCluster),
     dips_cluster: blankToNull(s.dipsCluster),
     carry_skipped: !!s.carrySkipped,

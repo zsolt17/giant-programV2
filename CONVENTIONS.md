@@ -40,7 +40,8 @@ src/
   ui/              React components (presentational + container)
     App.tsx        shell: auth gate, top-level state, tab routing, all handlers
     Today.tsx, Calendar.tsx, History.tsx, Deload.tsx, Setup.tsx, Trends.tsx, Data.tsx, Recovery.tsx, Auth.tsx
-    SessionForm.tsx     shared prescription + log fields (Today + SessionModal)
+    SessionForm.tsx     shared prescription + log fields (Today + SessionModal); branches per era on isGiantFitDate(draft.date)
+    CapacityBlock.tsx   GiantFit capacity block: variant prescription + count-up stopwatch + capacity_logs save
     SessionModal.tsx    calendar-cell overlay wrapping SessionForm / TestingSessionView
     TestingSession.tsx  full-structure test-day view (shared by Today + SessionModal)
     RunForm.tsx         Giant Run shared prescription + log fields + SetPaceChip (Today + RunModal)
@@ -382,7 +383,11 @@ See `ARCHITECTURE.md` §2–§6 for the full domain. In code:
   passed), and keep a manual override (edit duration → recompute the end timestamp).
   Hold a **screen wake lock only while the timer runs** (`useWakeLock`, Screen Wake
   Lock API) — re-acquire on visibility regain, no-op if unsupported/denied; never
-  hold it app-wide (battery).
+  hold it app-wide (battery). The **capacity stopwatch** (`CapacityBlock.tsx`) follows
+  the same timestamp rule: elapsed = accumulated + (now − startTs), recomputed per
+  tick, so backgrounding never loses time; only the FINISHED total (seconds) is
+  persisted (`capacity_logs.total_time_seconds`), and its save upserts the session
+  row first so the FK always holds.
 
 ---
 

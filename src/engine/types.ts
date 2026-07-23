@@ -141,6 +141,9 @@ export interface Session {
   volDone: boolean
   volRpe: string
   volSpeed: string
+  // GiantFit: weight used for the session's paired row (DB Row / Pendlay Row).
+  // Free per-session entry — unanchored, no ladder. Null pre-GiantFit / squat days.
+  pairWeight: number | null
   pullupCluster: string
   // Dips final-round cluster (dips day, bodyweight mode only — zero dips anchor).
   dipsCluster: string
@@ -158,10 +161,11 @@ export interface Session {
 // A session as held in the UI form state and handed to the persistence layer.
 // Numeric inputs hold raw strings until the mappers coerce them (toNum/blankToNull),
 // so the form-bound fields are looser than the canonical persisted Session.
-export interface SessionDraft extends Omit<Session, 'cardioCals' | 'carryRounds' | 'carryDistance'> {
+export interface SessionDraft extends Omit<Session, 'cardioCals' | 'carryRounds' | 'carryDistance' | 'pairWeight'> {
   cardioCals: (number | string | null)[]
   carryRounds: number | string | null
   carryDistance: number | string | null
+  pairWeight: number | string | null
 }
 
 export interface WeekSignals {
@@ -334,6 +338,8 @@ export interface MacroBundle {
   // User-scoped (like breakDays), loaded with the bundle: GiantFit capacity
   // config with app defaults already merged in.
   capacity: CapacityConfig
+  // Capacity-block results for this macro's sessions (one per session).
+  capacityLogs: CapacityLog[]
 }
 
 // ---- Trends tab ------------------------------------------------------------

@@ -20,6 +20,9 @@ import type {
   RunDraft,
   RunSlot,
   RunTargetsByCycle,
+  CapacityConfig,
+  CapacityLog,
+  CapacityLogDraft,
 } from '../engine/types'
 
 function shortDate(iso: string): string {
@@ -53,9 +56,14 @@ interface CalendarProps {
   onSaveRun?: (record: RunDraft) => Promise<Run>
   onDeleteRun?: (id: string) => Promise<void>
   onSetRefPace?: (refPaceS: number | null) => Promise<void>
+  // GiantFit capacity: Setup config + this macro's logs + handlers (modal block).
+  capacity?: CapacityConfig
+  capacityLogs?: CapacityLog[]
+  onSaveCapacityLog?: (log: CapacityLogDraft) => Promise<CapacityLog>
+  onDeleteCapacityLog?: (sessionId: string) => Promise<void>
 }
 
-export function Calendar({ startISO, macroNumber, macroId, weights, accessory, sessions, deloads, breakDays, testingResults, runs = [], runTargets = {}, refPaceS = null, macroWeeks, deloadExtended = false, onToggleBreak, onSaveSession, onDeleteSession, onSaveTestingResult, onDeleteTestingResult, onSaveRun, onDeleteRun, onSetRefPace }: CalendarProps) {
+export function Calendar({ startISO, macroNumber, macroId, weights, accessory, sessions, deloads, breakDays, testingResults, runs = [], runTargets = {}, refPaceS = null, macroWeeks, deloadExtended = false, onToggleBreak, onSaveSession, onDeleteSession, onSaveTestingResult, onDeleteTestingResult, onSaveRun, onDeleteRun, onSetRefPace, capacity, capacityLogs = [], onSaveCapacityLog, onDeleteCapacityLog }: CalendarProps) {
   const shape = { weeks: macroWeeks, deloadExtended }
   const rows = enumerateMacro(startISO, macroNumber, shape)
   const todayStr = todayISO()
@@ -265,6 +273,10 @@ export function Calendar({ startISO, macroNumber, macroId, weights, accessory, s
           testingResults={testingResults}
           onSaveTestingResult={onSaveTestingResult}
           onDeleteTestingResult={onDeleteTestingResult}
+          capacity={capacity}
+          capacityLogs={capacityLogs}
+          onSaveCapacityLog={onSaveCapacityLog}
+          onDeleteCapacityLog={onDeleteCapacityLog}
           onClose={() => setModal(null)}
         />
       )}

@@ -50,6 +50,8 @@ import type {
   RunDraft,
   RunTargetsByCycle,
   CapacityConfig,
+  CapacityLog,
+  CapacityLogDraft,
 } from '../engine/types'
 import { defaultCapacityConfig } from '../engine/capacity'
 
@@ -123,6 +125,7 @@ export function App() {
   const [runs, setRuns] = useState<Run[]>([])
   const [runTargets, setRunTargets] = useState<RunTargetsByCycle>({})
   const [capacity, setCapacity] = useState<CapacityConfig>(() => defaultCapacityConfig())
+  const [capacityLogs, setCapacityLogs] = useState<CapacityLog[]>([])
   const [status, setStatus] = useState<LoadStatus>('idle')
   const [err, setErr] = useState('')
   const [online, setOnline] = useState(typeof navigator === 'undefined' || navigator.onLine !== false)
@@ -151,6 +154,7 @@ export function App() {
     setRuns(snap.runs || [])
     setRunTargets(snap.runTargets || {})
     setCapacity(snap.capacity || defaultCapacityConfig())
+    setCapacityLogs(snap.capacityLogs || [])
   }
 
   const load = useCallback(async () => {
@@ -167,7 +171,7 @@ export function App() {
         null
       const b: MacroBundle = target
         ? await repo.loadMacroBundle(target.id)
-        : { weights: {}, accessory: {}, sessions: [], deloads: {}, breakDays: {}, testing: [], runs: [], runTargets: {}, capacity: defaultCapacityConfig() }
+        : { weights: {}, accessory: {}, sessions: [], deloads: {}, breakDays: {}, testing: [], runs: [], runTargets: {}, capacity: defaultCapacityConfig(), capacityLogs: [] }
       setMacros(all)
       setMacro(target)
       setViewedMacroId(target?.id ?? null)
@@ -180,6 +184,7 @@ export function App() {
       setRuns(b.runs)
       setRunTargets(b.runTargets)
       setCapacity(b.capacity)
+      setCapacityLogs(b.capacityLogs)
       setStatus('ready')
       setBooted(true)
     } catch (e) {
@@ -318,9 +323,9 @@ export function App() {
   // optimistic offline writes, since those flow through state).
   useEffect(() => {
     if (status === 'ready' && user && macro) {
-      saveSnapshot({ macros, viewedMacroId, macro, weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity })
+      saveSnapshot({ macros, viewedMacroId, macro, weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs })
     }
-  }, [status, user, macro, macros, viewedMacroId, weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity])
+  }, [status, user, macro, macros, viewedMacroId, weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs])
 
   const onSaveSession = useCallback(async (record: SessionDraft): Promise<Session> => {
     const saved = await repo.saveSession(record)
@@ -335,6 +340,20 @@ export function App() {
   const onDeleteSession = useCallback(async (id: string) => {
     await repo.deleteSession(id)
     setSessions((prev) => prev.filter((s) => s.id !== id))
+    // The capacity log cascade-deletes with its session — mirror that in state.
+    setCapacityLogs((prev) => prev.filter((l) => l.sessionId !== id))
+  }, [])
+
+  // GiantFit capacity-block results — one per session, upsert on sessionId.
+  const onSaveCapacityLog = useCallback(async (log: CapacityLogDraft): Promise<CapacityLog> => {
+    const saved = await repo.saveCapacityLog(log)
+    setCapacityLogs((prev) => prev.filter((l) => l.sessionId !== saved.sessionId).concat(saved))
+    return saved
+  }, [])
+
+  const onDeleteCapacityLog = useCallback(async (sessionId: string) => {
+    await repo.deleteCapacityLog(sessionId)
+    setCapacityLogs((prev) => prev.filter((l) => l.sessionId !== sessionId))
   }, [])
 
   const onSaveRun = useCallback(async (record: RunDraft): Promise<Run> => {
@@ -508,12 +527,16 @@ export function App() {
           macroWeeks={macro.weeks}
           deloadExtended={macro.deloadExtended}
           dateISO={isoLocal(devNow())}
+          capacity={capacity}
+          capacityLogs={capacityLogs}
           onSaveSession={onSaveSession}
           onDeleteSession={onDeleteSession}
           onApplyDeload={onApplyDeload}
           onSaveTestingResult={onSaveTestingResult}
           onDeleteTestingResult={onDeleteTestingResult}
           onSaveRun={onSaveRun}
+          onSaveCapacityLog={onSaveCapacityLog}
+          onDeleteCapacityLog={onDeleteCapacityLog}
           onSetRefPace={onSetRefPace}
           onExtendDeload={onExtendDeload}
           onRunningChange={setSessionRunning}
@@ -536,6 +559,8 @@ export function App() {
           refPaceS={macro.refPaceS}
           macroWeeks={macro.weeks}
           deloadExtended={macro.deloadExtended}
+          capacity={capacity}
+          capacityLogs={capacityLogs}
           onToggleBreak={onToggleBreak}
           onSaveSession={onSaveSession}
           onDeleteSession={onDeleteSession}
@@ -543,6 +568,8 @@ export function App() {
           onDeleteTestingResult={onDeleteTestingResult}
           onSaveRun={onSaveRun}
           onDeleteRun={onDeleteRun}
+          onSaveCapacityLog={onSaveCapacityLog}
+          onDeleteCapacityLog={onDeleteCapacityLog}
           onSetRefPace={onSetRefPace}
         />
       )}

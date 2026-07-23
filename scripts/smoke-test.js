@@ -135,10 +135,16 @@ async function main() {
     ok('no duplicate session id', sessions.filter((s) => s.id === sid).length === 1)
 
     // 0015: bench is a valid sessions.day_type (GiantFit rotation).
+    // 0016: pair_weight (the paired row's free weight entry) round-trips.
     const bid = `SMOKE-${id}-bench-H`
-    const benchSaved = await repo.saveSession({ ...saved, id: bid, dayType: 'bench', difficulty: 'hard' })
+    const benchSaved = await repo.saveSession({ ...saved, id: bid, dayType: 'bench', difficulty: 'hard', pairWeight: 42.5 })
     ok('bench session saved (0015 CHECK accepts bench)', benchSaved.dayType === 'bench', benchSaved.dayType)
+    ok('pairWeight round-trips = 42.5 (0016)', benchSaved.pairWeight === 42.5, benchSaved.pairWeight)
     await repo.deleteSession(bid)
+
+    // 0016: carry_bench is a valid accessory item (GiantFit carry mapping).
+    await repo.saveAccessoryWeights(id, 1, { carry_bench: 24 })
+    ok('carry_bench accepted (0016 CHECK)', (await repo.getAccessoryWeights(id))?.[1]?.carry_bench === 24)
 
     console.log('Capacity (GiantFit 0014: config read + per-session log round-trip)')
     // Config is USER-scoped (not throwaway-macro-scoped), so smoke only READS it —
@@ -157,6 +163,9 @@ async function main() {
     await repo.saveCapacityLog({ ...cl, totalTimeSeconds: 700 })
     const cl2 = await repo.getCapacityLog(sid)
     ok('capacity log upserts on session_id -> 700', cl2?.totalTimeSeconds === 700, cl2?.totalTimeSeconds)
+    // Macro-scoped read (inner-join through sessions) — powers the boot bundle.
+    const macroLogs = await repo.getCapacityLogs(id)
+    ok('getCapacityLogs(macroId) finds the log via the session join', macroLogs.some((l) => l.sessionId === sid), macroLogs.length)
 
     await repo.deleteSession(sid)
     ok('session deleted', !(await repo.getSessions(id)).find((s) => s.id === sid))

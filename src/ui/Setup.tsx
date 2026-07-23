@@ -4,7 +4,7 @@ import { C, cardStyle, inp, lbl, pillColor } from './theme'
 import { Card, BlockTitle } from './components'
 import * as repo from '../data/repository'
 import { computePosition, totalWeeksOf, parseLocalDate, mondayOf, isoLocal } from '../engine/date-engine'
-import { SET_LADDER, VOLUME_PCT, PACE_ROUND_S, ANCHOR_LIFTS, ANCHOR_LABEL } from '../engine/constants'
+import { SET_LADDER, VOLUME_PCT, PACE_ROUND_S, ANCHOR_LIFTS, ANCHOR_LABEL, GIANTFIT_ACC_ITEMS } from '../engine/constants'
 import { expandDayTops, giantSets, volumeWeight } from '../engine/loading'
 import { CAPACITY_MOVEMENTS, CAPACITY_VARIANTS, CAPACITY_ROUNDS_OPTIONS } from '../engine/capacity'
 import { runMode, easyPace, qualityRange, fmtPace, parseClock } from '../engine/runs'
@@ -16,19 +16,18 @@ import type { Macro, WeightsByCycle, AccessoryByCycle, RunTargetsByCycle, RunSlo
 const ANCHORS = ANCHOR_LIFTS
 const DIFFS: Difficulty[] = ['hard', 'medium', 'light']
 const CYCLES: number[] = [1, 2, 3]
+// GiantFit accessories = the four per-day carries (DL Farmers · OHP Overhead ·
+// Squat Bearhug · Bench Suitcase). Paired rows are logged per session (free
+// weight entry) — no recorded secondary weights anymore. Legacy items
+// (lunge/RDL/row, carry_dips) stay in the DB for pre-cutover history but are
+// no longer shown or written here.
 const ACC_LABEL: Record<string, string> = {
-  lunge_deadlift: 'Reverse Lunge — DL day',
-  rdl_squat: 'B-Stance DB RDL — Squat day',
-  row_ohp: 'One-Arm DB Row — OHP day',
   carry_deadlift: "Farmer's Carry — DL day",
   carry_ohp: 'Overhead Carry — OHP day',
-  carry_squat: 'Sandbag Bear Hug — Squat day',
-  carry_dips: 'Suitcase Carry — Dips day',
+  carry_squat: 'Bearhug Carry — Squat day',
+  carry_bench: 'Suitcase Carry — Bench day',
 }
-const ACC_ITEMS = Object.keys(ACC_LABEL)
-// Recorded secondaries (reverse lunge, B-stance RDL, one-arm row): an empty cycle
-// auto-fills from the nearest lower cycle as a starting reference (adjust by feel + save).
-const SEED_ITEMS = ['lunge_deadlift', 'rdl_squat', 'row_ohp']
+const ACC_ITEMS = GIANTFIT_ACC_ITEMS
 
 // Giant Run distance-target slots (guidance only, per cycle, seeded like SEED_ITEMS).
 const RUN_SLOTS: RunSlotKey[] = ['easy', 'quality', 'long']
@@ -66,14 +65,6 @@ function initAcc(loaded?: AccessoryByCycle): EditAcc {
   for (const c of CYCLES) {
     a[c] = {}
     for (const it of ACC_ITEMS) a[c][it] = loaded?.[c]?.[it] ?? ''
-  }
-  // Forward-seed the recorded accessories: an empty higher cycle inherits the
-  // previous cycle's value (which may itself have been seeded). Editable + saved.
-  const blank = (v: number | string) => v === '' || v == null
-  for (const it of SEED_ITEMS) {
-    for (const c of CYCLES) {
-      if (c > 1 && blank(a[c][it]) && !blank(a[c - 1][it])) a[c][it] = a[c - 1][it]
-    }
   }
   return a
 }
@@ -489,12 +480,12 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
         </div>
       </Card>
 
-      {/* Accessory loads for the selected cycle */}
+      {/* Carry loads for the selected cycle */}
       <Card>
-        <BlockTitle tag={`cycle ${cycle}`}>Accessories &amp; Carries</BlockTitle>
+        <BlockTitle tag={`cycle ${cycle}`}>Carries</BlockTitle>
         <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>
-          Recorded weight each (no cascade). The secondaries (reverse lunge, B-stance RDL, one-arm row) auto-seed from
-          the previous cycle as a starting reference — adjust by feel. Carries are the same all week within a cycle.
+          Recorded weight each (no cascade), the same all week within a cycle. RPE ~6 — reward work, never a fourth hard
+          effort. Progress once per meso: position before load, distance before weight. Blank = decide at the rack.
         </div>
         {ACC_ITEMS.map((it) => (
           <div

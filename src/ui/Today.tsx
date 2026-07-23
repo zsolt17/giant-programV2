@@ -29,7 +29,21 @@ import type {
   RunDraft,
   RunSlot,
   RunTargetsByCycle,
+  CapacityVariant,
+  CapacityConfig,
+  CapacityLog,
+  CapacityLogDraft,
 } from '../engine/types'
+
+// Everything the capacity block needs, bundled for prop threading: the slot's
+// variant, the Setup config, this session's log, and the App-level handlers.
+interface CapacityCtx {
+  variant: CapacityVariant
+  config: CapacityConfig
+  log: CapacityLog | null
+  onSaveCapacityLog: (log: CapacityLogDraft) => Promise<CapacityLog>
+  onDeleteCapacityLog: (sessionId: string) => Promise<void>
+}
 
 // Is any break day inside the program week containing weekIndex?
 function breakInWeek(startISO: string, weekIndex: number, breakDays: BreakDayMap): boolean {
@@ -84,12 +98,17 @@ interface TodayProps {
   deloadExtended?: boolean
   // The date the position was computed for (honours the dev ?today override).
   dateISO?: string
+  // GiantFit capacity: Setup config + this macro's logs + handlers.
+  capacity?: CapacityConfig
+  capacityLogs?: CapacityLog[]
   onSaveSession: (record: SessionDraft) => Promise<Session>
   onDeleteSession: (id: string) => Promise<void>
   onApplyDeload: (weekKey: string, on: boolean) => Promise<void>
   onSaveTestingResult: (r: TestingResult) => Promise<TestingResult>
   onDeleteTestingResult: (id: string) => void
   onSaveRun?: (record: RunDraft) => Promise<Run>
+  onSaveCapacityLog?: (log: CapacityLogDraft) => Promise<CapacityLog>
+  onDeleteCapacityLog?: (sessionId: string) => Promise<void>
   onSetRefPace?: (refPaceS: number | null) => Promise<void>
   onExtendDeload?: (on: boolean) => Promise<void>
   onRunningChange?: (running: boolean) => void
@@ -110,12 +129,16 @@ export function Today({
   macroWeeks,
   deloadExtended = false,
   dateISO,
+  capacity,
+  capacityLogs = [],
   onSaveSession,
   onDeleteSession,
   onApplyDeload,
   onSaveTestingResult,
   onDeleteTestingResult,
   onSaveRun,
+  onSaveCapacityLog,
+  onDeleteCapacityLog,
   onSetRefPace,
   onExtendDeload,
   onRunningChange,
@@ -279,6 +302,18 @@ export function Today({
 
   // Reactive-deload recommendation (based on previous week's signals — lifts and
   // runs pooled).
+  // GiantFit capacity context for this slot (post-cutover training days only).
+  const capacityCtx: CapacityCtx | null =
+    computed.giantfit && computed.capacityVariant && capacity && onSaveCapacityLog && onDeleteCapacityLog
+      ? {
+          variant: computed.capacityVariant,
+          config: capacity,
+          log: capacityLogs.find((l) => l.sessionId === sessionId) ?? null,
+          onSaveCapacityLog,
+          onDeleteCapacityLog,
+        }
+      : null
+
   const prevWeekSessions = week > 1 ? sessions.filter((s) => s.cycle === cycle && s.week === week - 1) : []
   const prevWeekRuns = week > 1 ? runs.filter((r) => r.cycle === cycle && r.week === week - 1) : []
   const recommend = shouldRecommendDeload({
@@ -339,6 +374,7 @@ export function Today({
         carryLoad={carryDefault}
         secondaryLoad={secondaryDefault}
         pullupCell={pullupCell}
+        capacityCtx={capacityCtx}
         currentWeekSessions={currentWeekSessions}
         currentWeekRuns={currentWeekRuns}
         allRuns={runs}
@@ -483,6 +519,7 @@ interface SessionEditorProps {
   carryLoad?: number | string | null
   secondaryLoad?: number | string | null
   pullupCell?: LiftWeights | null
+  capacityCtx?: CapacityCtx | null
   currentWeekSessions: Session[]
   currentWeekRuns?: Run[]
   allRuns?: Run[]
@@ -495,7 +532,7 @@ interface SessionEditorProps {
   setSaved: (b: boolean) => void
 }
 
-function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, carryLoad, secondaryLoad, pullupCell, currentWeekSessions, currentWeekRuns = [], allRuns = [], stamp, onSaveSession, onRunningChange, saving, setSaving, saved, setSaved }: SessionEditorProps) {
+function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, carryLoad, secondaryLoad, pullupCell, capacityCtx = null, currentWeekSessions, currentWeekRuns = [], allRuns = [], stamp, onSaveSession, onRunningChange, saving, setSaving, saved, setSaved }: SessionEditorProps) {
   const [draft, setDraft] = useState<SessionDraft>(() => existing || blank())
   const [err, setErr] = useState('')
   const [nowTs, setNowTs] = useState(() => Date.now())
@@ -600,6 +637,21 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
 
   const autoEnded = (draft.notes || '').includes(AUTO_END_NOTE)
 
+  // Capacity block: the log's FK needs the session row, so its save upserts the
+  // current draft first (idempotent) and then writes the capacity log.
+  const capacity = capacityCtx
+    ? {
+        variant: capacityCtx.variant,
+        config: capacityCtx.config,
+        log: capacityCtx.log,
+        onSave: async (l: CapacityLogDraft) => {
+          await onSaveSession({ ...draft, ...stamp })
+          return capacityCtx.onSaveCapacityLog(l)
+        },
+        onDelete: capacityCtx.onDeleteCapacityLog,
+      }
+    : null
+
   return (
     <div>
       {headerSlot}
@@ -618,7 +670,7 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
         />
       )}
 
-      <SessionForm dayType={dayType} difficulty={difficulty} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} locked={notStarted} carryLoad={carryLoad} secondaryLoad={secondaryLoad} pullupCell={pullupCell} />
+      <SessionForm dayType={dayType} difficulty={difficulty} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} locked={notStarted} carryLoad={carryLoad} secondaryLoad={secondaryLoad} pullupCell={pullupCell} capacity={capacity} />
 
       {completed && (
         <button

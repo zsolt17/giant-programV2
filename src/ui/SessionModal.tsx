@@ -16,6 +16,9 @@ import type {
   AccessoryByCycle,
   DeloadMap,
   TestingResult,
+  CapacityConfig,
+  CapacityLog,
+  CapacityLogDraft,
 } from '../engine/types'
 
 function shortDate(iso: string): string {
@@ -37,6 +40,11 @@ interface SessionModalProps {
   testingResults?: TestingResult[]
   onSaveTestingResult: (r: TestingResult) => Promise<TestingResult>
   onDeleteTestingResult: (id: string) => void
+  // GiantFit capacity (post-cutover training cells): config + macro logs + handlers.
+  capacity?: CapacityConfig
+  capacityLogs?: CapacityLog[]
+  onSaveCapacityLog?: (log: CapacityLogDraft) => Promise<CapacityLog>
+  onDeleteCapacityLog?: (sessionId: string) => Promise<void>
   onClose: () => void
 }
 
@@ -55,6 +63,10 @@ export function SessionModal({
   testingResults = [],
   onSaveTestingResult,
   onDeleteTestingResult,
+  capacity,
+  capacityLogs = [],
+  onSaveCapacityLog,
+  onDeleteCapacityLog,
   onClose,
 }: SessionModalProps) {
   const isSpecial = cell.weekType === 'testing' || cell.weekType === 'deload'
@@ -101,25 +113,45 @@ export function SessionModal({
     setField('endedAt', new Date(startedMs + s * 1000).toISOString())
   }
 
+  // The stamped record for this cell (only valid on a normal training cell,
+  // where dayType/difficulty are set). Shared by Save and the capacity block's
+  // ensure-session-first save.
+  const buildRecord = (): SessionDraft => ({
+    ...draft,
+    id: `${cell.date}-${dayType}-${difficulty![0].toUpperCase()}`,
+    date: cell.date,
+    macroId,
+    cycle,
+    week: cell.week,
+    weekType: cell.weekType,
+    dayType,
+    difficulty,
+    topReps: SCHEMES[difficulty!].sets[3],
+    topWeight: top,
+  })
+
+  // GiantFit capacity block for this cell: the capacity log's FK needs the
+  // session row, so its save upserts the cell's record first (idempotent).
+  const sessionId = dayType && difficulty ? `${cell.date}-${dayType}-${difficulty[0].toUpperCase()}` : null
+  const capacityProp =
+    !isSpecial && sessionId && cell.capacityVariant && capacity && onSaveCapacityLog && onDeleteCapacityLog
+      ? {
+          variant: cell.capacityVariant,
+          config: capacity,
+          log: capacityLogs.find((l) => l.sessionId === sessionId) ?? null,
+          onSave: async (l: CapacityLogDraft) => {
+            await onSaveSession(buildRecord())
+            return onSaveCapacityLog(l)
+          },
+          onDelete: onDeleteCapacityLog,
+        }
+      : null
+
   async function handleSave() {
     setSaving(true)
     setErr('')
     try {
-      // Reached only on a normal training cell, where dayType/difficulty are set.
-      const record: SessionDraft = {
-        ...draft,
-        id: `${cell.date}-${dayType}-${difficulty![0].toUpperCase()}`,
-        date: cell.date,
-        macroId,
-        cycle,
-        week: cell.week,
-        weekType: cell.weekType,
-        dayType,
-        difficulty,
-        topReps: SCHEMES[difficulty!].sets[3],
-        topWeight: top,
-      }
-      await onSaveSession(record)
+      await onSaveSession(buildRecord())
       onClose()
     } catch (e) {
       setErr(errMsg(e))
@@ -220,7 +252,7 @@ export function SessionModal({
           </div>
         ) : (
           <>
-            <SessionForm dayType={dayType!} difficulty={difficulty!} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} carryLoad={carryDefault} secondaryLoad={secondaryDefault} pullupCell={pullupCell} />
+            <SessionForm dayType={dayType!} difficulty={difficulty!} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} carryLoad={carryDefault} secondaryLoad={secondaryDefault} pullupCell={pullupCell} capacity={capacityProp} />
             {draft.startedAt && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
                 <div>

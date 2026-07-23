@@ -29,7 +29,7 @@ import type {
   CapacityLogDraft,
 } from '../engine/types'
 import type { Joint, Phase } from '../engine/recovery-content'
-import { ANCHOR_LIFTS } from '../engine/constants'
+import { ANCHOR_LIFTS, GIANTFIT_ACC_ITEMS } from '../engine/constants'
 
 // Browser-only offline handling (Node smoke test has no navigator/window).
 const isBrowser = typeof navigator !== 'undefined' && typeof window !== 'undefined'
@@ -313,26 +313,63 @@ export async function setCapacityRounds(rounds: number): Promise<void> {
   if (error) throw error
 }
 
-// ---- capacity logs (one per session; no UI until Phase 3) -------------------
+// ---- capacity logs (one per session) ----------------------------------------
 export async function getCapacityLog(sessionId: string): Promise<CapacityLog | null> {
   const { data, error } = await supabase.from('capacity_logs').select('*').eq('session_id', sessionId).maybeSingle()
   if (error) throw error
   return data ? M.rowToCapacityLog(data) : null
 }
 
-// Idempotent: upsert on session_id (one capacity result per session).
+// All capacity logs for one macro's sessions (inner-join on sessions.macro_id) —
+// part of the boot bundle so the session views can show/backfill existing logs.
+export async function getCapacityLogs(macroId: string): Promise<CapacityLog[]> {
+  const { data, error } = await supabase
+    .from('capacity_logs')
+    .select('*, sessions!inner(macro_id)')
+    .eq('sessions.macro_id', macroId)
+  if (error) throw error
+  return (data || []).map(M.rowToCapacityLog)
+}
+
+// Idempotent (upsert on session_id — one capacity result per session) and
+// offline-queued like saveSession/saveRun. The queue dedupe key is prefixed so
+// capacity ops can't collide with the session ops sharing the session id.
 export async function saveCapacityLog(log: CapacityLogDraft): Promise<CapacityLog> {
   assertWritable()
   const row = M.capacityLogToRow(log)
-  const { data, error } = await supabase.from('capacity_logs').upsert(row, { onConflict: 'session_id' }).select().single()
-  if (error) throw error
-  return M.rowToCapacityLog(data)
+  if (isOffline()) {
+    queue.enqueue({ kind: 'saveCapacityLog', payload: { id: `cap-${row.session_id}`, row } })
+    return M.rowToCapacityLog(row)
+  }
+  try {
+    const { data, error } = await supabase.from('capacity_logs').upsert(row, { onConflict: 'session_id' }).select().single()
+    if (error) throw error
+    return M.rowToCapacityLog(data)
+  } catch (e) {
+    if (isNetworkError(e)) {
+      queue.enqueue({ kind: 'saveCapacityLog', payload: { id: `cap-${row.session_id}`, row } })
+      return M.rowToCapacityLog(row)
+    }
+    throw e
+  }
 }
 
 export async function deleteCapacityLog(sessionId: string): Promise<void> {
   assertWritable()
-  const { error } = await supabase.from('capacity_logs').delete().eq('session_id', sessionId)
-  if (error) throw error
+  if (isOffline()) {
+    queue.enqueue({ kind: 'deleteCapacityLog', payload: { id: `cap-${sessionId}`, sessionId } })
+    return
+  }
+  try {
+    const { error } = await supabase.from('capacity_logs').delete().eq('session_id', sessionId)
+    if (error) throw error
+  } catch (e) {
+    if (isNetworkError(e)) {
+      queue.enqueue({ kind: 'deleteCapacityLog', payload: { id: `cap-${sessionId}`, sessionId } })
+      return
+    }
+    throw e
+  }
 }
 
 // Replay queued offline writes. Call on reconnect and at startup.
@@ -351,6 +388,14 @@ const QUEUE_EXECUTORS: QueueExecutors = {
   },
   async deleteRun({ id }) {
     const { error } = await supabase.from('runs').delete().eq('id', id)
+    if (error) throw error
+  },
+  async saveCapacityLog({ row }) {
+    const { error } = await supabase.from('capacity_logs').upsert(row, { onConflict: 'session_id' })
+    if (error) throw error
+  },
+  async deleteCapacityLog({ sessionId }) {
+    const { error } = await supabase.from('capacity_logs').delete().eq('session_id', sessionId)
     if (error) throw error
   },
 }
@@ -458,7 +503,13 @@ export async function rollToNextMacro({
     for (const lift of ANCHOR_LIFTS) if (w[3][lift]) carried[lift] = w[3][lift]
     if (Object.keys(carried).length) await saveWorkingWeights(next.id, 1, carried)
   }
-  if (acc[3]) await saveAccessoryWeights(next.id, 1, acc[3])
+  // Accessories: carry only the GiantFit items (the four per-day carries) —
+  // legacy secondaries/carry_dips stay on the old macro for history.
+  if (acc[3]) {
+    const carriedAcc: Record<string, number | null> = {}
+    for (const item of GIANTFIT_ACC_ITEMS) if (acc[3][item] != null) carriedAcc[item] = acc[3][item]
+    if (Object.keys(carriedAcc).length) await saveAccessoryWeights(next.id, 1, carriedAcc)
+  }
   if (rt[3]) await saveRunTargets(next.id, 1, rt[3])
   const refPaceS = M.rowToMacro(current.data).refPaceS
   if (refPaceS != null) return updateMacro(next.id, { refPaceS })
@@ -602,7 +653,7 @@ export async function setTendonLog(protocolId: string, tendonKey: string, dateIS
 
 // ---- bundle (one round-trip for app boot) ---------------------------------
 export async function loadMacroBundle(macroId: string): Promise<MacroBundle> {
-  const [weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity] = await Promise.all([
+  const [weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs] = await Promise.all([
     getWorkingWeights(macroId),
     getAccessoryWeights(macroId),
     getSessions(macroId),
@@ -612,6 +663,7 @@ export async function loadMacroBundle(macroId: string): Promise<MacroBundle> {
     getRuns(macroId),
     getRunTargets(macroId),
     getCapacityConfig(),
+    getCapacityLogs(macroId),
   ])
-  return { weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity }
+  return { weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs }
 }

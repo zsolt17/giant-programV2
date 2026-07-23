@@ -32,7 +32,12 @@ build one solid piece at a time, don't stack changes before the last one is veri
 > `GIANTFIT_START_DATE` (2026-07-27, config) decides the era per DATE: post-cutover days
 > schedule with the GiantFit rotation (§2.6b), the C1 opening override, capacity A/B
 > alternation, and no skill days; pre-cutover days render the legacy Giant rules unchanged.
-> Session STRUCTURE (§2.2–§2.3 blocks, carries) still describes Giant until Phase 3.
+> **Phase 3 (landed):** post-cutover sessions render the GiantFit structure — Warm-Up →
+> Giant Block (ladder + paired row, free per-session weight) → Volume → **Capacity**
+> (variant prescription + count-up stopwatch → one `capacity_logs` row per session) →
+> Carry (§2.9b) — while pre-cutover sessions keep the legacy layout (§2.2–§2.3 describe
+> the Giant-era structure, preserved for history). Remaining: deload signals (4),
+> Trends/CSV/copy-summaries (5).
 
 ---
 
@@ -170,8 +175,14 @@ weeks and their logged results stay renderable/exportable — the components,
   optional short easy; the **first** deload Saturday is the 5k time trial (§13); an
   extended second week's Saturday is optional easy — the TT happens once.
 
-### 2.9 Carry loads (per day, accessory effort)
+### 2.9 Carry loads — LEGACY Giant assignment (pre-cutover)
 Deadlift = Farmer's 60kg/hand · OHP = Overhead 2×20kg · Squat = Sandbag bear hug 68kg · Dips = Suitcase 50kg/hand. Progression: once per mesocycle, position before load, distance before weight. **Carries are reward/accessory work — kept around RPE 6, never pushed to a fourth hard effort.** (Stored per cycle keyed by day — `carry_<day>` — so reassigning the implement doesn't move the key.)
+
+### 2.9b Carries — GiantFit (post-cutover)
+Same conventions (RPE ~6, once per meso, position before load, distance before weight),
+mapped to the GiantFit days: **DL → Farmers · OHP → Overhead · Squat → Bearhug ·
+Bench → Suitcase** (the first three keep their existing `carry_<day>` keys; `carry_bench`
+is new — 0016). Starting loads deliberately blank — set per cycle in Setup.
 
 ### 2.10 Giant-block completion (adherence)
 The top set keeps full RPE + bar-speed logging; the rest of the block is captured by a single
@@ -380,7 +391,9 @@ and adds `sessions.block_completion`; `0008_recovery.sql` adds the Recovery tabl
 `runs.terrain` — §13; `0012_run_bulletproof.sql` adds `runs.bulletproof` — §13;
 `0013_macro_13_weeks.sql` adds `macros.deload_extended` + defaults `weeks` to 13 — §2.5;
 `0014_giantfit_phase1.sql` adds `bench` to the `working_weights` lift CHECK and the three
-GiantFit capacity tables below).
+GiantFit capacity tables below; `0015_giantfit_phase2.sql` adds `bench` to the
+`sessions.day_type` CHECK; `0016_giantfit_phase3.sql` adds `sessions.pair_weight` and
+`carry_bench` to the accessory item CHECK).
 See `supabase/MIGRATIONS.md` for how migrations are applied and the DB kept reproducible.
 Tables:
 
@@ -456,6 +469,9 @@ sessions (
   vol_done      boolean default true,
   vol_rpe       text,
   vol_speed     text,
+  -- GiantFit paired-row weight (DB Row / Pendlay Row) — free per-session entry,
+  -- unanchored (0016). Null pre-GiantFit / squat days.
+  pair_weight   numeric,
   -- bodyweight-mode final-round clusters (dips day) e.g. "6+4"
   pullup_cluster text,
   dips_cluster  text,
@@ -606,6 +622,15 @@ repeated here. The two load-bearing domain invariants to preserve, wherever the 
 
 ## 11. Decisions log (settled — don't relitigate)
 
+- **GiantFit Phase 3 (2026-07-23):** post-cutover session structure = Warm-Up → Giant →
+  Volume → Capacity → Carry (no core circuit, no per-round cardio, no clean/skill/testing
+  surfaces). Paired rows are **unanchored, logged per session** (`sessions.pair_weight`,
+  free entry, no ladder — not a Setup-recorded weight); the capacity block saves **one
+  result per session** through its own stopwatch/save flow (count-UP, timestamp-based,
+  never a countdown ring), auto-upserting the session first so the FK always holds.
+  GiantFit carries: DL Farmers / OHP Overhead / Squat Bearhug / Bench Suitcase, per-cycle
+  in Setup, starting loads blank. The era branch lives in the ONE shared `SessionForm`
+  (`isGiantFitDate(draft.date)`) so Today and the Calendar modal can't drift.
 - **GiantFit Phase 2 (2026-07-23):** the era is decided **per date** by a single config
   cutover (`GIANTFIT_START_DATE`, a Monday) — never by migrating rows or flagging macros.
   GiantFit rotation = Giant's structure with Bench in the dips slots; each macro opens on a
