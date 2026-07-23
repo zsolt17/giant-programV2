@@ -316,7 +316,13 @@ See `ARCHITECTURE.md` §2–§6 for the full domain. In code:
   point takes the macro's `{ weeks, deloadExtended }` (defaults 13 / false).
   Training is always weeks 0–11; the deload is the final week (+1 when extended);
   a 12..deload gap exists only on legacy weeks=15 macros and keeps the dormant
-  testing logic so lived history renders. **Critical:** `corePosition` does the
+  testing logic so lived history renders. **GiantFit cutover:** `isGiantFitDate`
+  (vs `GIANTFIT_START_DATE`) picks the era per DATE inside `corePosition` —
+  `GIANTFIT_ROTATION` + the C1W1D1 Medium-deadlift override + `capacityVariant`
+  (A/B by `strengthSlotIndex` parity since the cutover) post-cutover, legacy
+  `ROTATION` before. UI never derives a day's lift from a rotation table directly:
+  render `computed.dayType` (it carries the override) and use `rotationLiftFor`
+  only for difficulty PEEKS. **Critical:** `corePosition` does the
   position math only and never computes the next session. `computePosition` and
   `nextSessionFrom` both call `corePosition`. **Do not make them call each other** —
   that caused infinite recursion and was deliberately split. Dates are computed in

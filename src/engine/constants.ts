@@ -2,6 +2,7 @@
 // the fixed structure of The Giant Program and must not drift.
 import type { Difficulty, Lift, AnchorLift, Scheme, DayMeta, RunType, RunSlotKey, Terrain } from './types'
 
+// LEGACY Giant rotation (pre-cutover dates only — read-only history rendering).
 // 4 lifts across 3 weekly slots (Mon=hard, Wed=medium, Fri=light), repeating
 // every 4 weeks (one mesocycle). Index = (weekInMeso - 1).
 export const ROTATION: Record<Difficulty, Lift>[] = [
@@ -10,6 +11,31 @@ export const ROTATION: Record<Difficulty, Lift>[] = [
   { hard: 'squat', medium: 'dips', light: 'deadlift' },
   { hard: 'ohp', medium: 'squat', light: 'dips' },
 ]
+
+// ---- GiantFit schedule (successor program, from the cutover) ----------------
+// Cutover date — a MONDAY, set by the athlete. Dates BEFORE it schedule/render
+// with the legacy Giant rules above; dates ON/AFTER it use the GiantFit rules.
+// Old rows are never migrated — the date decides the era.
+export const GIANTFIT_START_DATE = '2026-07-27'
+
+// GiantFit lift rotation — Bench replaces the retired dips; same 4-week
+// realignment across the Mon/Wed/Fri slots. Index = (weekInMeso - 1).
+export const GIANTFIT_ROTATION: Record<Difficulty, Lift>[] = [
+  { hard: 'deadlift', medium: 'ohp', light: 'squat' },
+  { hard: 'bench', medium: 'deadlift', light: 'ohp' },
+  { hard: 'squat', medium: 'bench', light: 'deadlift' },
+  { hard: 'ohp', medium: 'squat', light: 'bench' },
+]
+
+// GiantFit session pairings (encoded now; the session views consume them in
+// Phase 3): each strength day's row pairing. Squat trains alone.
+export const GIANTFIT_PAIRING: Record<Lift, string | null> = {
+  deadlift: 'DB Row',
+  ohp: 'DB Row',
+  squat: null,
+  bench: 'Pendlay Row',
+  dips: null, // retired Giant-era lift — never scheduled post-cutover
+}
 
 // Giant Block rep schemes (4 descending sets) + volume reps. The reps differentiate
 // the days; the load percentages are the uniform SET_LADDER below (single-anchor model).
@@ -56,9 +82,10 @@ export const LIFT_LABEL: Record<Lift, string> = {
   deadlift: 'Deadlift',
   ohp: 'Overhead Press',
   squat: 'Back Squat',
+  bench: 'Bench Press',
   dips: 'Weighted Ring Dips',
 }
-export const LIFT_SHORT: Record<Lift, string> = { deadlift: 'Deadlift', ohp: 'OHP', squat: 'Squat', dips: 'Dips' }
+export const LIFT_SHORT: Record<Lift, string> = { deadlift: 'Deadlift', ohp: 'OHP', squat: 'Squat', bench: 'Bench', dips: 'Dips' }
 
 // Days whose Giant Block secondary carries a recorded per-cycle weight
 // (accessory_weights.item): Reverse Lunge (DL), one-arm DB row (OHP), B-stance RDL
@@ -101,6 +128,15 @@ export const DAY_META: Record<Lift, DayMeta> = {
     secondaryType: 'pullup',
     core: 'GHD Back Extension',
     carry: { name: 'Suitcase Carry', load: '50 kg / hand', perHand: true, dist: '20 m / side', sets: '3–4' },
+  },
+  // INTERIM bench-day meta so post-cutover bench cells render before Phase 3
+  // rebuilds the session views. The pairing (Pendlay Row) is per GIANTFIT_PAIRING;
+  // core/carry for GiantFit days are defined in Phase 3 — placeholders until then.
+  bench: {
+    secondary: 'Pendlay Row',
+    secondaryType: 'pendlay',
+    core: '—',
+    carry: { name: 'Carry', load: '—', perHand: false, dist: '—', sets: '—' },
   },
 }
 

@@ -6,7 +6,7 @@ import { weekKeyFor } from './deload-rule'
 import { enumerateMacro, todayISO } from './date-engine'
 import { derivedPaceS } from './runs'
 
-const DAY_LABEL: Record<string, TrendDay> = { deadlift: 'DL', ohp: 'OHP', squat: 'Squat', dips: 'Dips' }
+const DAY_LABEL: Record<string, TrendDay> = { deadlift: 'DL', ohp: 'OHP', squat: 'Squat', bench: 'Bench', dips: 'Dips' }
 const SPD: Record<string, 0 | 1 | 2> = { down: 0, normal: 1, up: 2 }
 
 // "R9.5" -> 9.5 ; "" / unparseable -> null.

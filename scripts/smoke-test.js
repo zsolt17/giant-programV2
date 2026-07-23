@@ -134,6 +134,12 @@ async function main() {
     ok('session update: topWeight -> 162.5', sessions.find((s) => s.id === sid)?.topWeight === 162.5)
     ok('no duplicate session id', sessions.filter((s) => s.id === sid).length === 1)
 
+    // 0015: bench is a valid sessions.day_type (GiantFit rotation).
+    const bid = `SMOKE-${id}-bench-H`
+    const benchSaved = await repo.saveSession({ ...saved, id: bid, dayType: 'bench', difficulty: 'hard' })
+    ok('bench session saved (0015 CHECK accepts bench)', benchSaved.dayType === 'bench', benchSaved.dayType)
+    await repo.deleteSession(bid)
+
     console.log('Capacity (GiantFit 0014: config read + per-session log round-trip)')
     // Config is USER-scoped (not throwaway-macro-scoped), so smoke only READS it —
     // never mutate the real config. The read also proves 0014's tables are live.

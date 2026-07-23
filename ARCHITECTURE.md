@@ -28,8 +28,11 @@ build one solid piece at a time, don't stack changes before the last one is veri
 > logged session stays readable in History forever. Giant Run (§13) and Recovery (§12) are
 > untouched. **Phase 1 (landed):** anchors + Setup Capacity section + `capacity_logs` (§9).
 > Still to come: rotation/position engine (2), session views/capacity timer/carries (3),
-> deload signals (4), Trends/CSV (5) — until Phase 2, the sections below still describe the
-> live Giant rotation/session behaviour.
+> deload signals (4), Trends/CSV (5). **Phase 2 (landed):** the position engine cut over —
+> `GIANTFIT_START_DATE` (2026-07-27, config) decides the era per DATE: post-cutover days
+> schedule with the GiantFit rotation (§2.6b), the C1 opening override, capacity A/B
+> alternation, and no skill days; pre-cutover days render the legacy Giant rules unchanged.
+> Session STRUCTURE (§2.2–§2.3 blocks, carries) still describes Giant until Phase 3.
 
 ---
 
@@ -107,7 +110,7 @@ Hard anchor (Medium = 95%, Light = 90% of the Hard top — §3). Round to neares
   see §2.7 for what remains of it. Legacy macros that lived their testing weeks
   keep rendering them (the engine is weeks-driven — §6).
 
-### 2.6 Lift rotation (weeks 1–4, repeats each mesocycle)
+### 2.6 Lift rotation — LEGACY Giant (pre-cutover dates only)
 4 lifts across 3 weekly slots (Mon=Hard, Wed=Medium, Fri=Light):
 | Week | Mon (Hard) | Wed (Medium) | Fri (Light) |
 |------|-----------|--------------|-------------|
@@ -115,6 +118,28 @@ Hard anchor (Medium = 95%, Light = 90% of the Hard top — §3). Round to neares
 | W2 | Dips | Deadlift | OHP |
 | W3 | Squat | Dips | Deadlift |
 | W4 | OHP | Squat | Dips |
+
+### 2.6b Lift rotation — GiantFit (dates on/after the 2026-07-27 cutover)
+Bench replaces dips; same slot difficulties and 4-week realignment:
+| Week | Mon (Hard) | Wed (Medium) | Fri (Light) |
+|------|-----------|--------------|-------------|
+| W1 | Deadlift* | OHP | Squat |
+| W2 | Bench | Deadlift | OHP |
+| W3 | Squat | Bench | Deadlift |
+| W4 | OHP | Squat | Bench |
+
+\* **C1 opening override:** in cycle C1 only, W1 Day 1 runs **Medium** instead of Hard —
+the lift stays deadlift, only the difficulty drops, so deadlift intentionally has no Hard
+day in C1 (M/M/L). C2 and C3 follow the normal slot difficulties.
+
+**Session pairings** (`GIANTFIT_PAIRING`, consumed by the Phase 3 views): Deadlift + DB Row ·
+OHP + DB Row · Squat alone · Bench + Pendlay Row.
+
+**Capacity variant alternation:** each scheduled Mon/Wed/Fri strength slot since the cutover
+gets an index (Mon=0/Wed=1/Fri=2 per week); even index = variant A, odd = B. Scheduled slots —
+not completed sessions — drive it, so missed or backfilled days never desync the alternation.
+
+**No skill days:** post-cutover off-days are plain rest (Tue/Thu/Sat remain Giant Run days, Sun rest).
 
 ### 2.7 Testing weeks — LEGACY (removed from the schedule 2026-07-15)
 
@@ -268,16 +293,24 @@ weekInMeso = (weekIndex % 4) + 1                   // 1..4
 session days = Mon (hard), Wed (medium), Fri (light)
 dayType = ROTATION[weekInMeso-1][difficulty]
 ```
-- Legacy testing weeks: Mon/Fri = test, Wed = optional light (`testRole` field distinguishes).
+- **GiantFit cutover (per DATE, not per macro):** days on/after `GIANTFIT_START_DATE`
+  (2026-07-27) use `GIANTFIT_ROTATION` (§2.6b), apply the C1W1D1 Medium-deadlift override,
+  and stamp `giantfit: true` + `capacityVariant` (A/B by scheduled-slot index since the
+  cutover) on the Position; earlier days use the legacy `ROTATION` untouched. No stored
+  rows are migrated — rendering old dates always reproduces the lived schedule.
+- Legacy testing weeks: Mon/Fri = test, Wed = optional light (`testRole` field distinguishes) —
+  reachable only via weeks=15 macros (all pre-cutover); GiantFit macros never compute one.
 - Local date (Brașov, Romania timezone) — compute "today" locally, never UTC, to avoid date-boundary bugs.
-- Non-session days (Tue/Thu/Sat/Sun) show "Skill day / Rest" + the next scheduled session.
+- Non-session days show the next scheduled session ("Skill day / Rest" pre-cutover; plain
+  "Rest Day" post-cutover — GiantFit has no skill days).
 - Before start → "upcoming"; past the macro's total weeks → "macro complete, start next macro."
 
 **Important implementation note:** an early version caused infinite recursion because
 `computePosition` and `nextSessionFrom` called each other. The fix was to extract a `corePosition`
 helper that never computes the next session, and have both callers use it. Preserve that
 separation. (Lives in `src/engine/date-engine.ts`; known-correct outputs are unit-tested —
-13 Apr 2026 → M2 C1 W1 DL Hard; 22 Jun 2026 → M2 C3 W3 Squat Hard.)
+13 Apr 2026 → M2 C1 W1 DL Hard; 22 Jun 2026 → M2 C3 W3 Squat Hard; and GiantFit:
+27 Jul 2026 → M3 C1 W1 DL **Medium** variant A; 3 Aug 2026 → Bench Hard variant B.)
 
 ---
 
@@ -573,6 +606,13 @@ repeated here. The two load-bearing domain invariants to preserve, wherever the 
 
 ## 11. Decisions log (settled — don't relitigate)
 
+- **GiantFit Phase 2 (2026-07-23):** the era is decided **per date** by a single config
+  cutover (`GIANTFIT_START_DATE`, a Monday) — never by migrating rows or flagging macros.
+  GiantFit rotation = Giant's structure with Bench in the dips slots; each macro opens on a
+  Medium deadlift (C1W1D1 override — difficulty only, C2/C3 untouched, DL has no Hard day
+  in C1); capacity variants alternate by **scheduled** strength-slot parity since the
+  cutover (immune to missed/edited days); skill days removed post-cutover; pairings
+  DL+DB Row / OHP+DB Row / Squat alone / Bench+Pendlay Row.
 - **GiantFit Phase 1 (2026-07-23):** the successor program's data model lands first —
   anchors become DL/OHP/Squat/**Bench**; the dips + pull-up anchors, the two-mode
   engine, and the 0.5 kg rounding increment are retired (deprecate, never delete —

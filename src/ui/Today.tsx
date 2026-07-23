@@ -7,10 +7,10 @@ import { useWakeLock } from './useWakeLock'
 import { SessionForm, buildBlankSession } from './SessionForm'
 import { TestingSessionView } from './TestingSession'
 import { RunForm, buildBlankRun, SetPaceChip } from './RunForm'
-import { ROTATION, SCHEMES, LIFT_LABEL, SIGNALS, RUN_SIGNALS, SECONDARY_ITEM, RUN_TYPE_LABEL } from '../engine/constants'
+import { SCHEMES, LIFT_LABEL, SIGNALS, RUN_SIGNALS, SECONDARY_ITEM, RUN_TYPE_LABEL } from '../engine/constants'
 import { deloadTop } from '../engine/loading'
 import { runSlotFor } from '../engine/runs'
-import { todayISO, mondayOf, parseLocalDate, isoLocal } from '../engine/date-engine'
+import { todayISO, mondayOf, parseLocalDate, isoLocal, rotationLiftFor } from '../engine/date-engine'
 import { computeWeekSignals, shouldRecommendDeload, usedDeloadThisMeso, weekKeyFor } from '../engine/deload-rule'
 import type {
   Position,
@@ -224,8 +224,8 @@ export function Today({
             End-of-macro deload{deloadExtended ? ' · extended' : ''}
           </div>
           <div style={{ fontSize: 13, color: C.off, lineHeight: 1.5 }}>
-            Giant Block only at 50–60% of working loads, hard rep scheme. No volume, no carries. Keep skill days. This should
-            feel easy — that's correct.
+            Giant Block only at 50–60% of working loads, hard rep scheme. No volume, no carries.{' '}
+            {computed.giantfit ? '' : 'Keep skill days. '}This should feel easy — that's correct.
           </div>
         </Card>
         {onExtendDeload && <DeloadExtend extended={deloadExtended} onExtendDeload={onExtendDeload} />}
@@ -238,7 +238,11 @@ export function Today({
       <div>
         <PositionHeader computed={computed} />
         <Card style={{ textAlign: 'center', padding: 24 }}>
-          <div style={{ fontFamily: HEADING, fontSize: 22, color: C.gold, letterSpacing: '0.05em' }}>Skill day / Rest</div>
+          {/* GiantFit removed skill days — post-cutover off-days are plain rest
+              (Tue/Thu/Sat render the run session before reaching this branch). */}
+          <div style={{ fontFamily: HEADING, fontSize: 22, color: C.gold, letterSpacing: '0.05em' }}>
+            {computed.giantfit ? 'Rest Day' : 'Skill day / Rest'}
+          </div>
           <div style={{ fontSize: 12, color: C.muted, marginTop: 6 }}>No strength session scheduled today.</div>
           {ns && ns.dayType && (
             <div style={{ fontSize: 13, color: C.off, marginTop: 12 }}>
@@ -255,7 +259,10 @@ export function Today({
   const { meso: cycle, week, macro, difficulty: posDiff, weekIndex } = computed
   if (cycle == null || week == null || posDiff == null || weekIndex == null) return null
   const difficulty = viewDiff || posDiff
-  const dayType = ROTATION[week - 1][difficulty]
+  // The actual day comes from the position (which applies the GiantFit C1
+  // override — e.g. C1W1D1 is a MEDIUM deadlift, not the medium-slot lift);
+  // only a difficulty PEEK derives its lift from the era's rotation.
+  const dayType = viewDiff ? rotationLiftFor(week, viewDiff, !!computed.giantfit) : (computed.dayType as Lift)
   const base = weights?.[cycle]?.[dayType]?.[difficulty]
   const hasWeight = base != null
   const weekKey = weekKeyFor(macro, cycle, week)

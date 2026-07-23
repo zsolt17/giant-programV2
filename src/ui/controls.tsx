@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { C, HEADING, cardStyle, inp, lbl, pillColor } from './theme'
-import { ROTATION, LIFT_LABEL, PULLUP } from '../engine/constants'
+import { LIFT_LABEL, PULLUP } from '../engine/constants'
+import { rotationLiftFor } from '../engine/date-engine'
 import { parseClock } from '../engine/runs'
 import type { Difficulty, DayMeta, Position } from '../engine/types'
 
@@ -182,8 +183,14 @@ export function PositionHeader({
 }) {
   const shownDiff = viewDiff || computed.difficulty
   const isPeeking = viewDiff && viewDiff !== computed.difficulty
+  // Not peeking → the position's own lift (carries the GiantFit C1 override);
+  // peeking → the era's rotation lift for the previewed difficulty.
   const shownLift =
-    computed.weekType === 'training' && computed.week && shownDiff ? ROTATION[computed.week - 1][shownDiff] : null
+    computed.weekType === 'training' && computed.week && shownDiff
+      ? isPeeking
+        ? rotationLiftFor(computed.week, shownDiff, !!computed.giantfit)
+        : computed.dayType ?? null
+      : null
   return (
     <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <div>

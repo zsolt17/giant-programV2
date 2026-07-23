@@ -46,6 +46,11 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ## Current capabilities
 
 - **Single-user auth** (Supabase email/password, RLS-protected).
+- **GiantFit schedule (from 2026-07-27)** — the date decides the era: post-cutover days use the
+  GiantFit rotation (DL/OHP/Squat/**Bench**, 4-week realign, Mon Hard / Wed Medium / Fri Light),
+  each macro opens on a **Medium deadlift** (C1W1D1 override), capacity variant A/B alternates by
+  scheduled strength slot, and off-days are plain rest (no skill days). Pre-cutover days render
+  the legacy Giant rules unchanged.
 - **Today** — date-computed position; full session prescription (warm-up,
   Giant Block, volume, carry) and logging. **Optional session
   timer:** Start → live timer → End, duration derived from `started_at`/`ended_at`,
@@ -90,6 +95,30 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ---
 
 ## Change log
+
+## 2026-07-23 (later)
+- `feat(giantfit)`: **GiantFit migration — Phase 2 (position engine & rotation)**. The schedule
+  cuts over on **`GIANTFIT_START_DATE` = 2026-07-27** (config, `engine/constants.ts`): the DATE
+  decides the era — earlier days keep the legacy Giant rules (read-only history, no row
+  migration), later days use GiantFit. **Rotation:** `GIANTFIT_ROTATION` puts **Bench** in the
+  slots dips held (W1 DL/OHP/Squat · W2 Bench/DL/OHP · W3 Squat/Bench/DL · W4 OHP/Squat/Bench;
+  Mon=Hard/Wed=Medium/Fri=Light unchanged); `'bench'` joins the `Lift` type, labels, trends
+  day-map, and the `sessions.day_type` CHECK (migration `0015`, applied). Session pairings encoded
+  for Phase 3 (`GIANTFIT_PAIRING`: DL+DB Row, OHP+DB Row, Squat alone, Bench+Pendlay Row) + an
+  interim bench `DAY_META` entry so bench cells render before the Phase 3 views. **C1 override:**
+  each macro's first slot (C1W1D1) computes as a **MEDIUM deadlift** (lift stays, difficulty
+  drops → deadlift has no Hard day in C1); C2/C3 untouched. The UI difficulty-peek was made
+  override-safe (Today + `PositionHeader` now render the position's own lift and only derive
+  peeked lifts via the new era-aware `rotationLiftFor`). **Capacity alternation:**
+  `strengthSlotIndex`/`capacityVariantFor` — variant A on even scheduled Mon/Wed/Fri slot
+  indices since the cutover, B on odd (missed/edited days can't desync it); exposed as
+  `Position.capacityVariant` + on Calendar cells (UI in Phase 3). **Skill days removed**
+  post-cutover (Today shows "Rest Day"; deload copy drops "keep skill days"); testing weeks
+  remain only as the legacy weeks=15 render path. **Giant Run untouched** (Tue/Thu/Sat, same
+  engine). typecheck + **130 tests** + build green (new goldens: 27 Jul → M3 C1W1 DL **Medium**
+  variant A · 3 Aug → Bench Hard variant B · C2W1 → DL Hard; all legacy goldens unchanged);
+  **smoke 86/86** (bench day_type write); Calendar verified in-browser side-by-side — M3 renders
+  the GiantFit rotation incl. the override, M2 renders its lived Giant schedule identically.
 
 ## 2026-07-23
 - `feat(giantfit)`: **GiantFit migration — Phase 1 (data model & Setup)**. The app starts migrating

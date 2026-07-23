@@ -2,12 +2,14 @@
 // layer so the row<->app boundary and the program logic stay in sync.
 
 export type Difficulty = 'hard' | 'medium' | 'light'
-export type Lift = 'deadlift' | 'ohp' | 'squat' | 'dips'
+// Day lifts across both eras: GiantFit rotates DL/OHP/Squat/Bench; 'dips' is
+// the DEPRECATED Giant-era day lift — kept so pre-cutover history renders.
+export type Lift = 'deadlift' | 'ohp' | 'squat' | 'bench' | 'dips'
 // Lifts that can hold a per-cycle Hard-top anchor in working_weights. GiantFit
 // anchors are DL/OHP/Squat/Bench (ANCHOR_LIFTS in constants.ts); 'dips' and
 // 'pullup' are DEPRECATED Giant-era anchors — stored rows keep loading so old
 // sessions render, but Setup no longer shows or writes them.
-export type AnchorLift = Lift | 'pullup' | 'bench'
+export type AnchorLift = Lift | 'pullup'
 export type WeekType = 'training' | 'testing' | 'deload'
 export type TestRole = 'test' | 'light'
 
@@ -25,7 +27,7 @@ export interface CarryMeta {
 }
 export interface DayMeta {
   secondary: string
-  secondaryType: 'pullup' | 'rdl' | 'dbrow' | 'lunge'
+  secondaryType: 'pullup' | 'rdl' | 'dbrow' | 'lunge' | 'pendlay'
   core: string
   carry: CarryMeta
 }
@@ -71,6 +73,12 @@ export interface Position {
   // Total weeks of this macro incl. a deload extension (13/14, legacy 15/16) —
   // drives every "wk X/Y" label.
   totalWeeks?: number
+  // True when the target date is on/after GIANTFIT_START_DATE (the cutover):
+  // GiantFit rotation + C1 override + no skill days. False = legacy Giant rules.
+  giantfit?: boolean
+  // GiantFit capacity variant for this strength slot (A/B alternating by the
+  // scheduled-slot index since the cutover). Null off-slot / pre-cutover.
+  capacityVariant?: CapacityVariant | null
   nextSession?: NextSession | null
   startISO?: string
 }
@@ -86,6 +94,8 @@ export interface MacroCell {
   week: number | null
   dayType: Lift | null
   difficulty: Difficulty | null
+  // GiantFit capacity variant for this slot (null pre-cutover / off-slot).
+  capacityVariant: CapacityVariant | null
 }
 export interface MacroWeekRow {
   weekIndex: number
@@ -342,7 +352,7 @@ export interface TrendsData {
 
 // A training session flattened to the shape the Trends charts consume (mirrors the
 // mockup's row model). Derived from Session via engine/trends.ts — not persisted.
-export type TrendDay = 'DL' | 'OHP' | 'Squat' | 'Dips'
+export type TrendDay = 'DL' | 'OHP' | 'Squat' | 'Dips' | 'Bench'
 export interface TrendSession {
   macro: string // "M2"
   macroNumber: number
