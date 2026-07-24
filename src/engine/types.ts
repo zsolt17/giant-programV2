@@ -384,15 +384,6 @@ export interface TrendSession {
   sets: number[] // per-round cardio kcal (cardio_cals)
 }
 
-// Recorded accessory weight (one-arm DB row / B-stance RDL) per cycle, for the
-// Accessories trend view. One point per (macro, cycle) that has a value logged.
-export interface TrendAccessory {
-  macro: string
-  cycle: string
-  label: string // "M2C1"
-  weight: number
-}
-
 // One completed capacity session for the Capacity trend view: per-round time
 // over date, one series per variant (A and B are different circuits — never
 // mixed). Derived via engine/trends.ts toCapacityTrend on the SAME per-round
@@ -439,7 +430,7 @@ export type RecoveryLogMap = Record<string, boolean>
 
 // Attendance grid (Session view). Columns are the Mon/Wed/Fri slots; each cell's
 // status is derived from the schedule + what was logged.
-export type AttStatus = 'done' | 'deload' | 'test' | 'missed' | 'holiday' | 'upcoming' | null
+export type AttStatus = 'done' | 'deload' | 'missed' | 'holiday' | 'upcoming' | null
 export interface AttWeek {
   week: string
   cells: AttStatus[]
@@ -454,7 +445,7 @@ export interface AttCycle {
   total: number
 }
 export interface AttEndRow {
-  row: string // "T1" | "T2" | "W15"
+  row: string // week label beyond the cycles, e.g. "W13" (legacy macros "W13".."W15")
   cells: AttStatus[]
 }
 export interface AttMacro {

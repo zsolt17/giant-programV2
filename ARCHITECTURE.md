@@ -420,8 +420,10 @@ Capabilities, in domain terms:
   archiving (C3→C1, GiantFit items only).
 - **Per-cycle working weights** — the motivating fix; a session reads its own `(macro, cycle)` grid.
 - **Multi-macro archiving** — roll into a new macro carrying C3 weights forward; prior macros stay viewable.
-- **Trends** — Lifts (Dips frozen as legacy) · Runs · Capacity (per-round time per variant,
-  Bike calories) · legacy Accessories · Carries · Session views across a macro range.
+- **Trends** — GiantFit-only (no legacy series or views; the DB and History keep everything):
+  Lifts (DL/OHP/Squat/Bench) · Runs · Capacity (per-round time per variant, Bike calories) ·
+  Carries · Session views across a macro range; legacy macros render with the remaining
+  views only.
 - **Data export / share** — four CSVs (sessions, capacity, runs, legacy testing — a union of
   both eras), and per-session plain-text summaries in each era's format.
 - **Recovery → Tendon Health** (§12) — joint isometric-loading protocols with phase-based dosing,

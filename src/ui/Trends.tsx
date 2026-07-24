@@ -3,10 +3,10 @@ import type { CSSProperties, ReactNode } from 'react'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { C as TH, HEADING, BODY } from './theme'
 import { useFocusTrap } from './useFocusTrap'
-import { toTrendSessions, toAccessoryTrend, toCapacityTrend, toCarrySessions, toAttendance, toRunTrend, macroLabels } from '../engine/trends'
+import { toTrendSessions, toCapacityTrend, toCarrySessions, toAttendance, toRunTrend, macroLabels } from '../engine/trends'
 import { fmtPace, fmtRunDuration } from '../engine/runs'
 import { RUN_TYPE_LABEL } from '../engine/constants'
-import type { TrendsData, TrendSession, TrendAccessory, TrendCapacity, TrendCarry, TrendDay, TrendRun, RunType, CarryType, AttMacro, AttStatus, CapacityVariant } from '../engine/types'
+import type { TrendsData, TrendSession, TrendCapacity, TrendCarry, TrendDay, TrendRun, RunType, CarryType, AttMacro, AttStatus, CapacityVariant } from '../engine/types'
 
 // Mockup palette remapped onto the navy/gold system (the mockup's amber ≈ our gold).
 const C = {
@@ -31,16 +31,15 @@ const C = {
 const num: CSSProperties = { fontVariantNumeric: 'tabular-nums' }
 const tick = { fill: C.dim, fontSize: 9, fontFamily: BODY }
 
-// Bench takes the live green; Dips is a retired Giant-era lift — its series is
-// frozen at the cutover and drawn in the muted legacy tone.
-const LIFT_COLORS: Record<string, string> = { DL: C.amber, OHP: C.slate, Squat: C.purple, Bench: C.green, Dips: C.dim }
-const LIFT_CHIP_LABEL: Record<string, string> = { Dips: 'Dips (legacy)' }
+// GiantFit lifts only — Trends carries no legacy series (dips/accessories live
+// in the DB and History, never here).
+const LIFT_COLORS: Record<string, string> = { DL: C.amber, OHP: C.slate, Squat: C.purple, Bench: C.green }
 const CARRY_TYPES: CarryType[] = ['Farmer', 'Suitcase', 'Sandbag', 'Overhead']
 const CARRY_COLORS: Record<CarryType, string> = { Farmer: C.amber, Suitcase: C.slate, Sandbag: C.purple, Overhead: C.green }
-const STATUS_COLOR: Record<string, string> = { done: C.green, missed: C.red, deload: C.amber, holiday: C.slate, test: C.purple, upcoming: C.muted }
+const STATUS_COLOR: Record<string, string> = { done: C.green, missed: C.red, deload: C.amber, holiday: C.slate, upcoming: C.muted }
 const SLOTS = ['Mon', 'Wed', 'Fri']
-const ALL_LIFTS: TrendDay[] = ['DL', 'OHP', 'Squat', 'Bench', 'Dips']
-const AUX_VIEWS = ['Lifts', 'Runs', 'Capacity', 'Accessories', 'Carries', 'Session'] as const
+const ALL_LIFTS: TrendDay[] = ['DL', 'OHP', 'Squat', 'Bench']
+const AUX_VIEWS = ['Lifts', 'Runs', 'Capacity', 'Carries', 'Session'] as const
 type View = (typeof AUX_VIEWS)[number]
 const VARIANT_COLORS: Record<CapacityVariant, string> = { A: C.amber, B: C.slate }
 const ALL_RUN_TYPES: RunType[] = ['easy', 'quality', 'long', 'tt']
@@ -231,8 +230,8 @@ function FilterBar({ rangeStart, rangeEnd, cycle, lift, runType, view, onOpenPic
       <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
         <span style={rowLabel}>VIEW</span>
         {AUX_VIEWS.map((v) => (
-          <Btn key={v} active={view === v} onClick={() => onView(v)} color={v === 'Accessories' ? C.purple : v === 'Carries' || v === 'Runs' ? C.green : v === 'Session' ? C.slate : C.amber}>
-            {v === 'Accessories' ? 'Accessories (legacy)' : v}
+          <Btn key={v} active={view === v} onClick={() => onView(v)} color={v === 'Carries' || v === 'Runs' ? C.green : v === 'Session' ? C.slate : C.amber}>
+            {v}
           </Btn>
         ))}
       </div>
@@ -251,7 +250,7 @@ function FilterBar({ rangeStart, rangeEnd, cycle, lift, runType, view, onOpenPic
           <span style={rowLabel}>LIFT</span>
           {['All', ...ALL_LIFTS].map((l) => (
             <Btn key={l} active={lift === l} color={LIFT_COLORS[l]} onClick={() => onLift(l)}>
-              {LIFT_CHIP_LABEL[l] || l}
+              {l}
             </Btn>
           ))}
         </div>
@@ -379,12 +378,7 @@ function WeightTrendChart({ sessions, lift }: { sessions: TrendSession[]; lift: 
     })
     return Object.values(map)
   }, [sessions])
-  // Only lifts with data in the selected range: retired series (Dips) end
-  // cleanly at the cutover instead of dragging an empty legend/tail along.
-  const lifts = useMemo(
-    () => (lift === 'All' ? ALL_LIFTS.filter((l) => byWeek.some((w) => w[l] != null)) : [lift as TrendDay]),
-    [lift, byWeek]
-  )
+  const lifts = lift === 'All' ? ALL_LIFTS : [lift as TrendDay]
   if (!byWeek.length) return null
   const first = byWeek[0]
   const last = byWeek[byWeek.length - 1]
@@ -433,10 +427,7 @@ function RPEChart({ sessions, lift }: { sessions: TrendSession[]; lift: string }
     })
     return Object.values(map)
   }, [sessions])
-  const lifts = useMemo(
-    () => (lift === 'All' ? ALL_LIFTS.filter((l) => byWeek.some((w) => w[l] != null)) : [lift as TrendDay]),
-    [lift, byWeek]
-  )
+  const lifts = lift === 'All' ? ALL_LIFTS : [lift as TrendDay]
   if (!byWeek.length) return null
   return (
     <Card>
@@ -600,36 +591,6 @@ function CapacityChart({ points }: { points: TrendCapacity[] }) {
   )
 }
 
-// ─── Accessories view ────────────────────────────────────────────────────────
-// Recorded per-cycle weight for a single accessory (one-arm row / B-stance RDL),
-// plotted oldest -> newest across (macro, cycle). One chart per accessory.
-function AccessoryChart({ data, title, sub, color }: { data: TrendAccessory[]; title: string; sub: string; color: string }) {
-  if (!data.length) return <Card style={{ textAlign: 'center', color: C.dim, padding: '40px 0', fontSize: 13 }}>No {title} weights yet.</Card>
-  const first = data[0]
-  const latest = data[data.length - 1]
-  const delta = +(latest.weight - first.weight).toFixed(1)
-  return (
-    <Card>
-      <SectionHeader sub={sub} title={title} />
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        <StatPill label="Current" value={`${latest.weight}kg`} accent={color} />
-        <StatPill label="Start" value={`${first.weight}kg`} />
-        <StatPill label="Change" value={delta > 0 ? `+${delta}` : `${delta}`} accent={delta > 0 ? C.green : delta < 0 ? C.red : C.label} />
-        <StatPill label="Cycles" value={data.length} />
-      </div>
-      <ResponsiveContainer width="100%" height={190}>
-        <LineChart data={data} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={C.line} vertical={false} />
-          <XAxis dataKey="label" tick={tick} axisLine={false} tickLine={false} />
-          <YAxis domain={['dataMin - 2', 'dataMax + 2']} tick={tick} axisLine={false} tickLine={false} />
-          <Tooltip content={<DarkTooltip unit="kg" />} />
-          <Line type="stepAfter" dataKey="weight" stroke={color} strokeWidth={2.5} dot={{ r: 3, fill: color, stroke: C.card, strokeWidth: 1.5 }} name="Weight" />
-        </LineChart>
-      </ResponsiveContainer>
-    </Card>
-  )
-}
-
 // ─── Carries view ────────────────────────────────────────────────────────────
 function CarryTooltip({ active, payload, col }: TipProps & { col?: string }) {
   if (!active || !payload?.length) return null
@@ -734,7 +695,6 @@ function AttendanceCell({ status }: { status: AttStatus }) {
   return (
     <div style={{ height: 28, borderRadius: 6, background: `${col}22`, border: `1px solid ${col}66`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       {status === 'done' && <div style={{ width: 8, height: 8, borderRadius: '50%', background: col }} />}
-      {status === 'test' && <div style={{ width: 8, height: 8, borderRadius: '50%', background: col, boxShadow: `0 0 5px ${col}` }} />}
       {status === 'deload' && <div style={{ width: 8, height: 8, borderRadius: 2, background: col, transform: 'rotate(45deg)' }} />}
       {status === 'missed' && <span style={{ fontSize: 11, color: col, fontWeight: 700, lineHeight: 1 }}>×</span>}
       {status === 'holiday' && <span style={{ fontSize: 10, color: col }}>—</span>}
@@ -752,15 +712,9 @@ function AttendanceChart({ macros }: { macros: AttMacro[] }) {
       ))}
     </>
   )
-  // Testing weeks are a retired Giant-era concept: the legend only mentions
-  // them while a legacy macro with lived test cells is in view.
-  const hasTestCells = macros.some(
-    (m) => m.endRows.some((r) => r.cells.some((c) => c === 'test')) || m.cycles.some((c) => c.weeks.some((w) => w.cells.some((cell) => cell === 'test')))
-  )
   const legend: [string, string][] = [
     ['done', 'Done'],
     ['deload', 'Deload'],
-    ...(hasTestCells ? ([['test', 'Test (legacy)']] as [string, string][]) : []),
     ['holiday', 'Holiday'],
     ['missed', 'Missed'],
   ]
@@ -821,7 +775,7 @@ function AttendanceChart({ macros }: { macros: AttMacro[] }) {
               <div style={{ display: 'grid', gridTemplateColumns: '28px repeat(3, 1fr)', gap: 4 }}>
                 {mac.endRows.map((r) => (
                   <Fragment key={r.row}>
-                    <div style={{ fontSize: 9, color: r.row === 'W15' ? C.amber : STATUS_COLOR.test, display: 'flex', alignItems: 'center', fontWeight: r.row === 'W15' ? 600 : 400 }}>{r.row}</div>
+                    <div style={{ fontSize: 9, color: C.amber, display: 'flex', alignItems: 'center', fontWeight: 600 }}>{r.row}</div>
                     {r.cells.map((c, i) => (
                       <AttendanceCell key={i} status={c} />
                     ))}
@@ -993,9 +947,6 @@ function CalTooltip({ active, payload }: TipProps) {
 // ─── main ────────────────────────────────────────────────────────────────────
 export function Trends({ data }: { data: TrendsData }) {
   const allSessions = useMemo(() => toTrendSessions(data.sessions, data.macros, data.deloads), [data])
-  const allRow = useMemo(() => toAccessoryTrend(data.macros, data.accessory, 'row_ohp'), [data])
-  const allRdl = useMemo(() => toAccessoryTrend(data.macros, data.accessory, 'rdl_squat'), [data])
-  const allLunge = useMemo(() => toAccessoryTrend(data.macros, data.accessory, 'lunge_deadlift'), [data])
   const allCarries = useMemo(() => toCarrySessions(data.sessions, data.macros, data.accessory), [data])
   const allAttendance = useMemo(() => toAttendance(data.macros, data.sessions, data.deloads, data.breakDays), [data])
   const allRunTrend = useMemo(() => toRunTrend(data.runs || [], data.macros), [data])
@@ -1061,13 +1012,6 @@ export function Trends({ data }: { data: TrendsData }) {
           ))}
         {view === 'Runs' && <RunsChart runs={allRunTrend.filter((r) => activeMacros.includes(r.macro))} runType={runType} />}
         {view === 'Capacity' && <CapacityChart points={allCapacity.filter((p) => activeMacros.includes(p.macro))} />}
-        {view === 'Accessories' && (
-          <>
-            <AccessoryChart data={allRow.filter((a) => activeMacros.includes(a.macro))} title="One-Arm DB Row" sub="legacy Giant secondary · per cycle" color={C.slate} />
-            <AccessoryChart data={allRdl.filter((a) => activeMacros.includes(a.macro))} title="B-Stance DB RDL" sub="legacy Giant secondary · per cycle" color={C.amber} />
-            <AccessoryChart data={allLunge.filter((a) => activeMacros.includes(a.macro))} title="Reverse Lunge" sub="legacy Giant secondary · per cycle" color={C.purple} />
-          </>
-        )}
         {view === 'Carries' && <CarriesChart carries={allCarries} activeMacros={activeMacros} cycle={cycle} />}
         {view === 'Session' && (
           <>

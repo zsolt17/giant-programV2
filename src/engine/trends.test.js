@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { parseRpe, toTrendSessions, toAccessoryTrend, toCarrySessions } from './trends'
+import { parseRpe, toTrendSessions, toCarrySessions } from './trends'
 
 const MACROS = [{ id: 'm2', number: 2, startISO: '2026-04-13', weeks: 15, status: 'active' }]
 
@@ -72,19 +72,6 @@ test('toTrendSessions marks deload-week status from the deloads map', () => {
 
 test('toTrendSessions ignores non-training weeks', () => {
   assert.equal(toTrendSessions([S({ weekType: 'testing' })], MACROS, {}).length, 0)
-})
-
-test('toAccessoryTrend: per-cycle recorded weight across cycles, ordered M1C1..', () => {
-  const accessory = { m2: { 1: { row_ohp: 20 }, 2: { row_ohp: 22.5 }, 3: { row_ohp: 25 } } }
-  const rows = toAccessoryTrend(MACROS, accessory, 'row_ohp')
-  assert.deepEqual(rows.map((r) => r.label), ['M2C1', 'M2C2', 'M2C3'])
-  assert.deepEqual(rows.map((r) => r.weight), [20, 22.5, 25])
-})
-
-test('toAccessoryTrend: skips cycles with no value', () => {
-  const accessory = { m2: { 1: { rdl_deadlift: 30 }, 3: { rdl_deadlift: 35 } } } // C2 unset
-  const rows = toAccessoryTrend(MACROS, accessory, 'rdl_deadlift')
-  assert.deepEqual(rows.map((r) => r.label), ['M2C1', 'M2C3'])
 })
 
 test('toCarrySessions joins per-cycle accessory weight with logged distance', () => {

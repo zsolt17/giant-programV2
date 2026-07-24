@@ -1,7 +1,7 @@
 // Pure derivation: our persisted Session/Macro/deload data -> the flat row shape
 // the Trends charts consume (TrendSession). No DB calls, no React. The deload
 // signal flags mirror deload-rule.ts exactly so Trends never disagrees with Deload.
-import type { Session, Macro, Run, DeloadMap, BreakDayMap, AccessoryByCycle, CapacityLog, TrendSession, TrendDay, TrendAccessory, TrendCapacity, TrendCarry, TrendRun, CarryType, AttStatus, AttMacro, AttCycle } from './types'
+import type { Session, Macro, Run, DeloadMap, BreakDayMap, AccessoryByCycle, CapacityLog, TrendSession, TrendDay, TrendCapacity, TrendCarry, TrendRun, CarryType, AttStatus, AttMacro, AttCycle } from './types'
 import { weekKeyFor } from './deload-rule'
 import { enumerateMacro, todayISO } from './date-engine'
 import { perRoundSeconds } from './capacity'
@@ -107,23 +107,6 @@ export function toCapacityTrend(logs: CapacityLog[], sessions: Session[], macros
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
 }
 
-// Recorded per-cycle accessory weight (one-arm DB row / B-stance RDL) over time:
-// one point per (macro, cycle) that has a value, ordered M1C1, M1C2, … MnC3.
-// These are Setup values (no per-session log), so the series is per cycle, not per session.
-export function toAccessoryTrend(macros: Macro[], accessory: Record<string, AccessoryByCycle>, item: string): TrendAccessory[] {
-  const out: TrendAccessory[] = []
-  macros
-    .slice()
-    .sort((a, b) => a.number - b.number)
-    .forEach((m) => {
-      for (const cycle of [1, 2, 3]) {
-        const w = accessory[m.id]?.[cycle]?.[item]
-        if (w != null) out.push({ macro: `M${m.number}`, cycle: `C${cycle}`, label: `M${m.number}C${cycle}`, weight: w })
-      }
-    })
-  return out
-}
-
 // Each training session has one carry, typed by the day's lift. Weight is the
 // per-cycle accessory load; distance is the session's logged metres/round.
 // Day → carry implement (final reassignment). Weight comes from the per-cycle
@@ -197,8 +180,11 @@ export function toAttendance(macros: Macro[], sessions: Session[], deloads: Delo
             else if (c === 'holiday') cyc.holiday++
           })
         } else if (row.weekType === 'testing' || row.weekType === 'deload') {
+          // Testing weeks exist only on legacy macros; they render as plain
+          // attendance (done/missed) with week-number labels — Trends carries
+          // no testing-specific annotation anymore.
           const isDeloadRow = row.weekType === 'deload'
-          const label = isDeloadRow ? `W${row.displayWeek}` : `T${endRows.filter((r) => r.row.startsWith('T')).length + 1}`
+          const label = `W${row.displayWeek}`
           const cells: AttStatus[] = row.cells.map((cell) => {
             const planned = isDeloadRow || cell.testRole === 'test' // a counted slot
             if (breakDays[cell.date]) {
@@ -213,7 +199,7 @@ export function toAttendance(macros: Macro[], sessions: Session[], deloads: Delo
                 epTotal++
                 epDone++
               }
-              return isDeloadRow ? 'deload' : 'test'
+              return isDeloadRow ? 'deload' : 'done'
             }
             if (planned) {
               epTotal++
@@ -223,7 +209,7 @@ export function toAttendance(macros: Macro[], sessions: Session[], deloads: Delo
               }
               return 'upcoming'
             }
-            return null // optional Wed light day — not counted
+            return null // optional legacy Wed light day — not counted
           })
           endRows.push({ row: label, cells })
         }

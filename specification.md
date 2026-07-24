@@ -76,10 +76,10 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
   program eras, old rows never rewritten), and copy a plain-text summary of **any** logged
   session — GiantFit summaries carry the pairing weight + a capacity line — to the clipboard
   for coaching conversations. (Burger menu → Data.)
-- **Trends** — Lifts (DL/OHP/Squat/**Bench**; Dips frozen as a legacy series that ends at the
-  cutover) · Runs · **Capacity** (per-round time over date, one line per variant, Bike-calories
-  chart) · Accessories (legacy) · Carries · Session views; multi-macro range picker; lazy
-  recharts chunk.
+- **Trends** — GiantFit-only: Lifts (DL/OHP/Squat/**Bench**) · Runs · **Capacity** (per-round
+  time over date, one line per variant, Bike-calories chart) · Carries · Session views;
+  multi-macro range picker (legacy macros render with the remaining views only — no dips or
+  accessories series anywhere); lazy recharts chunk.
 - **Recovery → Tendon Health** — joint-specific isometric loading protocol: pick a joint, phase
   auto-advances (Acute/Build/Maintenance, overridable), per-tendon 30s hold timer + light per-day
   "done" logging, position diagrams. One active protocol at a time. (Burger menu → Recovery; first item.)
@@ -107,6 +107,25 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ---
 
 ## Change log
+
+## 2026-07-24 (Trends cleanup)
+- `feat(trends)`: **Trends is GiantFit-only — all legacy views, filters, and series removed**
+  (rendering code deleted; DB rows, History/session-log rendering, and CSV exports untouched —
+  the archive keeps everything). **Views:** the "Accessories (legacy)" view is gone — chip,
+  `AccessoryChart` component, `toAccessoryTrend` builder, and the `TrendAccessory` type deleted
+  (the `accessory_weights` fetch stays: the Carries view resolves carry weights from it). Five
+  views remain: Lifts · Runs · Capacity · Carries · Session. **Lifts:** the "Dips (legacy)" chip
+  and series are gone — `ALL_LIFTS`/colors are the four GiantFit lifts and the Phase 5
+  frozen-series legend filter was deleted as dead code; dips `TrendSession` rows still feed the
+  day-agnostic Session-view charts (signals/duration/attendance count real lifted sessions).
+  **Orphan sweep:** testing-week annotations removed from the attendance chart — legacy testing
+  weeks now render as plain done/missed cells with week-number labels (W13/W14 instead of T1/T2),
+  the purple 'test' status/legend/`AttStatus` member deleted. **Legacy macros in the picker**
+  render error-free with only the remaining series; "All" legends/scaling carry no legacy
+  series. typecheck + **146 tests** (2 orphaned accessory-trend tests removed) + build green;
+  verified in-browser — five view chips, five lift chips, an M2–M3 span draws exactly
+  DL/OHP/Squat/Bench with dips data present in the input, and the legacy Session view shows no
+  Test annotation.
 
 ## 2026-07-24 (later)
 - `feat(giantfit)`: **closing pass — Suitcase starting load.** The bench-day Suitcase carry now
