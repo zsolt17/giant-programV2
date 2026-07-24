@@ -4,7 +4,7 @@ import { C, cardStyle, inp, lbl, pillColor } from './theme'
 import { Card, BlockTitle } from './components'
 import * as repo from '../data/repository'
 import { computePosition, totalWeeksOf, parseLocalDate, mondayOf, isoLocal } from '../engine/date-engine'
-import { SET_LADDER, VOLUME_PCT, PACE_ROUND_S, ANCHOR_LIFTS, ANCHOR_LABEL, GIANTFIT_ACC_ITEMS } from '../engine/constants'
+import { SET_LADDER, VOLUME_PCT, PACE_ROUND_S, ANCHOR_LIFTS, ANCHOR_LABEL, GIANTFIT_ACC_ITEMS, GIANTFIT_CARRY_DEFAULTS } from '../engine/constants'
 import { expandDayTops, giantSets, volumeWeight } from '../engine/loading'
 import { CAPACITY_MOVEMENTS, CAPACITY_VARIANTS, CAPACITY_ROUNDS_OPTIONS } from '../engine/capacity'
 import { runMode, easyPace, qualityRange, fmtPace, parseClock } from '../engine/runs'
@@ -64,7 +64,7 @@ function initAcc(loaded?: AccessoryByCycle): EditAcc {
   const a: EditAcc = {}
   for (const c of CYCLES) {
     a[c] = {}
-    for (const it of ACC_ITEMS) a[c][it] = loaded?.[c]?.[it] ?? ''
+    for (const it of ACC_ITEMS) a[c][it] = loaded?.[c]?.[it] ?? GIANTFIT_CARRY_DEFAULTS[it] ?? ''
   }
   return a
 }

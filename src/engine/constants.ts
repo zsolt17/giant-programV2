@@ -142,16 +142,20 @@ export const DAY_META: Record<Lift, DayMeta> = {
   },
   // GiantFit bench day: paired with Pendlay Row (GIANTFIT_PAIRING); carry =
   // Suitcase (the GiantFit mapping — DL Farmers / OHP Overhead / Squat Bearhug /
-  // Bench Suitcase; the first three keep their existing entries above). The
-  // descriptive load stays blank — starting loads are set in Setup. `core` is
-  // never rendered on GiantFit days (no core circuit slot).
+  // Bench Suitcase; the first three keep their existing entries above). `core`
+  // is never rendered on GiantFit days (no core circuit slot).
   bench: {
     secondary: 'Pendlay Row',
     secondaryType: 'pendlay',
     core: '—',
-    carry: { name: 'Suitcase Carry', load: '—', perHand: true, dist: '20 m / side', sets: '3–4' },
+    carry: { name: 'Suitcase Carry', load: '50 kg / hand', perHand: true, dist: '20 m / side', sets: '3–4' },
   },
 }
+
+// GiantFit carry starting loads seeded into Setup when a cycle's value is blank
+// (editable like any carry weight; persists on the next Setup save). Only the
+// Suitcase (bench day) has a program default — the others are athlete-set.
+export const GIANTFIT_CARRY_DEFAULTS: Record<string, number> = { carry_bench: 50 }
 
 // GiantFit accessory items (the four per-day carries) — what Setup shows/writes
 // and what rollToNextMacro carries forward. Legacy items (lunge/rdl/row,

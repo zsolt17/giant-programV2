@@ -188,7 +188,9 @@ weeks and their logged results stay renderable/exportable — the components,
 per mesocycle, position before load, distance before weight. **Carries are reward/accessory
 work — kept around RPE ~6, never pushed to a fourth hard effort.** Weights are recorded per
 cycle in Setup (stored keyed by day — `carry_<day>` — so reassigning an implement doesn't
-move the key); starting loads are deliberately blank until set.
+move the key). **The Suitcase (bench day) seeds a 50 kg starting load** in Setup when blank
+(`GIANTFIT_CARRY_DEFAULTS`; editable like any carry weight); the other carries start blank
+and are athlete-set.
 
 *(LEGACY — the Giant-era assignment differed only on the retired dips day: Dips → Suitcase
 50 kg/hand, keyed `carry_dips`; the DL/OHP/Squat implements and keys are unchanged across

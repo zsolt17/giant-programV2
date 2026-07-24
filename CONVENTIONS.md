@@ -391,7 +391,8 @@ the Giant Run engine/views, Recovery → Tendon Health, and the session timer.
   adds the cap/already-deloaded/break-coming exemptions. Advise-and-confirm, never
   auto-forced; `WeekSignals.s6Dates` carries the offending dates for the card.
 - **Constants — `src/engine/constants.ts`.** GiantFit: `GIANTFIT_START_DATE` (the cutover),
-  `GIANTFIT_ROTATION`, `GIANTFIT_PAIRING`, `ANCHOR_LIFTS`/`ANCHOR_LABEL`,
+  `GIANTFIT_ROTATION`, `GIANTFIT_PAIRING`, `GIANTFIT_ACTIVATION` (warm-up list),
+  `GIANTFIT_CARRY_DEFAULTS` (Setup seed: Suitcase 50), `ANCHOR_LIFTS`/`ANCHOR_LABEL`,
   `GIANTFIT_ACC_ITEMS`, `DAY_META`, `MACRO_WEEKS = 13` (default shape; the engine reads the
   macro's stored `weeks`). Legacy render-only: `ROTATION`, `SECONDARY_ITEM`, `PULLUP`,
   `TESTING_SCHEDULE` (dormant — renders 15-week macros' lived testing weeks). Capacity

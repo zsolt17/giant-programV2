@@ -108,6 +108,19 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-07-24 (later)
+- `feat(giantfit)`: **closing pass — Suitcase starting load.** The bench-day Suitcase carry now
+  seeds a **50 kg** starting load in Setup when a cycle's value is blank (`GIANTFIT_CARRY_DEFAULTS`,
+  editable like any carry weight, persists on the next Setup save); the bench `DAY_META` descriptive
+  fallback shows `50 kg / hand` in session views until then. Other carries keep their values /
+  stay athlete-set. Everything else in the final-extension checklist was already live and
+  re-verified: the confirmed Phase 4 deload engine (S1/S2/S3/S5 + S6 capacity time trend with
+  `S6_THRESHOLD`, deload weeks capacity-free and excluded from rolling averages, signal UI +
+  recommendation-card dates), and the 2026-07-24 pairing/warm-up corrections. typecheck +
+  **148 tests** + build green; verified in-browser — Setup seeds Suitcase 50 with the other
+  carries blank, the DL modal shows the activation list with no row pairing, and a
+  deload-flagged session renders Warm-Up + Giant Block only.
+
 ## 2026-07-24
 - `fix(giantfit)`: **pairings & warm-up corrections + dev-date-override bug.** (1) **Deadlift
   trains alone** — the pairing set is DL alone · OHP + DB Row · Squat alone · Bench + Pendlay
