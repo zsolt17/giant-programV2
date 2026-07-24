@@ -216,11 +216,11 @@ export function Today({
             macroId={macroId}
             lift={computed.testLift}
             c3Hard={weights?.[3]?.[computed.testLift]?.hard ?? null}
-            testedOn={todayISO()}
+            testedOn={today}
             results={testingResults}
             onSave={onSaveTestingResult}
             onDelete={onDeleteTestingResult}
-            companion={sessions.find((s) => s.id === `${todayISO()}-${computed.testLift}-TEST`) ?? null}
+            companion={sessions.find((s) => s.id === `${today}-${computed.testLift}-TEST`) ?? null}
             onSaveSession={onSaveSession}
             onDeleteSession={onDeleteSession}
           />
@@ -300,7 +300,9 @@ export function Today({
   const secondaryItem = SECONDARY_ITEM[dayType]
   const secondaryDefault = secondaryItem ? accessory?.[cycle]?.[secondaryItem] ?? '' : ''
   const pullupCell = dayType === 'dips' ? weights?.[cycle]?.pullup ?? null : null
-  const sessionId = `${todayISO()}-${dayType}-${difficulty[0].toUpperCase()}`
+  // Use the position's date (honours the dev ?today override) — stamping the
+  // REAL date here once made an overridden Today render the wrong era.
+  const sessionId = `${today}-${dayType}-${difficulty[0].toUpperCase()}`
   const existing = sessions.find((s) => s.id === sessionId)
   const currentWeekSessions = sessions.filter((s) => s.cycle === cycle && s.week === week)
   const currentWeekRuns = runs.filter((r) => r.cycle === cycle && r.week === week)
@@ -385,7 +387,7 @@ export function Today({
         key={sessionId + (isDeload ? '-d' : '')}
         sessionId={sessionId}
         existing={existing}
-        blank={() => buildBlankSession({ date: todayISO(), macroId, cycle, week, weekType: 'training', dayType, difficulty, baseTop: base, isDeload })}
+        blank={() => buildBlankSession({ date: today, macroId, cycle, week, weekType: 'training', dayType, difficulty, baseTop: base, isDeload })}
         headerSlot={<PositionHeader computed={computed} viewDiff={viewDiff} setViewDiff={setViewDiff} />}
         dayType={dayType}
         difficulty={difficulty}
@@ -400,7 +402,7 @@ export function Today({
         currentWeekSessions={currentWeekSessions}
         currentWeekRuns={currentWeekRuns}
         allRuns={runs}
-        stamp={{ macroId, cycle, week, weekType: 'training', dayType, difficulty, topReps: SCHEMES[difficulty].sets[3], topWeight: top, date: todayISO(), id: sessionId }}
+        stamp={{ macroId, cycle, week, weekType: 'training', dayType, difficulty, topReps: SCHEMES[difficulty].sets[3], topWeight: top, date: today, id: sessionId }}
         onSaveSession={onSaveSession}
         onRunningChange={onRunningChange}
         saving={saving}

@@ -120,7 +120,13 @@ export function sessionSummary(
   // dips day is bodyweight pull-ups — the cluster line below covers it.
   if (giantfit) {
     const pairing = s.dayType ? GIANTFIT_PAIRING[s.dayType] : null
-    if (pairing) lines.push(`  Pair: ${pairing}${s.pairWeight != null ? ` ${kg(s.pairWeight)}kg` : ''}`)
+    if (pairing) {
+      lines.push(`  Pair: ${pairing}${s.pairWeight != null ? ` ${kg(s.pairWeight)}kg` : ''}`)
+    } else if (s.pairWeight != null) {
+      // History renders what was logged: a pair weight recorded while the day
+      // briefly carried a DB Row pairing (pre-2026-07-24 correction) stays.
+      lines.push(`  Pair: DB Row ${kg(s.pairWeight)}kg`)
+    }
   } else if (meta && s.dayType) {
     const reps = SECONDARY_REPS[meta.secondaryType]
     if (reps) {

@@ -108,6 +108,22 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-07-24
+- `fix(giantfit)`: **pairings & warm-up corrections + dev-date-override bug.** (1) **Deadlift
+  trains alone** — the pairing set is DL alone · OHP + DB Row · Squat alone · Bench + Pendlay
+  Row (`GIANTFIT_PAIRING`); any pair weight logged on a DL day during the brief wrong-pairing
+  window stays renderable (summary falls back to a "Pair: DB Row …" line when `pair_weight` is
+  logged on an unpaired day — History shows what was logged; no data migration). (2) **Warm-up:**
+  GiantFit sessions show the fixed activation list (Band pull-aparts ×20 · Face pulls ×15 · Hip
+  airplanes ×5/side · Deep squat hold ×30 sec · Thoracic rotations ×5/side, new
+  `GIANTFIT_ACTIVATION`) then the unchanged 8-5-3-2 build-up — **no GOWOD reference anywhere**
+  in GiantFit sessions (legacy sessions keep their GOWOD note). (3) **Bug (found testing with
+  `?today`):** Today computed the position from the dev date override but stamped the session
+  draft/id with the REAL date, so an overridden Today rendered the wrong era's layout — the
+  session id, blank draft, stamp, and testing props now all use the override-aware date.
+  typecheck + **148 tests** + build green; verified in-browser (post-cutover DL modal: activation
+  list, no GOWOD, no row; OHP modal: DB Row + weight input present).
+
 ## 2026-07-23 (docs)
 - `docs`: **ARCHITECTURE.md + CONVENTIONS.md rewritten for the completed GiantFit migration.**
   The phase-by-phase banner is replaced by the current state: the app implements **GiantFit

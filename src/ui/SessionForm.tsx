@@ -2,7 +2,7 @@ import { C, inp, lbl } from './theme'
 import { Card } from './components'
 import { blockTitle, Row, LogRpe, secondaryDesc } from './controls'
 import { CapacityBlock } from './CapacityBlock'
-import { SCHEMES, WU_PCT, WU_REPS, SET_LADDER, DAY_META, LIFT_LABEL, PULLUP, BLOCK_COMPLETION, GIANTFIT_PAIRING } from '../engine/constants'
+import { SCHEMES, WU_PCT, WU_REPS, SET_LADDER, DAY_META, LIFT_LABEL, PULLUP, BLOCK_COMPLETION, GIANTFIT_PAIRING, GIANTFIT_ACTIVATION } from '../engine/constants'
 import { fmt, giantSets, warmupSets, volumeWeight, deloadTop, liftMode } from '../engine/loading'
 import { isGiantFitDate } from '../engine/date-engine'
 import { clusterTotal, isUnbroken, meetsTarget } from '../engine/pullups'
@@ -145,12 +145,22 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
         </Card>
       )}
 
-      {/* Warm-up */}
+      {/* Warm-up. GiantFit: fixed activation list, then the build-up — no GOWOD
+          reference anywhere. Legacy sessions keep the Giant-era GOWOD note. */}
       <Card>
-        {blockTitle('A. Warm-Up', 'GOWOD + build-up')}
-        <div style={{ fontSize: 12, color: C.muted, fontStyle: 'italic', marginBottom: 8 }}>
-          GOWOD Activate flow (3/6/10 min) — then barbell build-up:
-        </div>
+        {blockTitle('A. Warm-Up', giantfit ? 'activation + build-up' : 'GOWOD + build-up')}
+        {giantfit ? (
+          <>
+            {GIANTFIT_ACTIVATION.map((a) => (
+              <Row key={a.name} a={a.name} b={a.dose} c="" cls={C.muted} />
+            ))}
+            <div style={{ fontSize: 12, color: C.muted, fontStyle: 'italic', margin: '8px 0' }}>Then barbell build-up:</div>
+          </>
+        ) : (
+          <div style={{ fontSize: 12, color: C.muted, fontStyle: 'italic', marginBottom: 8 }}>
+            GOWOD Activate flow (3/6/10 min) — then barbell build-up:
+          </div>
+        )}
         {WU_PCT.map((p, i) => (
           <Row key={i} a={`WU${i + 1}`} b={`${WU_REPS[i]} reps @ ~${Math.round(p * 100)}%`} c={dipsBW ? 'BW' : wu ? wuCell(wu[i].weight) : '—'} cls={C.muted} />
         ))}

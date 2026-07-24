@@ -75,8 +75,10 @@ Every lifting session runs, in order:
 ```
 Warm-Up → Giant Block → Volume Block → Capacity → Carry
 ```
-- **Warm-Up:** GOWOD Activate flow (external app) + barbell build-up sets
-  (8-5-3-2 @ ~40/55/70/85% of Giant Block Set 1).
+- **Warm-Up:** fixed activation list — Band pull-aparts ×20 · Face pulls ×15 · Hip
+  airplanes ×5/side · Deep squat hold ×30 sec · Thoracic rotations ×5/side — then barbell
+  build-up sets (8-5-3-2 @ ~40/55/70/85% of Giant Block Set 1). **No GOWOD anywhere in
+  GiantFit sessions** (GOWOD flows were Giant-era; legacy sessions still show them).
 - **Giant Block:** 4 rounds — the main lift's ladder plus the day's **paired row** (§2.3).
   2 min rest between rounds. Adherence is logged once per session via the completion
   control (§2.10). No core slot, no per-round cardio — conditioning lives in Capacity.
@@ -87,7 +89,7 @@ Warm-Up → Giant Block → Volume Block → Capacity → Carry
 ### 2.3 Session pairings (the Giant Block's second movement)
 | Day | Pairing |
 |-----|---------|
-| Deadlift | DB Row |
+| Deadlift | — (trains alone) |
 | OHP | DB Row |
 | Squat | — (trains alone) |
 | Bench | Pendlay Row |
@@ -751,7 +753,13 @@ repeated here. The two load-bearing domain invariants to preserve, wherever the 
   compares against the most recent prior same-type run (≥10 s/km slower at same-or-higher HR)
   and is skipped without HR data. Optional run days are never marked missed.
 - Push press: rejected. Sandbag lunges: parked (maybe later, via carry-block rotation).
-- GOWOD handles warm-up activation + cooldown; barbell build-up sets stay in-app.
+- GOWOD handled warm-up activation + cooldown in the Giant era; **GiantFit replaced it
+  (2026-07-24)** with the fixed in-app activation list (§2.2) — no GOWOD reference in
+  GiantFit sessions. Barbell build-up sets stay in-app, unchanged.
+- **Pairings corrected 2026-07-24:** deadlift trains ALONE (it briefly shipped paired with
+  a DB Row); the set is DL alone · OHP + DB Row · Squat alone · Bench + Pendlay Row. Any
+  pair weights logged on DL days during the brief window stay renderable — History shows
+  what was logged.
 - Carries are accessory/reward effort, ~RPE 6, never pushed.
 - Reactive deload: advise-and-confirm, never auto-forced; revised signal rule (§5) supersedes the v7 book.
 - Testing weights: recorded, not prescribed.

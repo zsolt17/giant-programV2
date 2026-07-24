@@ -250,3 +250,13 @@ test('legacy sessions are untouched by the capacity param (no capacity line with
   assert.doesNotMatch(out, /Capacity/)
   assert.match(out, /Secondary:/) // pre-cutover keeps the Giant format
 })
+
+test('pairing correction (2026-07-24): DL trains alone — no Pair line unless one was logged', () => {
+  const dl = base({ id: '2026-07-27-deadlift-M', date: '2026-07-27', cycle: 1, week: 1, dayType: 'deadlift', difficulty: 'medium', cardioCals: [null, null, null, null] })
+  assert.doesNotMatch(sessionSummary(dl, 3, ACC), /Pair:/)
+  // A row weight logged during the brief DL+DB-Row window still renders.
+  assert.match(sessionSummary({ ...dl, pairWeight: 24 }, 3, ACC), /\n {2}Pair: DB Row 24kg\n/)
+  // OHP keeps its DB Row pairing.
+  const ohp = base({ id: '2026-07-29-ohp-M', date: '2026-07-29', cycle: 1, week: 1, dayType: 'ohp', difficulty: 'medium', pairWeight: 22.5, cardioCals: [null, null, null, null] })
+  assert.match(sessionSummary(ohp, 3, ACC), /\n {2}Pair: DB Row 22.5kg\n/)
+})

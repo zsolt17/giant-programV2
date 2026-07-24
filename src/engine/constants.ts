@@ -27,15 +27,26 @@ export const GIANTFIT_ROTATION: Record<Difficulty, Lift>[] = [
   { hard: 'ohp', medium: 'squat', light: 'bench' },
 ]
 
-// GiantFit session pairings (encoded now; the session views consume them in
-// Phase 3): each strength day's row pairing. Squat trains alone.
+// GiantFit session pairings: each strength day's Giant Block row pairing.
+// Deadlift and squat train ALONE (corrected 2026-07-24 — DL briefly shipped
+// with a DB Row pairing; logged rows from that window stay renderable).
 export const GIANTFIT_PAIRING: Record<Lift, string | null> = {
-  deadlift: 'DB Row',
+  deadlift: null,
   ohp: 'DB Row',
   squat: null,
   bench: 'Pendlay Row',
   dips: null, // retired Giant-era lift — never scheduled post-cutover
 }
+
+// GiantFit warm-up activation — a fixed list done before the barbell build-up.
+// Replaces the Giant-era GOWOD flows: no GOWOD reference in GiantFit sessions.
+export const GIANTFIT_ACTIVATION: { name: string; dose: string }[] = [
+  { name: 'Band pull-aparts', dose: '×20' },
+  { name: 'Face pulls', dose: '×15' },
+  { name: 'Hip airplanes', dose: '×5/side' },
+  { name: 'Deep squat hold', dose: '×30 sec' },
+  { name: 'Thoracic rotations', dose: '×5/side' },
+]
 
 // Giant Block rep schemes (4 descending sets) + volume reps. The reps differentiate
 // the days; the load percentages are the uniform SET_LADDER below (single-anchor model).
