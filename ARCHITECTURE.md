@@ -210,7 +210,7 @@ stopwatch**; one result per session.
 
 - **Two variants, alternating A/B by scheduled slot index (§2.6) — different circuits,
   never compared with each other.** 8 ordered movements each:
-  **A:** DB Snatch 8 (4/side, loaded) · Pull-ups 6 · Dips 8 · Reverse Lunges 8/leg (load
+  **A:** DB Snatch 4/side (loaded) · Pull-ups 6 · Dips 8 · Reverse Lunges 8/leg (load
   optional) · GHD 10 · Goblet Curl 10 (loaded) · Single Unders 40 · Box-over Burpees 8.
   **B:** BB Clean 6 (loaded) · Chin-ups 6 · Push-ups 12 · Walking Lunges 10/leg (load
   optional) · Toes-to-Bar 8 · BB Curl 10 (loaded) · Double Unders 20 · Bike 30 sec for

@@ -10,7 +10,7 @@ export interface CapacityMovementDef {
   key: string // stable id — capacity_config.movement_key
   name: string
   reps: number // default rep target (or seconds for timed movements)
-  repUnit?: string // display suffix: '/leg', 'sec', … (plain reps when absent)
+  repUnit?: string // display suffix: '/leg', '/side', 'sec', … (plain reps when absent; '/'-prefixed units read as per-limb)
   note?: string // short prescription note shown with the name
   loaded?: boolean // has an editable weight (kg)
   loadOptional?: boolean // loaded, but bodyweight is a valid prescription
@@ -24,7 +24,7 @@ export const CAPACITY_VARIANTS: CapacityVariant[] = ['A', 'B']
 // Ordered movement lists — the circuit is performed top to bottom.
 export const CAPACITY_MOVEMENTS: Record<CapacityVariant, CapacityMovementDef[]> = {
   A: [
-    { key: 'db_snatch', name: 'DB Snatch', reps: 8, note: '4/side', loaded: true },
+    { key: 'db_snatch', name: 'DB Snatch', reps: 4, repUnit: '/side', loaded: true },
     { key: 'pullups', name: 'Pull-ups', reps: 6 },
     { key: 'dips', name: 'Dips', reps: 8 },
     { key: 'reverse_lunges', name: 'Reverse Lunges', reps: 8, repUnit: '/leg', loaded: true, loadOptional: true },

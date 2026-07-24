@@ -153,7 +153,9 @@ export function CapacityBlock({ letter, variant, config, sessionId, log, onSave,
       </div>
       {movements.map((m, i) => {
         const v = values[m.key]
-        const desc = [`${v?.reps ?? m.reps}${m.repUnit ? ` ${m.repUnit}` : ''}`, m.note].filter(Boolean).join(' · ')
+        const reps = v?.reps ?? m.reps
+        // '/'-prefixed units join tight ("4/side", "8/leg"); word units keep a space ("30 sec")
+        const desc = [`${reps}${m.repUnit ? (m.repUnit.startsWith('/') ? m.repUnit : ` ${m.repUnit}`) : ''}`, m.note].filter(Boolean).join(' · ')
         return (
           <Row
             key={m.key}

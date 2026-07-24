@@ -442,10 +442,10 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
             <span style={{ fontSize: 13, color: C.off }}>
               <span style={{ color: C.muted, fontVariantNumeric: 'tabular-nums' }}>{i + 1}. </span>
               {m.name}
-              {(m.note || m.repUnit || m.loadOptional) && (
+              {(m.note || m.repUnit) && (
                 <span style={{ fontSize: 10, color: C.muted }}>
                   {' '}
-                  {[m.repUnit, m.note, m.loadOptional ? 'weight optional' : null].filter(Boolean).join(' · ')}
+                  {[m.repUnit, m.note].filter(Boolean).join(' · ')}
                 </span>
               )}
             </span>

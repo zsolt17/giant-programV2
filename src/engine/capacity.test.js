@@ -19,11 +19,11 @@ test('both variants define exactly 8 ordered movements', () => {
 })
 
 test('spec defaults: loaded flags and rep targets', () => {
-  // Variant A: DB Snatch 8 (loaded), Pull-ups 6, Single Unders 40
+  // Variant A: DB Snatch 4/side (loaded), Pull-ups 6, Single Unders 40
   assert.deepEqual(
     CAPACITY_MOVEMENTS.A.map((m) => [m.key, m.reps, !!m.loaded]),
     [
-      ['db_snatch', 8, true],
+      ['db_snatch', 4, true],
       ['pullups', 6, false],
       ['dips', 8, false],
       ['reverse_lunges', 8, true],
@@ -49,6 +49,11 @@ test('spec defaults: loaded flags and rep targets', () => {
   )
   // The Bike is the calories movement; lunges are load-optional in both variants
   assert.equal(movementDef('B', 'bike')?.calories, true)
+  // Per-limb rep semantics: the rep value IS per side/leg (no totals, no hardcoded hints)
+  assert.equal(movementDef('A', 'db_snatch')?.repUnit, '/side')
+  assert.equal(movementDef('A', 'db_snatch')?.note, undefined)
+  assert.equal(movementDef('A', 'reverse_lunges')?.repUnit, '/leg')
+  assert.equal(movementDef('B', 'walking_lunges')?.repUnit, '/leg')
   assert.equal(movementDef('A', 'reverse_lunges')?.loadOptional, true)
   assert.equal(movementDef('B', 'walking_lunges')?.loadOptional, true)
 })
@@ -56,7 +61,7 @@ test('spec defaults: loaded flags and rep targets', () => {
 test('defaultCapacityConfig: every movement present, default reps, no weights, 3 rounds', () => {
   const cfg = defaultCapacityConfig()
   assert.equal(cfg.rounds, CAPACITY_ROUNDS_DEFAULT)
-  assert.equal(cfg.movements.A.db_snatch.reps, 8)
+  assert.equal(cfg.movements.A.db_snatch.reps, 4)
   assert.equal(cfg.movements.A.db_snatch.weight, null)
   assert.equal(cfg.movements.B.bike.reps, 30)
   assert.equal(Object.keys(cfg.movements.A).length, 8)

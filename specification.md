@@ -108,6 +108,18 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-07-24 (capacity rep semantics)
+- `feat(capacity)`: **DB Snatch reps are now per-side, consistent with the lunges' per-leg
+  pattern.** The Setup rep value for DB Snatch (variant A) is reps PER SIDE — `repUnit: '/side'`
+  replaces the hardcoded "4/side" note everywhere (Setup label, session-view capacity list; no
+  summary/CSV surface carries movement detail), the default seeds **4** (was 8 total), and the
+  session view renders `{reps}/side` with no total ('/'-prefixed units join tight — "4/side",
+  "8/leg" — word units keep the space, "30 sec"). The "· weight optional" label suffix is gone
+  from the Setup movement labels (Reverse/Walking Lunges show just "/leg"; the `loadOptional`
+  flag stays as content metadata). Variant B checked: no per-side hints present (BB Clean is a
+  true total). **Stored user values untouched** — display semantics + default only, no schema
+  change. typecheck + **146 tests** + build green.
+
 ## 2026-07-24 (Trends cleanup)
 - `feat(trends)`: **Trends is GiantFit-only — all legacy views, filters, and series removed**
   (rendering code deleted; DB rows, History/session-log rendering, and CSV exports untouched —
