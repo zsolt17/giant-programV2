@@ -62,14 +62,14 @@ export function defaultCapacityConfig(): CapacityConfig {
   return { rounds: CAPACITY_ROUNDS_DEFAULT, movements }
 }
 
-// ---- capacity time trend (shared series: the S6 deload signal now; the
-// ---- Trends capacity view consumes the same points in Phase 5) --------------
-
-// S6: a capacity session is SLOW when its per-round time exceeds the rolling
-// same-variant average by this factor. Named for easy tuning.
-export const S6_THRESHOLD = 1.15
-// The rolling average window: the last N completed same-variant sessions.
-export const CAPACITY_ROLLING_N = 3
+// ---- capacity time trend (Trends readout ONLY) ------------------------------
+// This series is a chart, not a signal. The time-based S6 was retired
+// (2026-07-31): per-round time in a 7-movement circuit with no time cap is
+// dominated by transitions and equipment availability, so the old ×1.15
+// threshold sat inside the noise floor, and the rolling same-variant baseline
+// took ~3 weeks to earn and reset on any circuit edit. Fatigue attribution now
+// comes from the athlete at log time (capacity_logs.completion — see the deload
+// rule's S6). Good enough to look at; not good enough to fire a trigger.
 
 // One completed capacity session as a trend point, ordered by session date.
 export interface CapacityPoint {
@@ -77,10 +77,6 @@ export interface CapacityPoint {
   date: string
   variant: CapacityVariant
   perRoundS: number // total_time_seconds / rounds_completed — normalizes short sessions
-  // Per-round time > rolling same-variant avg × S6_THRESHOLD. Always false while
-  // the variant lacks a full baseline (cold start: no evaluation until a variant
-  // has CAPACITY_ROLLING_N completed sessions before this one).
-  slow: boolean
 }
 
 // Per-round seconds for one log; null unless time + rounds are both usable.
@@ -90,35 +86,21 @@ export function perRoundSeconds(log: CapacityLog): number | null {
   return log.totalTimeSeconds / log.roundsCompleted
 }
 
-// Rolling average of the last N same-variant points strictly BEFORE index i.
-// Null until that variant has N prior points (the cold-start rule).
-export function rollingVariantAvg(points: { variant: CapacityVariant; perRoundS: number }[], i: number, n: number = CAPACITY_ROLLING_N): number | null {
-  const prior = points.slice(0, i).filter((p) => p.variant === points[i].variant)
-  if (prior.length < n) return null
-  const window = prior.slice(-n)
-  return window.reduce((sum, p) => sum + p.perRoundS, 0) / window.length
-}
-
-// THE shared capacity series: join logs to their sessions, drop incomplete logs
-// and excluded sessions (deload weeks — pass a predicate), order by session
-// date, and stamp each point's slow flag against its own variant's rolling
-// average. Excluded sessions contribute NOTHING — not to evaluation, not to
-// the averages — so a deload gap is skipped cleanly.
+// The capacity series: join logs to their sessions, drop incomplete logs (and
+// anything an optional predicate excludes), order by session date. Deload weeks
+// carry no capacity block at all (ARCHITECTURE §2.8), so there is nothing to
+// exclude for signal purposes — the predicate stays only as a general filter.
 export function buildCapacityPoints(logs: CapacityLog[], sessions: Session[], isExcluded?: (s: Session) => boolean): CapacityPoint[] {
   const byId = new Map(sessions.map((s) => [s.id, s]))
-  const base = (logs || [])
+  return (logs || [])
     .map((log) => {
       const s = byId.get(log.sessionId)
       const perRoundS = perRoundSeconds(log)
       if (!s || perRoundS == null || (isExcluded && isExcluded(s))) return null
       return { sessionId: log.sessionId, date: s.date, variant: log.variant, perRoundS }
     })
-    .filter((p): p is Omit<CapacityPoint, 'slow'> => p != null)
+    .filter((p): p is CapacityPoint => p != null)
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.sessionId < b.sessionId ? -1 : 1))
-  return base.map((p, i) => {
-    const avg = rollingVariantAvg(base, i)
-    return { ...p, slow: avg != null && p.perRoundS > avg * S6_THRESHOLD }
-  })
 }
 
 // Merge stored per-movement values over the defaults. Unknown stored keys are

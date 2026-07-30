@@ -1,14 +1,16 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { rpeNum, computeWeekSignals, shouldRecommendDeload, usedDeloadThisMeso, weekKeyFor, capacityPointsForSignals } from './deload-rule'
+import { rpeNum, computeWeekSignals, shouldRecommendDeload, usedDeloadThisMeso, weekKeyFor, capacityLogsForSessions } from './deload-rule'
+import { CAPACITY_COMPLETION, isCapacityFatigue } from './constants'
 
 // Minimal session factory.
 function S(id, over = {}) {
   return { id, rpe: '', barSpeed: '', volDone: true, carrySkipped: false, carrySkipReason: '', ...over }
 }
-// Capacity log factory (joined to a session by id).
-function L(sessionId, variant, totalTimeSeconds, roundsCompleted = 3) {
-  return { sessionId, variant, roundsCompleted, totalTimeSeconds, calories: null, rpe: '', notes: '' }
+// Capacity log factory (joined to a session by id). `completion` is the S6
+// input; undefined stands in for a legacy pre-0021 row.
+function L(sessionId, variant, completion, totalTimeSeconds = 300, roundsCompleted = 3) {
+  return { sessionId, variant, roundsCompleted, totalTimeSeconds, calories: null, rpe: '', completion, notes: '' }
 }
 
 test('rpeNum parses R-notation; blanks are 0', () => {
@@ -137,122 +139,117 @@ test('shouldRecommendDeload sees run-only weeks', () => {
   assert.equal(shouldRecommendDeload({ prevWeekRuns: runs, breakComing: true }), false)
 })
 
-// ---- S6: GiantFit capacity time trend ---------------------------------------
-// Per-round time > rolling same-variant avg (last 3) × S6_THRESHOLD in 2+
-// CONSECUTIVE capacity sessions = ONE occurrence. Deload weeks excluded from
-// evaluation AND from the rolling averages.
+// ---- S6: capacity adherence -------------------------------------------------
+// Replaced the capacity TIME trend on 2026-07-31. One occurrence per capacity
+// log in the week the ATHLETE attributed to fatigue — no streak rule, no cold
+// start, no rolling baseline. Any *_fatigue value fires; nothing else does.
 
 // GiantFit training-session factory (dated, positioned).
 function CS(id, date, week = 1, over = {}) {
   return S(id, { date, weekType: 'training', cycle: 1, week, ...over })
 }
 
-// Baseline: three variant-A sessions at 100 s/round (weeks 1–2).
-const BASE_SESS = [CS('a1', '2026-07-27', 1), CS('a2', '2026-07-29', 1), CS('a3', '2026-07-31', 1)]
-const BASE_LOGS = [L('a1', 'A', 300), L('a2', 'A', 300), L('a3', 'A', 300)]
-
-test('S6: two consecutive slow capacity sessions = ONE occurrence, dates exposed', () => {
-  const s4 = CS('a4', '2026-08-03', 2)
-  const s5 = CS('a5', '2026-08-05', 2)
-  // a4: avg(100,100,100)=100 → >115 needed → 150 slow. a5: avg(100,100,150)≈116.7
-  // → >134.2 needed → 140 slow.
-  const logs = [...BASE_LOGS, L('a4', 'A', 450), L('a5', 'A', 420)]
-  const points = capacityPointsForSignals(logs, [...BASE_SESS, s4, s5], 3, {})
-  const sig = computeWeekSignals([s4, s5], [], [], points)
-  assert.equal(sig.types.has('S6'), true)
-  assert.equal(sig.occurrences, 1) // 2+ consecutive = ONE occurrence
-  assert.equal(sig.sessionCount, 2) // both offending sessions count toward the spread
-  assert.deepEqual(sig.s6Dates, ['2026-08-03', '2026-08-05'])
-  // The streak is attributed to the week holding its later session — not week 1.
-  assert.equal(computeWeekSignals(BASE_SESS, [], [], points).types.has('S6'), false)
+test('the firing rule lives in the value names: only *_fatigue values fire', () => {
+  // A guard on the option list itself — adding a value without thinking about
+  // attribution should break here, not silently change the trigger's behaviour.
+  assert.deepEqual(
+    CAPACITY_COMPLETION.map((o) => [o.id, isCapacityFatigue(o.id)]),
+    [
+      ['completed', false],
+      ['cut_short_fatigue', true],
+      ['cut_short_time', false],
+      ['scaled_fatigue', true],
+      ['scaled_other', false],
+    ]
+  )
 })
 
-test('S6 cold start: no evaluation until a variant has 3 logged sessions', () => {
-  const sess = [CS('a1', '2026-07-27'), CS('a2', '2026-07-29'), CS('a3', '2026-07-31')]
-  // Only 2 priors before a3 — even a huge a3 is not "slow".
-  const logs = [L('a1', 'A', 300), L('a2', 'A', 300), L('a3', 'A', 900)]
-  const points = capacityPointsForSignals(logs, sess, 3, {})
-  assert.equal(points.every((p) => p.slow === false), true)
-  assert.equal(computeWeekSignals(sess, [], [], points).types.has('S6'), false)
+test('S6: each of the five completion values, evaluated end to end', () => {
+  for (const { id } of CAPACITY_COMPLETION) {
+    const sess = CS('a1', '2026-07-27')
+    const sig = computeWeekSignals([sess], [], [], [L('a1', 'A', id)])
+    assert.equal(sig.types.has('S6'), isCapacityFatigue(id), `S6 wrong for ${id}`)
+    assert.equal(sig.occurrences, isCapacityFatigue(id) ? 1 : 0, `occurrences wrong for ${id}`)
+  }
 })
 
-test('S6 needs CONSECUTIVE slow sessions: slow-ok-slow does not fire', () => {
-  const s4 = CS('a4', '2026-08-03', 2)
-  const s5 = CS('a5', '2026-08-05', 2)
-  const s6 = CS('a6', '2026-08-07', 2)
-  // a4 slow (150), a5 back to normal (drops the streak), a6 slow again.
-  const logs = [...BASE_LOGS, L('a4', 'A', 450), L('a5', 'A', 300), L('a6', 'A', 450)]
-  const points = capacityPointsForSignals(logs, [...BASE_SESS, s4, s5, s6], 3, {})
-  assert.equal(computeWeekSignals([s4, s5, s6], [], [], points).types.has('S6'), false)
+test('S6: a legacy row (null/undefined completion) is inert', () => {
+  const sess = CS('a1', '2026-07-27')
+  assert.equal(computeWeekSignals([sess], [], [], [L('a1', 'A', undefined)]).types.has('S6'), false)
+  assert.equal(computeWeekSignals([sess], [], [], [L('a1', 'A', null)]).types.has('S6'), false)
+  assert.equal(computeWeekSignals([sess], [], [], [L('a1', 'A', '')]).types.has('S6'), false)
 })
 
-test('S6: a streak of 3 slow sessions is still ONE occurrence', () => {
-  const s4 = CS('a4', '2026-08-03', 2)
-  const s5 = CS('a5', '2026-08-05', 2)
-  const s6 = CS('a6', '2026-08-07', 2)
-  // a6: avg(100,150,140)=130 → >149.5 needed → 160 slow.
-  const logs = [...BASE_LOGS, L('a4', 'A', 450), L('a5', 'A', 420), L('a6', 'A', 480)]
-  const points = capacityPointsForSignals(logs, [...BASE_SESS, s4, s5, s6], 3, {})
-  const sig = computeWeekSignals([s4, s5, s6], [], [], points)
-  assert.equal(sig.occurrences, 1)
-  assert.deepEqual(sig.s6Dates, ['2026-08-03', '2026-08-05', '2026-08-07'])
+test('S6: one occurrence PER fatigue-attributed session, with its dates exposed', () => {
+  const s1 = CS('a1', '2026-07-27', 1)
+  const s2 = CS('a2', '2026-07-29', 1)
+  const logs = [L('a1', 'A', 'cut_short_fatigue'), L('a2', 'B', 'scaled_fatigue')]
+  const sig = computeWeekSignals([s1, s2], [], [], logs)
+  assert.equal(sig.occurrences, 2) // NOT one — no streak collapsing anymore
+  assert.equal(sig.sessionCount, 2)
+  assert.deepEqual(sig.s6Dates, ['2026-07-27', '2026-07-29'])
 })
 
-test('S6 variant mix: consecutive by session order, each vs its OWN variant average', () => {
-  // A baseline ~100 s/rnd, B baseline ~200 s/rnd, then an A-slow and a B-slow
-  // back to back — consecutive in the ordered series → one occurrence.
-  const sess = [
-    CS('a1', '2026-07-27', 1), CS('b1', '2026-07-29', 1), CS('a2', '2026-07-31', 1),
-    CS('b2', '2026-08-03', 2), CS('a3', '2026-08-05', 2), CS('b3', '2026-08-07', 2),
-    CS('a4', '2026-08-10', 3), CS('b4', '2026-08-12', 3),
+test('S6: two fatigue capacity sessions + one other signal -> trigger fires', () => {
+  const s1 = CS('a1', '2026-07-27', 1, { volDone: false }) // S2
+  const s2 = CS('a2', '2026-07-29', 1)
+  const logs = [L('a1', 'A', 'scaled_fatigue'), L('a2', 'B', 'cut_short_fatigue')]
+  const sig = computeWeekSignals([s1, s2], [], [], logs)
+  assert.equal(sig.occurrences, 3) // S2 + S6 + S6
+  assert.equal(sig.sessionCount, 2)
+  assert.equal(sig.fired, true)
+})
+
+test('S6: three fatigue logs on the SAME date do not satisfy the 2-session half', () => {
+  // Three occurrences, but all on one session id — severity without a pattern.
+  const s1 = CS('a1', '2026-07-27', 1)
+  const logs = [L('a1', 'A', 'cut_short_fatigue'), L('a1', 'A', 'scaled_fatigue'), L('a1', 'A', 'cut_short_fatigue')]
+  const sig = computeWeekSignals([s1], [], [], logs)
+  assert.equal(sig.occurrences, 3)
+  assert.equal(sig.sessionCount, 1)
+  assert.equal(sig.fired, false)
+  assert.deepEqual(sig.s6Dates, ['2026-07-27']) // one date, not three
+})
+
+test('S6: a fatigue capacity block on a day that already fired counts as ONE session', () => {
+  // The capacity log shares the lift session's id, so the spread must not
+  // double-count the day.
+  const s1 = CS('a1', '2026-07-27', 1, { rpe: 'R9.5' }) // S1
+  const sig = computeWeekSignals([s1], [], [], [L('a1', 'A', 'cut_short_fatigue')])
+  assert.equal(sig.occurrences, 2)
+  assert.equal(sig.sessionCount, 1)
+  assert.equal(sig.fired, false) // 2 occ, 1 session
+})
+
+test('a lift-only caller passing no capacity logs computes S1/S2/S3/S5/S7 identically', () => {
+  const week = [
+    S('x1', { rpe: 'R9.5', barSpeed: 'down' }),
+    S('x2', { volDone: false, barSpeed: 'down', carrySkipped: true, carrySkipReason: 'fatigue' }),
+    S('x3', { blockCompletion: 'stopped_fatigue' }),
   ]
-  const logs = [
-    L('a1', 'A', 300), L('b1', 'B', 600), L('a2', 'A', 300),
-    L('b2', 'B', 600), L('a3', 'A', 300), L('b3', 'B', 600),
-    L('a4', 'A', 450), // A: avg 100 → >115 → 150 slow
-    L('b4', 'B', 700), // B: avg 200 → >230 → 233 slow
-  ]
-  const points = capacityPointsForSignals(logs, sess, 3, {})
-  const week3 = sess.filter((s) => s.week === 3)
-  const sig = computeWeekSignals(week3, [], [], points)
-  assert.equal(sig.types.has('S6'), true)
-  assert.equal(sig.occurrences, 1)
+  const withoutLogs = computeWeekSignals(week)
+  const withEmptyLogs = computeWeekSignals(week, [], [], [])
+  assert.deepEqual([...withoutLogs.types].sort(), ['S1', 'S2', 'S3', 'S5', 'S7'])
+  assert.equal(withoutLogs.types.has('S6'), false)
+  assert.equal(withoutLogs.occurrences, withEmptyLogs.occurrences)
+  assert.equal(withoutLogs.fired, withEmptyLogs.fired)
 })
 
-test('S6 deload exclusion: deload-week sessions are neither evaluated nor averaged', () => {
-  // A reactive-deload week (flagged M3C1W3) holds a slow log — it must vanish
-  // from the series entirely, so the later rolling average skips the gap.
-  const d1 = CS('d1', '2026-08-10', 3)
-  const s4 = CS('a4', '2026-08-17', 4)
-  const s5 = CS('a5', '2026-08-19', 4)
-  const logs = [...BASE_LOGS, L('d1', 'A', 900), L('a4', 'A', 450), L('a5', 'A', 420)]
-  const deloads = { M3C1W3: true }
-  const points = capacityPointsForSignals(logs, [...BASE_SESS, d1, s4, s5], 3, deloads)
-  assert.equal(points.some((p) => p.sessionId === 'd1'), false) // excluded
-  // a4's average is still the clean 100 baseline (not polluted by d1's 300).
-  const sig = computeWeekSignals([s4, s5], [], [], points)
-  assert.equal(sig.types.has('S6'), true)
-  // End-of-macro deload sessions (weekType 'deload') are excluded the same way.
-  const em = CS('em', '2026-10-19', null, { weekType: 'deload', cycle: null, week: null })
-  const p2 = capacityPointsForSignals([...BASE_LOGS, L('em', 'A', 900)], [...BASE_SESS, em], 3, {})
-  assert.equal(p2.some((p) => p.sessionId === 'em'), false)
+test('capacityLogsForSessions: narrows the macro-wide logs to a week\'s sessions', () => {
+  const week = [CS('a1', '2026-07-27', 1), CS('a2', '2026-07-29', 1)]
+  const all = [L('a1', 'A', 'completed'), L('a2', 'B', 'cut_short_fatigue'), L('zz', 'A', 'scaled_fatigue')]
+  const got = capacityLogsForSessions(all, week)
+  assert.deepEqual(got.map((l) => l.sessionId), ['a1', 'a2'])
+  // The out-of-week fatigue log must not leak into this week's signals.
+  assert.equal(computeWeekSignals(week, [], [], got).occurrences, 1)
 })
 
-test('S6 normalizes by rounds: a short session still counts via per-round time', () => {
-  const s4 = CS('a4', '2026-08-03', 2)
-  const s5 = CS('a5', '2026-08-05', 2)
-  // a4: only 2 of 3 rounds, 300 s → 150 s/rnd (slow). a5: 420/3 = 140 (slow).
-  const logs = [...BASE_LOGS, L('a4', 'A', 300, 2), L('a5', 'A', 420)]
-  const points = capacityPointsForSignals(logs, [...BASE_SESS, s4, s5], 3, {})
-  assert.equal(computeWeekSignals([s4, s5], [], [], points).types.has('S6'), true)
-})
-
-test('S6 pools into the weekly trigger with the lift signals', () => {
-  const s4 = CS('a4', '2026-08-03', 2, { rpe: 'R9.5', volDone: false }) // S1 + S2
-  const s5 = CS('a5', '2026-08-05', 2)
-  const logs = [...BASE_LOGS, L('a4', 'A', 450), L('a5', 'A', 420)]
-  const points = capacityPointsForSignals(logs, [...BASE_SESS, s4, s5], 3, {})
-  const sig = computeWeekSignals([s4, s5], [], [], points)
-  assert.equal(sig.occurrences, 3) // S1 + S2 + S6
-  assert.equal(sig.fired, true) // 3 occ across 2 sessions
+test('shouldRecommendDeload pools capacity logs through the unchanged trigger', () => {
+  const prevWeekSessions = [CS('a1', '2026-07-27', 1, { volDone: false }), CS('a2', '2026-07-29', 1)]
+  const capacityLogs = [L('a1', 'A', 'scaled_fatigue'), L('a2', 'B', 'cut_short_fatigue')]
+  assert.equal(shouldRecommendDeload({ prevWeekSessions, capacityLogs }), true)
+  // Every exemption still wins over the signals.
+  assert.equal(shouldRecommendDeload({ prevWeekSessions, capacityLogs, alreadyDeloaded: true }), false)
+  assert.equal(shouldRecommendDeload({ prevWeekSessions, capacityLogs, usedThisMeso: true }), false)
+  assert.equal(shouldRecommendDeload({ prevWeekSessions, capacityLogs, breakComing: true }), false)
 })

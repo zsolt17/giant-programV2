@@ -128,11 +128,12 @@ test('capacityToCsv: positioned via the session join, per_round_s derived, sorte
     session({ id: '2026-07-27-deadlift-M', date: '2026-07-27', cycle: 1, week: 1, dayType: 'deadlift', difficulty: 'medium' }),
   ]
   const logs = [
-    { sessionId: '2026-08-03-bench-H', variant: 'B', roundsCompleted: 3, totalTimeSeconds: 702, calories: 27, rpe: 'R7', notes: '' },
-    { sessionId: '2026-07-27-deadlift-M', variant: 'A', roundsCompleted: 3, totalTimeSeconds: 300, calories: null, rpe: 'R8', notes: 'smooth' },
+    { sessionId: '2026-08-03-bench-H', variant: 'B', roundsCompleted: 3, totalTimeSeconds: 702, calories: 27, rpe: 'R7', completion: 'cut_short_fatigue', notes: '' },
+    // A legacy (pre-0021) log: the mapper reads its NULL as 'completed'.
+    { sessionId: '2026-07-27-deadlift-M', variant: 'A', roundsCompleted: 3, totalTimeSeconds: 300, calories: null, rpe: 'R8', completion: 'completed', notes: 'smooth' },
   ]
   const lines = capacityToCsv(logs, sessions, macros).split('\n')
-  assert.equal(lines[0], 'date,macro,cycle,week,day_type,difficulty,variant,rounds_completed,total_time_seconds,per_round_s,calories,rpe,notes')
-  assert.equal(lines[1], '2026-07-27,2,1,1,deadlift,medium,A,3,300,100,,R8,smooth')
-  assert.equal(lines[2], '2026-08-03,2,1,2,bench,hard,B,3,702,234,27,R7,')
+  assert.equal(lines[0], 'date,macro,cycle,week,day_type,difficulty,variant,rounds_completed,total_time_seconds,per_round_s,calories,rpe,completion,notes')
+  assert.equal(lines[1], '2026-07-27,2,1,1,deadlift,medium,A,3,300,100,,R8,completed,smooth')
+  assert.equal(lines[2], '2026-08-03,2,1,2,bench,hard,B,3,702,234,27,R7,cut_short_fatigue,')
 })

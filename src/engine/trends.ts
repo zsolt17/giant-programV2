@@ -77,8 +77,10 @@ export function toRunTrend(runs: Run[], macros: Macro[]): TrendRun[] {
 
 // GiantFit capacity: every completed log (time + rounds both usable) joined to
 // its session, oldest → newest, for the Capacity trend view. Per-round time
-// comes from the SAME engine helper the S6 deload signal reads
-// (capacity.perRoundSeconds) — never re-derived here.
+// comes from the engine helper (capacity.perRoundSeconds) — never re-derived
+// here. This series is a READOUT ONLY: the time-based S6 was retired on
+// 2026-07-31 (an uncapped circuit's per-round time measures transitions and
+// equipment, not the athlete), so nothing about the deload rule reads it.
 export function toCapacityTrend(logs: CapacityLog[], sessions: Session[], macros: Macro[]): TrendCapacity[] {
   const numById: Record<string, number> = {}
   macros.forEach((m) => {

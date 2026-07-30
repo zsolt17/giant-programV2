@@ -2,12 +2,14 @@
 // Signals across a training week:
 //   S1 any-day top set R9.5+         S2 volume block incomplete
 //   S3 carry skipped due to fatigue  S5 bar speed ↓ on top set in 2+ sessions
-//   S6 capacity time ↑ (GiantFit): per-round time > rolling same-variant avg ×
-//      S6_THRESHOLD in 2+ CONSECUTIVE capacity sessions = ONE occurrence
+//   S6 capacity not completed as prescribed (fatigue) — one occurrence per
+//      fatigue-attributed capacity log in the week
 //   S7 giant block not completed as prescribed
-//   (S4 Set1>R7 retired. S7 was numbered S6 in the Giant era — renumbered when
-//   GiantFit claimed S6 for the capacity trend; signals are computed, never
-//   stored, so history re-renders under the new number with identical facts.)
+//   (S4 Set1>R7 retired. S7 was numbered S6 in the Giant era. S6 itself was the
+//   capacity TIME trend until 2026-07-31 — retired because per-round time in an
+//   uncapped circuit measures transitions and equipment, not the athlete, and
+//   its rolling baseline was rarely earned. Signals are computed, never stored,
+//   so history re-renders under the new definition with no migration.)
 // Giant Run signals POOL into the same week (engine/runs.ts):
 //   R1 run cut short (fatigue)       R2 felt heavy / talk test failed
 //   R3 pace-at-HR degraded on 2+ runs (only when HR is logged)
@@ -15,9 +17,8 @@
 // lifts and runs counted together. (3 occurrences = severity; 2 sessions =
 // a pattern, not one bad day.)
 import { computeRunSignalHits } from './runs'
-import { buildCapacityPoints } from './capacity'
-import type { CapacityPoint } from './capacity'
-import type { Run, Session, WeekSignals, CapacityLog, DeloadMap } from './types'
+import { isCapacityFatigue } from './constants'
+import type { Run, Session, WeekSignals, CapacityLog } from './types'
 
 export function rpeNum(r: string | null | undefined): number {
   if (!r) return 0
@@ -25,14 +26,14 @@ export function rpeNum(r: string | null | undefined): number {
 }
 
 // `weekRuns` = the same week's logged runs; `priorRuns` = earlier runs (any
-// weeks), the R3 pace-at-HR baseline pool. `capacityPoints` = the macro's full
-// ordered capacity series (capacityPointsForSignals) for the S6 time trend.
-// All default empty so lift-only callers are unchanged.
+// weeks), the R3 pace-at-HR baseline pool. `weekCapacityLogs` = the capacity
+// results logged in THIS week, for S6. All default empty so lift-only callers
+// are unchanged.
 export function computeWeekSignals(
   weekSessions: Session[],
   weekRuns: Run[] = [],
   priorRuns: Run[] = [],
-  capacityPoints: CapacityPoint[] = []
+  weekCapacityLogs: CapacityLog[] = []
 ): WeekSignals {
   const types = new Set<string>()
   let occurrences = 0
@@ -74,26 +75,23 @@ export function computeWeekSignals(
     })
   }
 
-  // S6 (GiantFit capacity time trend): 2+ CONSECUTIVE slow capacity sessions —
-  // consecutive in the full series, any variant mix, each already judged
-  // against its own variant's rolling average (the slow flag on the point) —
-  // count as ONE week-level occurrence, attributed to the week holding the
-  // streak's later session. A longer streak is still one occurrence.
-  const weekIds = new Set(weekSessions.map((s) => s.id))
+  // S6 (capacity adherence): ONE occurrence per capacity log in the week the
+  // athlete attributed to fatigue. No streak rule, no cold start — a single
+  // session counts once, exactly like S2 and S3. Null/legacy and non-fatigue
+  // values (cut short for time, scaled for equipment) contribute nothing.
+  const sessionById = new Map(weekSessions.map((s) => [s.id, s]))
   const s6Dates: string[] = []
-  for (let i = 1; i < capacityPoints.length; i++) {
-    const prev = capacityPoints[i - 1]
-    const cur = capacityPoints[i]
-    if (prev.slow && cur.slow && weekIds.has(cur.sessionId)) {
-      if (!types.has('S6')) {
-        types.add('S6')
-        occurrences++
-      }
-      // Both offending sessions count toward the "2+ different sessions" spread.
-      sessionsWithSignal.add(prev.sessionId)
-      sessionsWithSignal.add(cur.sessionId)
-      for (const d of [prev.date, cur.date]) if (!s6Dates.includes(d)) s6Dates.push(d)
-    }
+  for (const log of weekCapacityLogs) {
+    if (!isCapacityFatigue(log.completion)) continue
+    types.add('S6')
+    occurrences++
+    // The capacity session counts toward the "2+ different sessions" spread on
+    // its own id — the same id the lift session uses, so a fatigue-attributed
+    // capacity block on a day that already fired another signal is one session,
+    // not two.
+    sessionsWithSignal.add(log.sessionId)
+    const date = sessionById.get(log.sessionId)?.date
+    if (date && !s6Dates.includes(date)) s6Dates.push(date)
   }
 
   // Pool the run-derived signals: occurrences add up, and run ids count toward
@@ -107,21 +105,12 @@ export function computeWeekSignals(
   return { types, occurrences, sessionCount: sessionsWithSignal.size, fired, s6Dates }
 }
 
-// The capacity series feeding the S6 signal: the macro's logs joined to their
-// sessions, with deload weeks excluded on BOTH sides (never evaluated, never
-// in the rolling averages) — end-of-macro deload weeks by weekType, reactive
-// deload weeks by the applied-deload map.
-export function capacityPointsForSignals(
-  logs: CapacityLog[],
-  sessions: Session[],
-  macroNumber: number,
-  deloads: DeloadMap = {}
-): CapacityPoint[] {
-  return buildCapacityPoints(logs, sessions, (s) => {
-    if (s.weekType === 'deload') return true
-    if (s.cycle != null && s.week != null) return !!deloads[weekKeyFor(macroNumber, s.cycle, s.week)]
-    return false
-  })
+// The capacity logs belonging to a set of sessions — the S6 input. (Deload weeks
+// carry no capacity block at all, ARCHITECTURE §2.8, so there is nothing to
+// exclude: the week's own sessions are the whole filter.)
+export function capacityLogsForSessions(logs: CapacityLog[], sessions: Session[]): CapacityLog[] {
+  const ids = new Set(sessions.map((s) => s.id))
+  return (logs || []).filter((l) => ids.has(l.sessionId))
 }
 
 export function weekKeyFor(macroNumber: number, meso: number, week: number): string {
@@ -140,7 +129,7 @@ export function shouldRecommendDeload({
   prevWeekSessions,
   prevWeekRuns,
   priorRuns,
-  capacityPoints,
+  capacityLogs,
   alreadyDeloaded,
   usedThisMeso,
   breakComing,
@@ -148,12 +137,12 @@ export function shouldRecommendDeload({
   prevWeekSessions?: Session[]
   prevWeekRuns?: Run[]
   priorRuns?: Run[]
-  capacityPoints?: CapacityPoint[]
+  capacityLogs?: CapacityLog[]
   alreadyDeloaded?: boolean
   usedThisMeso?: boolean
   breakComing?: boolean
 }): boolean {
   if (alreadyDeloaded || usedThisMeso || breakComing) return false
   if ((!prevWeekSessions || !prevWeekSessions.length) && (!prevWeekRuns || !prevWeekRuns.length)) return false
-  return computeWeekSignals(prevWeekSessions || [], prevWeekRuns || [], priorRuns || [], capacityPoints || []).fired
+  return computeWeekSignals(prevWeekSessions || [], prevWeekRuns || [], priorRuns || [], capacityLogs || []).fired
 }

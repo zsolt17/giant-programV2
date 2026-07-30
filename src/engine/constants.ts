@@ -194,19 +194,35 @@ export const GIANTFIT_CARRY_DEFAULTS: Record<string, number> = { carry_bench: 50
 export const GIANTFIT_ACC_ITEMS = ['carry_deadlift', 'carry_ohp', 'carry_squat', 'carry_bench']
 
 // Reactive-deload signals (revised rule — brief §5; supersedes the v7 book §7).
-// S4 (Set 1 > R7) was retired. S6 = the GiantFit capacity time trend
-// (S6_THRESHOLD in capacity.ts); S7 (giant-block completion — numbered S6 in
-// the Giant era, renumbered when GiantFit claimed S6) keeps firing off the
-// completion control. Signals are computed, never stored, so history simply
-// re-renders under the new numbers.
+// S4 (Set 1 > R7) was retired. S6 = capacity ADHERENCE (2026-07-31: replaced the
+// capacity time trend, which measured the gym rather than the athlete); S7
+// (giant-block completion — numbered S6 in the Giant era) keeps firing off its
+// own completion control. Signals are computed, never stored, so history simply
+// re-renders under the new definitions.
 export const SIGNALS: { id: string; label: string }[] = [
   { id: 'S1', label: 'Any day, top set R9.5+' },
   { id: 'S2', label: 'Volume block incomplete' },
   { id: 'S3', label: 'Carry skipped (fatigue)' },
   { id: 'S5', label: 'Bar speed ↓ on top set in 2+ sessions' },
-  { id: 'S6', label: 'Capacity time ↑' },
+  { id: 'S6', label: 'Capacity not completed as prescribed (fatigue)' },
   { id: 'S7', label: 'Giant block not completed as prescribed' },
 ]
+
+// Capacity-block adherence (mirrors BLOCK_COMPLETION). 'completed' = as
+// prescribed (the default; null/'' on legacy rows reads the same). The firing
+// rule lives in the VALUE NAMES: any *_fatigue value is an S6 occurrence,
+// nothing else is — the same fatigue-vs-schedule discrimination
+// carry_skip_reason makes. Attribution is the athlete's at log time, never
+// inferred from the clock.
+export const CAPACITY_COMPLETION: { id: string; label: string }[] = [
+  { id: 'completed', label: 'Completed as prescribed' },
+  { id: 'cut_short_fatigue', label: 'Cut short — fatigue' },
+  { id: 'cut_short_time', label: 'Cut short — time' },
+  { id: 'scaled_fatigue', label: 'Scaled — fatigue' },
+  { id: 'scaled_other', label: 'Scaled — other' },
+]
+// The single place the firing rule is expressed.
+export const isCapacityFatigue = (completion: string | null | undefined): boolean => !!completion && completion.endsWith('_fatigue')
 
 // Macro shape: 12 training weeks (three 4-week mesocycles) + 1 deload week,
 // extendable to a second identical deload week by the athlete (macro-level

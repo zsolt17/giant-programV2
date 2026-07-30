@@ -23,7 +23,7 @@ src/
     offline-queue.ts / cache.ts  offline write queue + last-known snapshot (PWA)
   engine/          pure domain logic, framework-agnostic, unit-tested
     types.ts       shared domain types (Difficulty, Lift, Position, Session, SessionDraft, …)
-    constants.ts   GIANTFIT_START_DATE (the era cutover), GIANTFIT_ROTATION, GIANTFIT_ROW/GIANTFIT_ROW_REPS (the anchored rows) + GIANTFIT_GB_ACCESSORY/GIANTFIT_GB_DEFAULT_REPS (Giant Block accessories), ANCHOR_LIFTS/ANCHOR_LABEL/ANCHOR_NOTE (six anchors), SCHEMES, DAY_SPREAD/SET_LADDER/VOLUME_PCT (anchor cascade), GIANTFIT_ACC_ITEMS (carries), DAY_META, BLOCK_COMPLETION, SIGNALS, MACRO_WEEKS + legacy render constants (ROTATION, GIANTFIT_PAIRING, SECONDARY_ITEM, PULLUP, TESTING_SCHEDULE)
+    constants.ts   GIANTFIT_START_DATE (the era cutover), GIANTFIT_ROTATION, GIANTFIT_ROW/GIANTFIT_ROW_REPS (the anchored rows) + GIANTFIT_GB_ACCESSORY/GIANTFIT_GB_DEFAULT_REPS (Giant Block accessories), ANCHOR_LIFTS/ANCHOR_LABEL/ANCHOR_NOTE (six anchors), SCHEMES, DAY_SPREAD/SET_LADDER/VOLUME_PCT (anchor cascade), GIANTFIT_ACC_ITEMS (carries), DAY_META, BLOCK_COMPLETION, CAPACITY_COMPLETION/isCapacityFatigue (the S6 input), SIGNALS, MACRO_WEEKS + legacy render constants (ROTATION, GIANTFIT_PAIRING, SECONDARY_ITEM, PULLUP, TESTING_SCHEDULE)
     date-engine.ts position math from the macro start date (see §7)
     loading.ts     single-anchor cascade (dayTop/expandDayTops/giantSets/volumeWeight), uniform 2.5 kg rounding, fmt
     capacity.ts    GiantFit capacity block: static A/B movement definitions + defaults, config merge helpers
@@ -49,7 +49,7 @@ src/
     Trends.tsx      charts/analytics tab (recharts); renders engine/trends.ts view-models
     nav.tsx         BottomNav + MenuDrawer + inline SVG icon set
     components.tsx  shared shell bits (Shell, Card, BlockTitle, Center, Spinner)
-    controls.tsx    shared log controls (Row, SpeedPick, LogRpe, PositionHeader, errMsg)
+    controls.tsx    shared log controls (Row, SpeedPick, LogRpe, CompletionPick, PositionHeader, errMsg)
     theme.ts        design tokens + shared CSSProperties style objects
     global.css      base CSS (reset, body bg, fonts, .spin keyframes)
   main.tsx          mounts <App/> in React.StrictMode, imports global.css
@@ -366,7 +366,11 @@ the Giant Run engine/views, Recovery → Tendon Health, and the session timer.
   (`capacity_config` per-movement rep/weight, `capacity_settings` rounds), with
   `mergeCapacityConfig` overlaying stored values on `defaultCapacityConfig()` at read time
   (unknown stored keys ignored, null reps fall back to the default). Capacity logs are
-  one-per-session (`capacity_logs`, upsert on `session_id`, cascade-deletes with the session).
+  one-per-session (`capacity_logs`, upsert on `session_id`, cascade-deletes with the session),
+  and carry a categorical `completion` — the S6 deload input (`CAPACITY_COMPLETION`). The
+  per-round series (`buildCapacityPoints` / `perRoundSeconds`) is a **Trends readout only**:
+  since 2026-07-31 nothing in the deload rule reads it, so there is no shared-series contract
+  to preserve.
   **This is the pattern for evolving prescription content:** retire a movement by deleting it
   from the list — stored rows for it are dropped on read, and because logs never reference a
   movement key, no migration and no historical result is touched. The Giant Block's
@@ -389,26 +393,28 @@ the Giant Run engine/views, Recovery → Tendon Health, and the session timer.
   callers/tests stay valid. Optional run days (testing Tue/Thu, W15) are never marked missed.
 - **Reactive deload — `src/engine/deload-rule.ts`.** The revised rule (brief §5,
   supersedes the v7 book): `computeWeekSignals(weekSessions, weekRuns, priorRuns,
-  capacityPoints)` — S1 R9.5+, S2 volume incomplete, S3 carry skipped for fatigue,
-  S5 bar-speed down in 2+ sessions, **S6 capacity time ↑** (2+ consecutive slow points
-  in the shared series = one occurrence; slow/averages live on the points, not here),
-  S7 giant block not completed (the Giant-era S6, renumbered); S4 retired. All trailing
-  params default empty — keep the signature additive. Build the S6 series ONLY via
-  `capacityPointsForSignals(logs, sessions, macroNumber, deloads)` (excludes deload
-  weeks from evaluation AND averages); the underlying `buildCapacityPoints` /
-  `rollingVariantAvg` / `S6_THRESHOLD` / `CAPACITY_ROLLING_N` live in
-  `engine/capacity.ts` and are the SAME series Trends consumes — never reimplement the
-  rolling average. Trigger = 3+ occurrences across ≥2 sessions. `shouldRecommendDeload`
-  adds the cap/already-deloaded/break-coming exemptions. Advise-and-confirm, never
-  auto-forced; `WeekSignals.s6Dates` carries the offending dates for the card.
+  weekCapacityLogs)` — S1 R9.5+, S2 volume incomplete, S3 carry skipped for fatigue,
+  S5 bar-speed down in 2+ sessions, **S6 capacity not completed as prescribed (fatigue)**
+  — one occurrence per capacity log in the week whose `completion` is a `*_fatigue`
+  value — S7 giant block not completed (the Giant-era S6, renumbered); S4 retired. All
+  trailing params default empty — keep the signature additive. Narrow the macro's logs to
+  the week with `capacityLogsForSessions(logs, weekSessions)`; the firing rule itself is
+  `isCapacityFatigue` in `constants.ts` — **express it there, never by listing values at a
+  call site**, so adding an option forces a decision about attribution. **S6 reads nothing
+  time-derived** (the capacity TIME trend was retired 2026-07-31 — see `ARCHITECTURE.md`
+  §11; do not reinstate it). Trigger = 3+ occurrences across ≥2 sessions.
+  `shouldRecommendDeload` adds the cap/already-deloaded/break-coming exemptions.
+  Advise-and-confirm, never auto-forced; `WeekSignals.s6Dates` carries the offending dates
+  for the card.
 - **Constants — `src/engine/constants.ts`.** GiantFit: `GIANTFIT_START_DATE` (the cutover),
   `GIANTFIT_ROTATION`, `GIANTFIT_PAIRING`, `GIANTFIT_ACTIVATION` (warm-up list),
   `GIANTFIT_CARRY_DEFAULTS` (Setup seed: Suitcase 50), `ANCHOR_LIFTS`/`ANCHOR_LABEL`,
   `GIANTFIT_ACC_ITEMS`, `DAY_META`, `MACRO_WEEKS = 13` (default shape; the engine reads the
   macro's stored `weeks`). Legacy render-only: `ROTATION`, `SECONDARY_ITEM`, `PULLUP`,
   `TESTING_SCHEDULE` (dormant — renders 15-week macros' lived testing weeks). Capacity
-  content/thresholds live in `engine/capacity.ts` (`CAPACITY_MOVEMENTS`, `S6_THRESHOLD`,
-  `CAPACITY_ROLLING_N`).
+  circuit content lives in `engine/capacity.ts` (`CAPACITY_MOVEMENTS`); capacity ADHERENCE
+  (`CAPACITY_COMPLETION` + `isCapacityFatigue`, the S6 input) lives here beside
+  `BLOCK_COMPLETION`, which it mirrors.
 - **Elapsed time / timers (session timer, `Today.tsx`).** Store **timestamps**
   (`started_at` / `ended_at`, `timestamptz`), never a duration — duration is always
   *derived* (`ended − started`). The live display is **recomputed from `started_at`

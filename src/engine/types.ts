@@ -138,7 +138,7 @@ export interface Session {
   // Per-round Giant Block cardio calories, ordered [R1..R4]; null entry = unfilled round.
   cardioCals: (number | null)[]
   // Giant Block adherence: 'completed' (as prescribed) or a categorical fail reason.
-  // Empty/null on legacy rows → treated as completed. Drives a deload signal (S6).
+  // Empty/null on legacy rows → treated as completed. Drives deload signal S7.
   blockCompletion: string
   volDone: boolean
   volRpe: string
@@ -175,8 +175,8 @@ export interface WeekSignals {
   occurrences: number
   sessionCount: number
   fired: boolean
-  // The offending capacity-session dates when S6 (capacity time ↑) is among
-  // the types — surfaced on the recommendation card. Empty otherwise.
+  // The dates of the fatigue-attributed capacity sessions when S6 is among the
+  // types — surfaced on the recommendation card. Empty otherwise.
   s6Dates?: string[]
 }
 
@@ -273,6 +273,10 @@ export interface CapacityLog {
   totalTimeSeconds: number | null
   calories: number | null // from the Bike movement (variant B); null otherwise
   rpe: string
+  // Adherence, categorical — the S6 deload input (2026-07-31). '' / null reads
+  // as 'completed' (legacy rows), exactly like sessions.block_completion.
+  // ANY *_fatigue value fires S6; nothing else does.
+  completion: string
   notes: string
   updatedAt?: string
 }

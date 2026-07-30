@@ -80,7 +80,7 @@ export function testingToCsv(results: TestingResult[], macros: Macro[]): string 
 export function capacityToCsv(logs: CapacityLog[], sessions: Session[], macros: Macro[]): string {
   const numberById = new Map(macros.map((m) => [m.id, m.number]))
   const byId = new Map(sessions.map((s) => [s.id, s]))
-  const header = 'date,macro,cycle,week,day_type,difficulty,variant,rounds_completed,total_time_seconds,per_round_s,calories,rpe,notes'
+  const header = 'date,macro,cycle,week,day_type,difficulty,variant,rounds_completed,total_time_seconds,per_round_s,calories,rpe,completion,notes'
   const rows = logs
     .map((l) => ({ l, s: byId.get(l.sessionId) }))
     .sort((a, b) => ((a.s?.date || '') < (b.s?.date || '') ? -1 : 1))
@@ -99,6 +99,10 @@ export function capacityToCsv(logs: CapacityLog[], sessions: Session[], macros: 
         perRound != null ? Math.round(perRound * 10) / 10 : null,
         l.calories,
         l.rpe,
+        // Legacy rows (pre-0021) carry NULL in the DB and are never rewritten;
+        // they read as 'completed', exactly like the sessions CSV's
+        // block_completion column does for its own legacy nulls.
+        l.completion,
         l.notes,
       ]
         .map(csvCell)

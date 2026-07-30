@@ -16,6 +16,7 @@ import {
   GIANTFIT_ROW_REPS,
   GIANTFIT_GB_ACCESSORY,
   ANCHOR_LABEL,
+  CAPACITY_COMPLETION,
 } from './constants'
 import { giantSets, volumeWeight, liftMode, fmt } from './loading'
 import { isGiantFitDate } from './date-engine'
@@ -208,7 +209,14 @@ export function sessionSummary(
       capacityLog.calories != null ? `${capacityLog.calories} cal` : '',
       rpeStr(capacityLog.rpe),
     ].filter(Boolean)
-    if (parts.length) lines.push(`Capacity ${capacityLog.variant} — ${parts.join(', ')}`)
+    if (parts.length) {
+      // Adherence is appended ONLY when it isn't 'completed' (legacy nulls read
+      // as completed), so a normal session's summary is byte-identical to
+      // before the completion state existed.
+      const completion = capacityLog.completion || 'completed'
+      const label = completion !== 'completed' ? CAPACITY_COMPLETION.find((o) => o.id === completion)?.label || completion : ''
+      lines.push(`Capacity ${capacityLog.variant} — ${parts.join(', ')}${label ? ` · ${label}` : ''}`)
+    }
   }
 
   // ---- Carry ------------------------------------------------------------------

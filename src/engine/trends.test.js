@@ -127,3 +127,28 @@ test('toCapacityTrend: joins logs to sessions, derives per-round, drops incomple
   ])
   assert.equal(pts[0].macro, 'M3')
 })
+
+test('toCapacityTrend: the per-round series is UNAFFECTED by the S6 replacement', () => {
+  // The time-based S6 was retired on 2026-07-31, but the chart it fed stays.
+  // Same inputs, same series — and the new completion field changes nothing.
+  const macros = [{ id: 'm3', number: 3, startISO: '2026-07-27', weeks: 13, status: 'active' }]
+  const sess = (id, date) => ({ id, macroId: 'm3', date, weekType: 'training', cycle: 1, week: 1, dayType: 'deadlift' })
+  const sessions = [sess('a', '2026-07-27'), sess('b', '2026-07-29'), sess('c', '2026-07-31')]
+  const base = { calories: null, rpe: '', notes: '' }
+  const logs = [
+    { sessionId: 'a', variant: 'A', roundsCompleted: 3, totalTimeSeconds: 300, ...base, completion: 'completed' },
+    { sessionId: 'b', variant: 'B', roundsCompleted: 3, totalTimeSeconds: 600, ...base, completion: 'cut_short_fatigue' },
+    { sessionId: 'c', variant: 'A', roundsCompleted: 2, totalTimeSeconds: 300, ...base, completion: undefined },
+  ]
+  const pts = toCapacityTrend(logs, sessions, macros)
+  // Chronological, per-round derived, one point per usable log — regardless of
+  // how each session was attributed.
+  assert.deepEqual(pts.map((p) => [p.date, p.variant, p.perRoundS]), [
+    ['2026-07-27', 'A', 100],
+    ['2026-07-29', 'B', 200],
+    ['2026-07-31', 'A', 150],
+  ])
+  // Dropping the completion field entirely yields the identical series.
+  const withoutCompletion = toCapacityTrend(logs.map(({ completion, ...l }) => l), sessions, macros)
+  assert.deepEqual(withoutCompletion, pts)
+})

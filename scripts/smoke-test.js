@@ -14,7 +14,7 @@ import { supabase, signIn, signOut } from '../src/data/supabase'
 import * as repo from '../src/data/repository'
 import { SEED_MOVEMENTS } from '../src/engine/movements'
 import { ANCHORED_LANES, validateVersion, resolveProgram } from '../src/engine/program'
-import { GIANTFIT_START_DATE } from '../src/engine/constants'
+import { GIANTFIT_START_DATE, CAPACITY_COMPLETION } from '../src/engine/constants'
 
 const email = process.env.SMOKE_EMAIL
 const password = process.env.SMOKE_PASSWORD
@@ -249,6 +249,26 @@ async function main() {
     await repo.saveCapacityLog({ ...cl, totalTimeSeconds: 700 })
     const cl2 = await repo.getCapacityLog(sid)
     ok('capacity log upserts on session_id -> 700', cl2?.totalTimeSeconds === 700, cl2?.totalTimeSeconds)
+
+    // 0021 completion CHECK: all five values accepted, NULL accepted (legacy),
+    // anything else rejected. The *_fatigue values are what fire S6.
+    let allFive = true
+    for (const { id: c } of CAPACITY_COMPLETION) {
+      const saved = await repo.saveCapacityLog({ ...cl, totalTimeSeconds: 700, completion: c })
+      if (saved.completion !== c) allFive = false
+    }
+    ok('0021 CHECK accepts all five completion values', allFive)
+    const nulled = await repo.saveCapacityLog({ ...cl, totalTimeSeconds: 700, completion: '' })
+    ok("'' -> NULL, which reads back as 'completed' (legacy rows)", nulled.completion === 'completed', nulled.completion)
+    let badRejected = false
+    try {
+      await repo.saveCapacityLog({ ...cl, totalTimeSeconds: 700, completion: 'gave_up' })
+    } catch {
+      badRejected = true
+    }
+    ok('0021 CHECK rejects an unknown completion value', badRejected)
+    // Restore a clean state on the throwaway log before the cascade-delete checks.
+    await repo.saveCapacityLog({ ...cl, totalTimeSeconds: 700, completion: 'completed' })
     // Macro-scoped read (inner-join through sessions) — powers the boot bundle.
     const macroLogs = await repo.getCapacityLogs(id)
     ok('getCapacityLogs(macroId) finds the log via the session join', macroLogs.some((l) => l.sessionId === sid), macroLogs.length)

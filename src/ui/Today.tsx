@@ -11,8 +11,7 @@ import { SCHEMES, LIFT_LABEL, SIGNALS, RUN_SIGNALS, SECONDARY_ITEM, RUN_TYPE_LAB
 import { deloadTop } from '../engine/loading'
 import { runSlotFor } from '../engine/runs'
 import { todayISO, mondayOf, parseLocalDate, isoLocal, rotationLiftFor } from '../engine/date-engine'
-import { computeWeekSignals, shouldRecommendDeload, usedDeloadThisMeso, weekKeyFor, capacityPointsForSignals } from '../engine/deload-rule'
-import type { CapacityPoint } from '../engine/capacity'
+import { computeWeekSignals, shouldRecommendDeload, usedDeloadThisMeso, weekKeyFor, capacityLogsForSessions } from '../engine/deload-rule'
 import type {
   Position,
   Session,
@@ -152,9 +151,6 @@ export function Today({
   const [viewDiff, setViewDiff] = useState<Difficulty | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  // The macro's capacity time-trend series (S6) — deload weeks excluded from
-  // evaluation and from the rolling averages.
-  const capacityPoints = capacityPointsForSignals(capacityLogs, sessions, computed.macro, deloads)
 
   if (computed.beforeStart)
     return (
@@ -201,7 +197,7 @@ export function Today({
           weekSessions={isTraining ? sessions.filter((s) => s.cycle === runSlot.cycle && s.week === runSlot.week) : []}
           weekRuns={isTraining ? runs.filter((r) => r.cycle === runSlot.cycle && r.week === runSlot.week) : []}
           allRuns={runs}
-          capacityPoints={capacityPoints}
+          capacityLogs={capacityLogs}
           onSaveRun={onSaveRun}
           onSetRefPace={onSetRefPace}
         />
@@ -334,14 +330,14 @@ export function Today({
     prevWeekSessions,
     prevWeekRuns,
     priorRuns: runs,
-    capacityPoints,
+    capacityLogs,
     alreadyDeloaded: isDeload,
     usedThisMeso: usedDeloadThisMeso(deloads, macro, cycle),
     breakComing: breakInWeek(computed.startISO ?? '', weekIndex, breakDays),
   })
   // The previous week's signal breakdown, listed on the recommendation card
   // (incl. S6's offending capacity-session dates).
-  const prevSig = recommend ? computeWeekSignals(prevWeekSessions, prevWeekRuns, runs, capacityPoints) : null
+  const prevSig = recommend ? computeWeekSignals(prevWeekSessions, prevWeekRuns, runs, capacityLogsForSessions(capacityLogs, prevWeekSessions)) : null
 
   return (
     <div>
@@ -407,7 +403,7 @@ export function Today({
         rowCell={rowCell}
         giantAccessory={giantAccessory}
         capacityCtx={capacityCtx}
-        capacityPoints={capacityPoints}
+        capacityLogs={capacityLogs}
         currentWeekSessions={currentWeekSessions}
         currentWeekRuns={currentWeekRuns}
         allRuns={runs}
@@ -491,7 +487,7 @@ interface RunDayProps {
   weekSessions?: Session[]
   weekRuns?: Run[]
   allRuns?: Run[]
-  capacityPoints?: CapacityPoint[]
+  capacityLogs?: CapacityLog[]
   onSaveRun: (record: RunDraft) => Promise<Run>
   onSetRefPace?: (refPaceS: number | null) => Promise<void>
 }
@@ -499,7 +495,7 @@ interface RunDayProps {
 // The run-day editor: RunForm + save, no timer (duration is a logged field).
 // The slot stamp (id/date/cycle/week/weekType/runType) is applied on every save
 // so a draft can't drift from the computed schedule.
-function RunDay({ slot, macroId, refPaceS, targetKm, deloadWeek, existing, weekSessions = [], weekRuns = [], allRuns = [], capacityPoints = [], onSaveRun, onSetRefPace }: RunDayProps) {
+function RunDay({ slot, macroId, refPaceS, targetKm, deloadWeek, existing, weekSessions = [], weekRuns = [], allRuns = [], capacityLogs = [], onSaveRun, onSetRefPace }: RunDayProps) {
   const [draft, setDraft] = useState<RunDraft>(() => existing || buildBlankRun(slot, macroId))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -535,7 +531,7 @@ function RunDay({ slot, macroId, refPaceS, targetKm, deloadWeek, existing, weekS
         <div style={{ marginTop: 10, fontSize: 12, color: C.red }}>Couldn't save — {err}. Check your connection and try again.</div>
       )}
       {slot.runType === 'tt' && existing && onSetRefPace && <SetPaceChip run={existing} refPaceS={refPaceS} onSetRefPace={onSetRefPace} />}
-      {slot.weekType === 'training' && <SignalBanner currentWeekSessions={weekSessions} weekRuns={weekRuns} allRuns={allRuns} capacityPoints={capacityPoints} runDraft={draft} />}
+      {slot.weekType === 'training' && <SignalBanner currentWeekSessions={weekSessions} weekRuns={weekRuns} allRuns={allRuns} capacityLogs={capacityLogs} runDraft={draft} />}
     </div>
   )
 }
@@ -556,7 +552,7 @@ interface SessionEditorProps {
   rowCell?: LiftWeights | null
   giantAccessory?: GiantAccessoryReps
   capacityCtx?: CapacityCtx | null
-  capacityPoints?: CapacityPoint[]
+  capacityLogs?: CapacityLog[]
   currentWeekSessions: Session[]
   currentWeekRuns?: Run[]
   allRuns?: Run[]
@@ -569,7 +565,7 @@ interface SessionEditorProps {
   setSaved: (b: boolean) => void
 }
 
-function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, carryLoad, secondaryLoad, pullupCell, rowCell, giantAccessory, capacityCtx = null, capacityPoints = [], currentWeekSessions, currentWeekRuns = [], allRuns = [], stamp, onSaveSession, onRunningChange, saving, setSaving, saved, setSaved }: SessionEditorProps) {
+function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, carryLoad, secondaryLoad, pullupCell, rowCell, giantAccessory, capacityCtx = null, capacityLogs = [], currentWeekSessions, currentWeekRuns = [], allRuns = [], stamp, onSaveSession, onRunningChange, saving, setSaving, saved, setSaved }: SessionEditorProps) {
   const [draft, setDraft] = useState<SessionDraft>(() => existing || blank())
   const [err, setErr] = useState('')
   const [nowTs, setNowTs] = useState(() => Date.now())
@@ -721,7 +717,7 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
       {err && (
         <div style={{ marginTop: 10, fontSize: 12, color: C.red }}>Couldn't save — {err}. Check your connection and try again.</div>
       )}
-      <SignalBanner currentWeekSessions={currentWeekSessions} weekRuns={currentWeekRuns} allRuns={allRuns} capacityPoints={capacityPoints} draft={draft} />
+      <SignalBanner currentWeekSessions={currentWeekSessions} weekRuns={currentWeekRuns} allRuns={allRuns} capacityLogs={capacityLogs} draft={draft} />
 
       {running && <SessionControlBar elapsedMs={elapsedMs} saving={saving} onEnd={handleEnd} />}
     </div>
@@ -854,14 +850,14 @@ function SignalBanner({
   currentWeekSessions,
   weekRuns = [],
   allRuns = [],
-  capacityPoints = [],
+  capacityLogs = [],
   draft,
   runDraft,
 }: {
   currentWeekSessions: Session[]
   weekRuns?: Run[]
   allRuns?: Run[]
-  capacityPoints?: CapacityPoint[]
+  capacityLogs?: CapacityLog[]
   draft?: SessionDraft
   runDraft?: RunDraft
 }) {
@@ -872,7 +868,7 @@ function SignalBanner({
         .filter((r) => r.id !== runDraft.id)
         .concat({ ...runDraft, distanceKm: numOrNull(runDraft.distanceKm), durationS: numOrNull(runDraft.durationS), avgHr: numOrNull(runDraft.avgHr) })
     : weekRuns
-  const sig = computeWeekSignals(mergedSessions, mergedRuns, allRuns, capacityPoints)
+  const sig = computeWeekSignals(mergedSessions, mergedRuns, allRuns, capacityLogsForSessions(capacityLogs, mergedSessions))
   if (sig.occurrences === 0) return null
   const fired = sig.fired
   return (

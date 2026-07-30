@@ -7,9 +7,10 @@
 import { useState, useEffect } from 'react'
 import { C, HEADING, inp, lbl } from './theme'
 import { Card } from './components'
-import { blockTitle, Row, LogRpe, fmtClock, errMsg } from './controls'
+import { blockTitle, Row, LogRpe, CompletionPick, fmtClock, errMsg } from './controls'
 import { fmt } from '../engine/loading'
 import { CAPACITY_MOVEMENTS } from '../engine/capacity'
+import { CAPACITY_COMPLETION } from '../engine/constants'
 import { parseClock } from '../engine/runs'
 import type { CapacityVariant, CapacityConfig, CapacityLog, CapacityLogDraft } from '../engine/types'
 
@@ -40,6 +41,8 @@ export function CapacityBlock({ letter, variant, config, sessionId, log, onSave,
   const [timeText, setTimeText] = useState(log?.totalTimeSeconds != null ? fmtClock(log.totalTimeSeconds * 1000) : '')
   const [calories, setCalories] = useState<number | string>(log?.calories ?? '')
   const [rpe, setRpe] = useState(log?.rpe ?? '')
+  // Adherence — the S6 deload input. Legacy logs read as 'completed'.
+  const [completion, setCompletion] = useState(log?.completion || 'completed')
   const [notes, setNotes] = useState(log?.notes ?? '')
   const [watch, setWatch] = useState<Watch>({ startTs: null, accMs: 0 })
   const [nowTs, setNowTs] = useState(() => Date.now())
@@ -78,6 +81,7 @@ export function CapacityBlock({ letter, variant, config, sessionId, log, onSave,
         totalTimeSeconds: totalSeconds,
         calories: hasCalories ? calories : '',
         rpe,
+        completion,
         notes,
       })
       setSaved(true)
@@ -229,6 +233,14 @@ export function CapacityBlock({ letter, variant, config, sessionId, log, onSave,
         )}
       </div>
       <LogRpe label="Capacity" rpe={rpe} speed={null} onRpe={setRpe} />
+      <CompletionPick
+        label="Capacity completed as prescribed ✓"
+        options={CAPACITY_COMPLETION}
+        value={completion}
+        onChange={setCompletion}
+        dataAttr="data-capacity-completion"
+        id="capacity-completion-reason"
+      />
       <div style={{ marginTop: 10 }}>
         <label style={lbl}>Capacity notes</label>
         <input

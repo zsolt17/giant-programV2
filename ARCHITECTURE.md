@@ -201,8 +201,8 @@ weeks and their logged results stay renderable/exportable — the components,
   the Fri slot was Dips in the Giant era — dips is retired). Squat deliberately omitted
   (avoid two heavy lower-body sessions late in the macro).
 - Each session: Giant Block only at 50–60%, hard rep scheme, no volume, no carries, and
-  **no capacity block** — deload sessions never carry one, and deload weeks are excluded
-  from the S6 rolling averages entirely (§5). In-app these days are note cards, not loggers.
+  **no capacity block** — deload sessions never carry one, so there is simply no capacity
+  log to attribute (§5). In-app these days are note cards, not loggers.
 - **Extension:** the athlete can add one identical second deload week from the
   deload-week view ("Extend deload one week", confirm-gated, undoable). Runs: Tue/Thu
   optional short easy; the **first** deload Saturday is the 5k time trial (§13); an
@@ -251,11 +251,15 @@ stopwatch**; one result per session.
   keys are dropped), and `capacity_logs` never referenced a movement key — so no schema
   change and no historical result is ever affected.
 - **Logging:** one `capacity_logs` row per session — variant, rounds completed, total time,
-  Bike calories (variant B), RPE, notes. Editable/backfillable; the stopwatch is
-  timestamp-based (backgrounding never loses time) and only the finished total persists.
-- **The metric is per-round time** (total ÷ rounds completed — a cut-short session still
-  compares fairly). It feeds the Trends capacity chart and the S6 deload signal (§5) from
-  ONE shared derivation. **No capacity on deload weeks** — absent, not optional (§2.8).
+  Bike calories (variant B), RPE, **completion**, notes. Editable/backfillable; the stopwatch
+  is timestamp-based (backgrounding never loses time) and only the finished total persists.
+- **Adherence (2026-07-31):** every log carries a categorical `completion` — completed /
+  cut short (fatigue | time) / scaled (fatigue | other) — the same one-tap-then-reason
+  control the Giant Block uses (§2.10). This is the **only** capacity input the deload rule
+  reads (S6, §5).
+- **Per-round time** (total ÷ rounds completed — a cut-short session still compares fairly)
+  is a **Trends readout only**. It drew the S6 trigger until 2026-07-31; it no longer feeds
+  any signal. **No capacity on deload weeks** — absent, not optional (§2.8).
 
 ### 2.12 REMOVED — do not reintroduce
 Retired with the GiantFit migration. These render for pre-cutover History and nothing else;
@@ -339,14 +343,16 @@ rule supersedes the version in the v7 program book.**
 - **S2** — volume block incomplete (cut reps / dropped set).
 - **S3** — carry skipped due to **fatigue** (not schedule).
 - **S5** — bar speed ↓ on the top set in **2+ sessions** within the week (any lifts).
-- **S6 — "Capacity time ↑" (GiantFit, 2026-07-23):** a capacity session is *slow* when its
-  **per-round time** (total ÷ rounds completed — normalizes short sessions) exceeds its own
-  variant's rolling average (last **3** completed same-variant sessions) × **1.15**
-  (`S6_THRESHOLD`, tunable in `engine/capacity.ts`). **2+ consecutive** slow capacity sessions
-  (any variant mix, consecutive by session order, each judged against its own variant's average)
-  = **one** occurrence, attributed to the week holding the streak's later session. Cold start:
-  a variant isn't evaluated until it has 3 completed sessions. Deload weeks are excluded on
-  both sides — never evaluated, never in the averages.
+- **S6 — "Capacity not completed as prescribed (fatigue)" (2026-07-31):** **one occurrence
+  per capacity log in the week whose `completion` is a `*_fatigue` value** —
+  `cut_short_fatigue` (stopped rounds early) or `scaled_fatigue` (reduced reps / scaled a
+  movement down). No streak rule, no cold start, no baseline: a single session counts once,
+  exactly like S2 and S3. `cut_short_time` and `scaled_other` are deliberate non-fatigue
+  attributions and fire nothing; a null (pre-2026-07-31) log reads as `completed` and is
+  inert. The rule lives in the **value names** — any `*_fatigue` value fires — mirroring
+  `carry_skip_reason`'s fatigue-vs-schedule split: attribution is the athlete's, captured at
+  log time, never inferred. *(Supersedes the capacity TIME trend that held S6 from
+  2026-07-23 — see the decisions log for why it was retired.)*
 - **S7** — **giant block not completed as prescribed** (any non-"completed" state of the
   completion control, §2.10). *Numbered S6 in the Giant era — renumbered when GiantFit claimed
   S6 for the capacity trend; signals are computed, never stored, so history re-renders under
@@ -498,7 +504,9 @@ GiantFit capacity tables below; `0015_giantfit_phase2.sql` adds `bench` to the
 `carry_bench` to the accessory item CHECK; `0017_row_anchors.sql` adds `db_row`/`pendlay_row`
 to the `working_weights` lift CHECK — the rows become anchors, §2.1;
 `0018_giant_accessory_config.sql` adds the `giant_accessory_config` table for the Giant Block
-accessory rep targets, §2.3). **The 2026-07-30 revision needed no other schema change and
+accessory rep targets, §2.3; `0019_movements.sql` adds the `movements` library + the two empty
+secondary anchor lanes; `0020_program_versions.sql` adds `program_versions`/`program_slots`;
+`0021_capacity_completion.sql` adds `capacity_logs.completion` — the S6 input, §5). **The 2026-07-30 revision needed no other schema change and
 dropped nothing:** `sessions.pair_weight` is kept (pre-revision row weights stay readable),
 and the retired capacity movements needed no migration at all (§2.11).
 See `supabase/MIGRATIONS.md` for how migrations are applied and the DB kept reproducible.
@@ -712,6 +720,10 @@ capacity_logs (
   total_time_seconds  int,
   calories            int,                 -- nullable; from the Bike movement (variant B)
   rpe                 text,                -- R6..R10 scale (same CHECK as sessions)
+  -- Adherence (0021), categorical, the S6 input: completed | cut_short_fatigue |
+  -- cut_short_time | scaled_fatigue | scaled_other. NULL on legacy rows = treated
+  -- as completed (never backfilled). Any *_fatigue value fires S6.
+  completion          text,
   notes               text,
   updated_at          timestamptz default now(),
   unique (session_id)
@@ -743,6 +755,23 @@ repeated here. The two load-bearing domain invariants to preserve, wherever the 
 ---
 
 ## 11. Decisions log (settled — don't relitigate)
+
+- **S6 stopped measuring the clock (2026-07-31).** The capacity TIME trend (per-round time
+  vs a rolling same-variant average ×1.15, 3-session cold start) was retired as a deload
+  trigger for two reasons. **Noise floor:** per-round time in a 7-movement circuit with no
+  time cap is dominated by transitions and equipment availability, so a 15% swing sits
+  inside normal variation — it measured the gym, not the athlete. **Unattainable baseline:**
+  variants alternate weekly, so a variant accrues ~1 session a week; three weeks to a first
+  evaluation, minus deload weeks and missed sessions, and reset by any edit to the circuit's
+  reps or movements. Meanwhile the capacity block — a full weekly training block — had **no
+  completion signal at all**, while the rest of the rule treats "couldn't complete the
+  prescribed work" as its core fatigue currency (S2, S7, S3). So the number stayed and the
+  metric changed: S6 is now capacity adherence, attributed by the athlete at log time
+  (`capacity_logs.completion`, migration `0021`). Signals are computed and never stored, so
+  history re-rendered under the new definition with **no migration of existing logs and no
+  data loss** — the same reasoning that justified the earlier S6→S7 renumber. **The
+  per-round chart in Trends stays**: good enough to look at, not good enough to fire a
+  trigger. Do not reinstate a time-derived signal.
 
 - **GiantFit revision — rows anchored, Giant Block recomposed, capacity trimmed
   (2026-07-30):** the paired rows became **full anchors** (`db_row` per hand, `pendlay_row`;
@@ -818,8 +847,8 @@ repeated here. The two load-bearing domain invariants to preserve, wherever the 
 - **Carries reassigned — FINAL (2026-07-02):** DL = farmer 60/hand, OHP = overhead 2×20, Squat =
   sandbag bear hug 68, Dips = suitcase 50/hand. *(Supersedes the 2026-06-30 assignment.)* Stored per
   cycle keyed by day (`carry_<day>`), so the keys are stable; logged history untouched.
-- **Giant-block completion (2026-06-30):** adherence logged as one categorical control (§2.10), driving
-  deload signal S6. S4 (Set-1 > R7) retired.
+- **Giant-block completion (2026-06-30):** adherence logged as one categorical control (§2.10),
+  driving a deload signal — numbered S6 then, **S7** since GiantFit (§5). S4 (Set-1 > R7) retired.
 - **Per-lift rounding + two-mode dips/pull-ups (2026-07-05):** derived loads round 2.5 kg (barbell) /
   0.5 kg (dips, pull-ups); the anchor is never rounded. Dips and pull-ups flip between bodyweight
   (cluster) and weighted (full cascade) purely on the cycle's anchor value (§3) — no toggle.

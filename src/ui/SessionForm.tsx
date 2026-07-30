@@ -1,6 +1,6 @@
 import { C, inp, lbl } from './theme'
 import { Card } from './components'
-import { blockTitle, Row, LogRpe, secondaryDesc } from './controls'
+import { blockTitle, Row, LogRpe, secondaryDesc, CompletionPick } from './controls'
 import { CapacityBlock } from './CapacityBlock'
 import { SCHEMES, WU_PCT, WU_REPS, SET_LADDER, DAY_META, LIFT_LABEL, PULLUP, BLOCK_COMPLETION, GIANTFIT_PAIRING, GIANTFIT_ACTIVATION, GIANTFIT_ROW, GIANTFIT_ROW_REPS, GIANTFIT_GB_ACCESSORY, ANCHOR_LABEL } from '../engine/constants'
 import { fmt, giantSets, warmupSets, volumeWeight, deloadTop, liftMode } from '../engine/loading'
@@ -388,27 +388,17 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
 // one-tap "completed as prescribed" with a categorical reason dropdown when it wasn't.
 // Any non-'completed' state drives the deload S6 signal. Exported: the testing-day
 // view (TestingSession.tsx) reuses it so test sessions capture the same signal.
+// The Giant Block's adherence control (S7) — the shared CompletionPick with the
+// giant-block wording. The Capacity block (S6) uses the same control.
 export function BlockCompletion({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const completed = value === 'completed' || value === ''
   return (
-    <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: completed ? C.green : C.off }}>
-        <input type="checkbox" checked={completed} onChange={(e) => onChange(e.target.checked ? 'completed' : BLOCK_COMPLETION[0].id)} />
-        Giant block completed as prescribed ✓
-      </label>
-      {!completed && (
-        <div style={{ marginTop: 8 }}>
-          <label style={lbl}>What happened?</label>
-          <select style={inp} value={value} onChange={(e) => onChange(e.target.value)}>
-            {BLOCK_COMPLETION.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-    </div>
+    <CompletionPick
+      label="Giant block completed as prescribed ✓"
+      options={BLOCK_COMPLETION}
+      value={value}
+      onChange={onChange}
+      id="block-completion-reason"
+    />
   )
 }
 

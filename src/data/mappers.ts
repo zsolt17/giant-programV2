@@ -512,6 +512,7 @@ export interface CapacityLogRow {
   total_time_seconds: number | null
   calories: number | null
   rpe: string | null
+  completion: string | null
   notes: string | null
   updated_at?: string
 }
@@ -524,6 +525,8 @@ export function rowToCapacityLog(r: CapacityLogRow): CapacityLog {
     totalTimeSeconds: toNum(r.total_time_seconds),
     calories: toNum(r.calories),
     rpe: r.rpe || '',
+    // Legacy rows (pre-0021) read as 'completed', like sessions.block_completion.
+    completion: r.completion || 'completed',
     notes: r.notes || '',
     updatedAt: r.updated_at,
   }
@@ -536,6 +539,7 @@ export function capacityLogToRow(l: CapacityLogDraft): CapacityLogRow {
     total_time_seconds: toNum(l.totalTimeSeconds),
     calories: toNum(l.calories),
     rpe: blankToNull(l.rpe),
+    completion: blankToNull(l.completion),
     notes: blankToNull(l.notes),
   }
   if (l.id) row.id = l.id

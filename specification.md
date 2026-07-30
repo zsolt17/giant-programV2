@@ -112,6 +112,39 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-07-31 (S6 replacement)
+- `feat(deload)`: **S6 stops measuring the clock — capacity time → capacity completion.**
+  The capacity TIME trend (per-round time vs a rolling same-variant average ×1.15, 3-session
+  cold start, deload-week exclusion both sides) is **retired as a deload trigger**: in a
+  7-movement circuit with no time cap, per-round time is dominated by transitions and
+  equipment availability, so a 15% swing sat inside the noise floor — it measured the gym,
+  not the athlete — and because variants alternate weekly, a variant needed ~3 weeks to earn
+  a baseline that any circuit edit then reset. Meanwhile the capacity block had **no
+  completion signal at all**, while the rest of the rule treats "couldn't complete the
+  prescribed work" as its core fatigue currency (S2/S7/S3). **S6 is now "Capacity not
+  completed as prescribed (fatigue)":** one occurrence per capacity log in the week whose
+  `completion` is a `*_fatigue` value — no streak rule, no cold start, no baseline, exactly
+  like S2 and S3. Migration `0021` adds `capacity_logs.completion` with a CHECK over
+  `completed` / `cut_short_fatigue` / `cut_short_time` / `scaled_fatigue` / `scaled_other`;
+  the **firing rule is encoded in the value names** (`isCapacityFatigue` — any `*_fatigue`
+  fires), mirroring `carry_skip_reason`'s fatigue-vs-schedule split, so attribution is the
+  athlete's at log time and never inferred. **No backfill:** null reads as `completed` like
+  `sessions.block_completion`, and since signals are computed and never stored, history
+  re-renders under the new definition with **no data loss**. **Deleted:**
+  `capacityPointsForSignals`, `rollingVariantAvg`, `S6_THRESHOLD`, `CAPACITY_ROLLING_N` and
+  the `slow` flag on the capacity point; `computeWeekSignals`' trailing param is now the
+  week's capacity **logs** (still trailing, still defaulting empty — lift-only callers
+  unchanged), narrowed by the new `capacityLogsForSessions`. **The Trends per-round chart is
+  untouched** and asserted so — good enough to look at, not good enough to fire a trigger.
+  **UI:** the capacity block gains a completion control beside its RPE — the giant block's
+  one-tap-then-reason control, generalised into a shared `CompletionPick` in `controls.tsx`
+  and now used by both (S7's rendering is unchanged). **Consumers:** capacity CSV gains a
+  `completion` column; copy-summaries append the state only when it isn't `completed` (a
+  completed session's summary is **byte-identical** to before — asserted). Trigger
+  arithmetic, exemptions, and S1/S2/S3/S5/S7 are all untouched. typecheck + **183 tests** +
+  build green; **smoke 108/108** (all five values accepted, `''`→NULL reads back as
+  completed, unknown rejected).
+
 ## 2026-07-31 (later)
 - `feat(program)`: **modular program content — Phase 2: versioned slot assignment + the
   resolver.** The data-driven path is built **alongside** the hardcoded one and proven

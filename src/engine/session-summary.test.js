@@ -280,3 +280,27 @@ test('DL trains alone — no row line; a PRE-REVISION logged pair weight still r
   const ohp = base({ id: '2026-07-29-ohp-M', date: '2026-07-29', cycle: 1, week: 1, dayType: 'ohp', difficulty: 'medium', pairWeight: 22.5, cardioCals: [null, null, null, null] })
   assert.match(sessionSummary(ohp, 3, ACC), /\n {2}Pair \(logged\): DB Row 22.5kg\n/)
 })
+
+test('capacity completion: a completed session is BYTE-IDENTICAL to before the state existed', () => {
+  const s = base({ id: '2026-08-03-bench-H', date: '2026-08-03', cycle: 1, week: 2, dayType: 'bench', topWeight: 100, topReps: 2, cardioCals: [null, null, null, null] })
+  const cap = { sessionId: s.id, variant: 'B', roundsCompleted: 3, totalTimeSeconds: 702, calories: 27, rpe: 'R7', notes: '' }
+  // A pre-0021 log (no completion field at all) and an explicitly-completed one
+  // must both produce exactly the line the app printed before this change.
+  const legacy = sessionSummary(s, 3, ACC, undefined, false, cap)
+  const completed = sessionSummary(s, 3, ACC, undefined, false, { ...cap, completion: 'completed' })
+  assert.match(legacy, /\nCapacity B — 3 rds, 11:42, 27 cal, R7\n/)
+  assert.equal(completed, legacy)
+})
+
+test('capacity completion: a non-completed state is appended to the capacity line', () => {
+  const s = base({ id: '2026-08-03-bench-H', date: '2026-08-03', cycle: 1, week: 2, dayType: 'bench', topWeight: 100, topReps: 2, cardioCals: [null, null, null, null] })
+  const cap = { sessionId: s.id, variant: 'B', roundsCompleted: 3, totalTimeSeconds: 702, calories: 27, rpe: 'R7', notes: '' }
+  assert.match(
+    sessionSummary(s, 3, ACC, undefined, false, { ...cap, completion: 'cut_short_fatigue' }),
+    /\nCapacity B — 3 rds, 11:42, 27 cal, R7 · Cut short — fatigue\n/
+  )
+  assert.match(
+    sessionSummary(s, 3, ACC, undefined, false, { ...cap, completion: 'scaled_other' }),
+    /\nCapacity B — 3 rds, 11:42, 27 cal, R7 · Scaled — other\n/
+  )
+})

@@ -235,3 +235,54 @@ export function PositionHeader({
     </div>
   )
 }
+
+// Adherence control, shared by the Giant Block (S7) and the Capacity block (S6).
+// One tap says "as prescribed"; unticking reveals the categorical reason. The
+// reason is what the deload rule reads — attribution is the athlete's, captured
+// at log time, never inferred. `options[0]` is the default fail reason.
+export function CompletionPick({
+  label,
+  options,
+  value,
+  onChange,
+  dataAttr,
+  id,
+}: {
+  label: string
+  options: { id: string; label: string }[]
+  value: string
+  onChange: (v: string) => void
+  dataAttr?: string
+  id?: string
+}) {
+  const completed = value === 'completed' || value === ''
+  const selectId = id || 'completion-reason'
+  return (
+    <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: completed ? C.green : C.off }}>
+        <input type="checkbox" checked={completed} onChange={(e) => onChange(e.target.checked ? 'completed' : options[0].id)} />
+        {label}
+      </label>
+      {!completed && (
+        <div style={{ marginTop: 8 }}>
+          <label style={lbl} htmlFor={selectId}>
+            What happened?
+          </label>
+          <select
+            id={selectId}
+            {...(dataAttr ? { [dataAttr]: '1' } : {})}
+            style={inp}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+          >
+            {options.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+    </div>
+  )
+}
