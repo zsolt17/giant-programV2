@@ -23,7 +23,7 @@ src/
     offline-queue.ts / cache.ts  offline write queue + last-known snapshot (PWA)
   engine/          pure domain logic, framework-agnostic, unit-tested
     types.ts       shared domain types (Difficulty, Lift, Position, Session, SessionDraft, …)
-    constants.ts   GIANTFIT_START_DATE (the era cutover), GIANTFIT_ROTATION/GIANTFIT_PAIRING, ANCHOR_LIFTS/ANCHOR_LABEL, SCHEMES, DAY_SPREAD/SET_LADDER/VOLUME_PCT (anchor cascade), GIANTFIT_ACC_ITEMS (carries), DAY_META, BLOCK_COMPLETION, SIGNALS, MACRO_WEEKS + legacy render constants (ROTATION, SECONDARY_ITEM, PULLUP, TESTING_SCHEDULE)
+    constants.ts   GIANTFIT_START_DATE (the era cutover), GIANTFIT_ROTATION, GIANTFIT_ROW/GIANTFIT_ROW_REPS (the anchored rows) + GIANTFIT_GB_ACCESSORY/GIANTFIT_GB_DEFAULT_REPS (Giant Block accessories), ANCHOR_LIFTS/ANCHOR_LABEL/ANCHOR_NOTE (six anchors), SCHEMES, DAY_SPREAD/SET_LADDER/VOLUME_PCT (anchor cascade), GIANTFIT_ACC_ITEMS (carries), DAY_META, BLOCK_COMPLETION, SIGNALS, MACRO_WEEKS + legacy render constants (ROTATION, GIANTFIT_PAIRING, SECONDARY_ITEM, PULLUP, TESTING_SCHEDULE)
     date-engine.ts position math from the macro start date (see §7)
     loading.ts     single-anchor cascade (dayTop/expandDayTops/giantSets/volumeWeight), uniform 2.5 kg rounding, fmt
     capacity.ts    GiantFit capacity block: static A/B movement definitions + defaults, config merge helpers
@@ -317,10 +317,11 @@ the legacy Giant logic as read-only History, post-cutover dates use GiantFit. In
 **REMOVED — do not reintroduce** (legacy render paths only, never scheduling/Setup/new-session
 logic): the dips anchor + two-mode dips/pull-up engine (`liftMode` is render-only), 0.5 kg
 rounding (`LOAD_INCREMENT` is gone — `round(w)` is uniform 2.5), the clean block, the
-secondary/core circuit slots (GiantFit pairs a row via `GIANTFIT_PAIRING` + per-session
-`pair_weight`), testing weeks + the testing-day view (reachable only via legacy weeks=15
-macros), skill days, and any macro-type selector (the era is decided per DATE — never add a
-per-macro program flag).
+secondary/core circuit slots, **the free per-session row weight** (`sessions.pair_weight` +
+`GIANTFIT_PAIRING` — retired 2026-07-30 when the rows became anchors; both are read-only
+render paths for pre-revision sessions now), testing weeks + the testing-day view (reachable
+only via legacy weeks=15 macros), skill days, and any macro-type selector (the era is decided
+per DATE — never add a per-macro program flag).
 
 **Untouched across the migration** (don't "modernize" them as part of GiantFit work):
 the Giant Run engine/views, Recovery → Tendon Health, and the session timer.
@@ -349,8 +350,13 @@ the Giant Run engine/views, Recovery → Tendon Health, and the session timer.
   uses `SET_LADDER` (reps still per-difficulty from `SCHEMES`); `volumeWeight`, `set1Weight`,
   `warmupSets`; `round(w)` at the uniform **2.5 kg** (`DEFAULT_INCREMENT` — GiantFit retired the
   per-lift `LOAD_INCREMENT`/0.5 kg increment; the anchor itself is never rounded); `deloadTop`
-  (70%). The GiantFit anchor set is `ANCHOR_LIFTS` (DL/OHP/Squat/Bench, `constants.ts`) — Setup
-  and `rollToNextMacro` use it; legacy `dips`/`pullup` anchor rows only ever load. `liftMode(anchor)`
+  (70%). The GiantFit anchor set is `ANCHOR_LIFTS` (**six**: DL/OHP/Squat/Bench + `db_row`/
+  `pendlay_row`, `constants.ts`) — Setup, the mappers' anchor expansion, and `rollToNextMacro`
+  are all generic over it, so **an anchor is added by extending that list, never by branching**;
+  `ANCHOR_NOTE` carries display-only hints (DB Row = per hand). The **anchored rows** use the
+  identical cascade off their OWN anchor — `GIANTFIT_ROW` maps day → row anchor and
+  `GIANTFIT_ROW_REPS` holds its fixed Giant Block reps (H8/M9/L10); never derive a row's load
+  from the day's main lift. Legacy `dips`/`pullup` anchor rows only ever load. `liftMode(anchor)`
   is **LEGACY** (Giant-era two-mode) — kept solely so old dips-day sessions render; never use it in
   Setup or new-session logic. The computed grid is **never persisted** — `mappers.rowsToWeights`
   expands the stored anchor on every read (so Today/Calendar consumers are unchanged), and
@@ -360,8 +366,13 @@ the Giant Run engine/views, Recovery → Tendon Health, and the session timer.
   (`capacity_config` per-movement rep/weight, `capacity_settings` rounds), with
   `mergeCapacityConfig` overlaying stored values on `defaultCapacityConfig()` at read time
   (unknown stored keys ignored, null reps fall back to the default). Capacity logs are
-  one-per-session (`capacity_logs`, upsert on `session_id`, cascade-deletes with the session);
-  the typed client exists now, the UI lands in Phase 3.
+  one-per-session (`capacity_logs`, upsert on `session_id`, cascade-deletes with the session).
+  **This is the pattern for evolving prescription content:** retire a movement by deleting it
+  from the list — stored rows for it are dropped on read, and because logs never reference a
+  movement key, no migration and no historical result is touched. The Giant Block's
+  bodyweight accessories follow the same shape (`GIANTFIT_GB_ACCESSORY` content +
+  `giant_accessory_config` rep targets, merged in `mappers.rowsToGiantAccessory`) — they are
+  **prescription config, not per-session logs**; don't add session columns for them.
 - **The Giant Run — `src/engine/runs.ts` (single-anchor, two-mode — mirrors the lift engine).**
   `runSlotFor`/`runSlotsForWeek` compute the Tue/Thu/Sat schedule strictly through
   `corePosition` (never duplicate the position math): Tue easy · Thu quality (easy in meso 1) ·

@@ -62,10 +62,18 @@ lives in its paper book (`The_Giant_Program_v7_Book`, separate documentation fol
 part of the code repo); the Giant-era rules kept below, marked **LEGACY**, exist solely so the
 pre-cutover History is understandable — they are read-only rendering rules, never scheduling.
 
-### 2.1 Primary lifts (4 — all barbell, all 2.5 kg rounding)
-Deadlift, Overhead Press (OHP), Back Squat, **Bench Press**. Bench replaced the Giant-era
-weighted ring dips at the cutover; there is no per-lift rounding anymore — every derived load
-rounds at 2.5 kg (§3).
+### 2.1 Lifts — 4 primary + 2 anchored rows (all 2.5 kg rounding)
+**Primary (the rotation, §2.6):** Deadlift, Overhead Press (OHP), Back Squat, **Bench Press**.
+Bench replaced the Giant-era weighted ring dips at the cutover.
+
+**Anchored rows (2026-07-30):** **DB Row** (OHP day, anchor entered as kg **per hand**) and
+**Pendlay Row** (bench day). They are *anchors, not day lifts* — they never appear in the
+rotation, but they behave identically to the four in every other respect: a per-cycle Hard
+anchor in Setup, the 100/95/90 day spread, the 85/90/95/100 ladder, 80% volume, 2.5 kg
+rounding (§3). *(They were unanchored free-weight accessories from the cutover until this
+revision — see §2.3.)*
+
+There is no per-lift rounding anymore — every derived load rounds at 2.5 kg (§3).
 
 ### 2.2 Week & session structure
 **Mon / Wed / Fri = lifting days · Tue / Thu / Sat = Giant Run days (§13) · Sun = rest.**
@@ -77,26 +85,41 @@ Warm-Up → Giant Block → Volume Block → Capacity → Carry
 ```
 - **Warm-Up:** fixed activation list — Band pull-aparts ×20 · Face pulls ×15 · Hip
   airplanes ×5/side · Deep squat hold ×30 sec · Thoracic rotations ×5/side — then barbell
-  build-up sets (8-5-3-2 @ ~40/55/70/85% of Giant Block Set 1). **No GOWOD anywhere in
-  GiantFit sessions** (GOWOD flows were Giant-era; legacy sessions still show them).
-- **Giant Block:** 4 rounds — the main lift's ladder plus the day's **paired row** (§2.3).
-  2 min rest between rounds. Adherence is logged once per session via the completion
-  control (§2.10). No core slot, no per-round cardio — conditioning lives in Capacity.
-- **Volume Block:** 2 sets at 80% of the day's top; reps by difficulty (§2.4).
+  build-up sets (8-5-3-2 @ ~40/55/70/85% of Giant Block Set 1). **On row days the row gets
+  its own build-up** by the same rule, off the ROW's Set 1 (2026-07-30). **No GOWOD anywhere
+  in GiantFit sessions** (GOWOD flows were Giant-era; legacy sessions still show them).
+- **Giant Block:** 4 rounds — the main lift's ladder, the day's **anchored row** where it has
+  one, and the day's **bodyweight accessory** (§2.3). 2 min rest between rounds. Adherence is
+  logged once per session via the completion control (§2.10). No core circuit slot, no
+  per-round cardio — conditioning lives in Capacity.
+- **Volume Block:** 2 sets at 80% of the day's top; reps by difficulty (§2.4). On row days
+  the row joins it at 80% of the ROW's day top, same rep scheme.
 - **Capacity:** the timed circuit block (§2.11) — variant A/B, one result per session.
 - **Carry:** loaded carry, ~10 min, accessory/reward effort (§2.9 — RPE ~6, never pushed).
 
-### 2.3 Session pairings (the Giant Block's second movement)
-| Day | Pairing |
-|-----|---------|
-| Deadlift | — (trains alone) |
-| OHP | DB Row |
-| Squat | — (trains alone) |
-| Bench | Pendlay Row |
+### 2.3 Giant Block composition (per day) — *revised 2026-07-30*
+| Day | Giant Block contents |
+|-----|----------------------|
+| Deadlift | Deadlift · Ab Rollout |
+| OHP | OHP · **DB Row** · Toes-to-Bar |
+| Squat | Squat · GHD Abs |
+| Bench | Bench · **Pendlay Row** · GHD Back Extension |
 
-Rows are **unanchored accessories**: the weight is a free per-session entry logged on the
-session (`sessions.pair_weight`) — no ladder, no cascade, no Setup-recorded value.
-(`GIANTFIT_PAIRING` in `engine/constants.ts`.)
+**The rows are anchored lifts** (§2.1, `GIANTFIT_ROW` maps day → row anchor): their four
+rounds climb the same 85/90/95/100 ladder off the row's own day top, at **fixed reps by
+difficulty — Hard 8 · Medium 9 · Light 10** (`GIANTFIT_ROW_REPS`; only the main lift's reps
+descend across the sets). Deadlift and squat train alone.
+
+**The bodyweight accessories** (`GIANTFIT_GB_ACCESSORY`) are rep-only — no load, one per day.
+The movement list is app content; the **rep target is athlete-configurable in Setup**
+(default 10 each, stored in `giant_accessory_config` — the capacity-config pattern, §9).
+It is *prescription config, not a per-session log*: nothing about the accessory is recorded
+per session, exactly like capacity movement reps.
+
+*(Superseded: from the cutover until 2026-07-30 the rows were **unanchored** — a free
+per-session weight entry in `sessions.pair_weight`, no ladder, no Setup value
+(`GIANTFIT_PAIRING`). The column and every logged value are **kept**: pre-revision sessions
+still show what was logged, marked as such, in the session view and copy-summaries.)*
 
 **LEGACY — Giant-era secondary/core circuit (renders pre-cutover History only):**
 DL = Reverse Lunge 8/leg + Ab Rollout · OHP = One-Arm DB Row 10/arm + GHD Abs ·
@@ -118,6 +141,10 @@ per-difficulty percentages 75/82/90, 72/80/88, 70/78/86.)*
 
 Set percentages are of that day's top (Set 4 = 100%). The day tops themselves come from the
 Hard anchor (Medium = 95%, Light = 90% of the Hard top — §3). Round to nearest 2.5 kg.
+
+**The anchored rows use this table's loads and volume, but NOT its Giant Block reps** — a row
+holds one rep count for the whole block (Hard 8 / Medium 9 / Light 10, §2.3). Its Volume is
+the same `2×6 / 2×8 / 2×10 @ 80%` as the main lift, computed off the row's own day top.
 
 ### 2.5 The 13-week macrocycle *(restructured 2026-07-15; supersedes the 15-week shape)*
 - Weeks 1–12: three 4-week mesocycles (C1, C2, C3), H/M/L rotation.
@@ -209,15 +236,20 @@ for a set number of **rounds (3 or 4, default 3, a Setup setting)**, against a *
 stopwatch**; one result per session.
 
 - **Two variants, alternating A/B by scheduled slot index (§2.6) — different circuits,
-  never compared with each other.** 8 ordered movements each:
+  never compared with each other.** 7 ordered movements each *(revised 2026-07-30)*:
   **A:** DB Snatch 4/side (loaded) · Pull-ups 6 · Dips 8 · Reverse Lunges 8/leg (load
-  optional) · GHD 10 · Goblet Curl 10 (loaded) · Single Unders 40 · Box-over Burpees 8.
-  **B:** BB Clean 6 (loaded) · Chin-ups 6 · Push-ups 12 · Walking Lunges 10/leg (load
-  optional) · Toes-to-Bar 8 · BB Curl 10 (loaded) · Double Unders 20 · Bike 30 sec for
-  calories.
+  optional) · Goblet Curl 10 (loaded) · Double Unders 20 · Box-over Burpees 8.
+  **B:** Hang BB Snatch 5 (loaded) · Chin-ups 6 · Push-ups 12 · Walking Lunges 10/leg (load
+  optional) · BB Curl 10 (loaded) · Double Unders 20 · Bike 30 sec for calories.
+  *(Retired 2026-07-30: A's GHD 10 and Single Unders 40 — double unders replaced the
+  singles; B's BB Clean 6 → Hang BB Snatch, and Toes-to-Bar 8 — which now lives on as the
+  OHP day's Giant Block accessory, §2.3.)*
 - **Config:** movement definitions are app content (`engine/capacity.ts`); the athlete's
   rep targets + weights + rounds live in `capacity_config`/`capacity_settings` (Setup),
-  merged over the defaults on read.
+  merged over the defaults on read. **Content evolves freely:** a retired movement is
+  removed from the app list, its stored config rows are simply ignored on read (unknown
+  keys are dropped), and `capacity_logs` never referenced a movement key — so no schema
+  change and no historical result is ever affected.
 - **Logging:** one `capacity_logs` row per session — variant, rounds completed, total time,
   Bike calories (variant B), RPE, notes. Editable/backfillable; the stopwatch is
   timestamp-based (backgrounding never loses time) and only the finished total persists.
@@ -232,7 +264,11 @@ none of them may come back into scheduling, Setup, or new-session logic:
   (bodyweight-cluster vs weighted-ladder; `liftMode` survives only as a legacy render path).
 - **0.5 kg rounding** — every lift rounds derived loads at 2.5 kg.
 - **The clean block** (removed 2026-06-29, pre-GiantFit) and the **secondary/core circuit
-  slots** in the Giant Block (replaced by the paired row; conditioning moved to Capacity).
+  slots** in the Giant Block (replaced by the anchored row + bodyweight accessory, §2.3;
+  conditioning moved to Capacity).
+- **Free per-session row weights** (`sessions.pair_weight`, retired 2026-07-30) — the rows
+  are anchored lifts now; never reintroduce an unanchored weight entry for them. The column
+  and its logged values stay, read-only.
 - **Testing weeks and the testing-day view** — no strength testing in the schedule; the 5k
   TT on the first deload Saturday (§13) is the macro's only test. Legacy weeks=15 macros
   keep rendering their lived testing weeks.
@@ -253,9 +289,11 @@ else computes off it:
 - Derived loads round at the uniform **2.5 kg** (`DEFAULT_INCREMENT` — all GiantFit anchor lifts
   are barbell moves; the Giant-era 0.5 kg dips/pull-up increment is retired). The **anchor itself
   is never rounded** — user input stays exactly as entered.
-- **GiantFit anchors (2026-07-23): DL / OHP / Squat / Bench** (`ANCHOR_LIFTS`). Setup shows and
-  writes only these; legacy `dips`/`pullup` anchor rows still load so old sessions render, but are
-  never written again and are not carried forward by "start next macro".
+- **GiantFit anchors — six (2026-07-30): DL / OHP / Squat / Bench / DB Row / Pendlay Row**
+  (`ANCHOR_LIFTS`). Setup shows and writes exactly these; legacy `dips`/`pullup` anchor rows
+  still load so old sessions render, but are never written again and are not carried forward
+  by "start next macro". The **DB Row anchor is kg per hand** (`ANCHOR_NOTE` carries the hint
+  — display metadata only; the cascade math is identical for every anchor).
 
 **Two-mode dips & pull-ups — LEGACY (retired from Setup + new-session logic 2026-07-23):**
 decided purely by the cycle's anchor (0/empty = bodyweight cluster mode with 10/8/6 targets and
@@ -269,9 +307,11 @@ loads). The anchor is editable any time, up or down; the whole cascade recompute
 everywhere, and **only the anchor is stored** (the computed grid is never persisted, so nothing
 goes stale). Solved relationally — see §9.
 
-- All four lifts (DL/OHP/Squat/Bench) use the **identical** cascade off their Hard anchor.
+- All six anchors (DL/OHP/Squat/Bench + DB Row/Pendlay Row) use the **identical** cascade off
+  their Hard anchor — build-up, Giant Block ladder, and Volume all derive from the movement's
+  OWN anchor, never from the day's main lift.
 - **Carries** (§2.9): per-cycle, a single recorded weight each — not part of the anchor
-  cascade. Paired-row weights are logged per session (§2.3), not recorded in Setup.
+  cascade. The Giant Block's bodyweight accessories carry no load at all (§2.3).
 - **Start-of-macro rule:** a new macro's C1 anchor = the previous macro's C3 anchor;
   "start next macro" carries only the GiantFit anchors and carry items forward.
 
@@ -406,18 +446,19 @@ The full rebuild is shipped and deployed to GitHub Pages
 see `specification.md` for the dated build history and `CONVENTIONS.md` for how it's structured.
 Capabilities, in domain terms:
 
-- **Today** — date-computed position; the full GiantFit session (warm-up, Giant Block +
-  paired row, volume, capacity with its stopwatch, carry) + logging, with an optional
-  session timer.
+- **Today** — date-computed position; the full GiantFit session (warm-up incl. the row's own
+  build-up, Giant Block + anchored row + bodyweight accessory, volume incl. the row, capacity
+  with its stopwatch, carry) + logging, with an optional session timer.
 - **Calendar** — the program-week × Mon/Wed/Fri grid + Tue/Thu/Sat run row (§7);
   log/edit/delete any session; mark breaks. Pre-cutover cells render their lived Giant era.
 - **History** — latest top sets (incl. Bench; dips kept for legacy), recent-session feed,
   legacy pull-up cluster trend, legacy testing results.
 - **Deload** — per-week fatigue signals (lifts + runs + capacity pooled) + reactive-deload
   recommend/apply (§5).
-- **Setup** — per-cycle (C1/C2/C3) Hard-top anchors (DL/OHP/Squat/Bench) + capacity config
-  (§2.11) + per-cycle carries (§2.9), macro anchor, macro picker, and "start next macro"
-  archiving (C3→C1, GiantFit items only).
+- **Setup** — per-cycle (C1/C2/C3) Hard-top anchors for all six lifts (DL/OHP/Squat/Bench +
+  DB Row/Pendlay Row) + Giant Block accessory rep targets (§2.3) + capacity config (§2.11) +
+  per-cycle carries (§2.9), macro anchor, macro picker, and "start next macro" archiving
+  (C3→C1, GiantFit items only).
 - **Per-cycle working weights** — the motivating fix; a session reads its own `(macro, cycle)` grid.
 - **Multi-macro archiving** — roll into a new macro carrying C3 weights forward; prior macros stay viewable.
 - **Trends** — GiantFit-only (no legacy series or views; the DB and History keep everything):
@@ -454,7 +495,12 @@ and adds `sessions.block_completion`; `0008_recovery.sql` adds the Recovery tabl
 `0014_giantfit_phase1.sql` adds `bench` to the `working_weights` lift CHECK and the three
 GiantFit capacity tables below; `0015_giantfit_phase2.sql` adds `bench` to the
 `sessions.day_type` CHECK; `0016_giantfit_phase3.sql` adds `sessions.pair_weight` and
-`carry_bench` to the accessory item CHECK).
+`carry_bench` to the accessory item CHECK; `0017_row_anchors.sql` adds `db_row`/`pendlay_row`
+to the `working_weights` lift CHECK — the rows become anchors, §2.1;
+`0018_giant_accessory_config.sql` adds the `giant_accessory_config` table for the Giant Block
+accessory rep targets, §2.3). **The 2026-07-30 revision needed no other schema change and
+dropped nothing:** `sessions.pair_weight` is kept (pre-revision row weights stay readable),
+and the retired capacity movements needed no migration at all (§2.11).
 See `supabase/MIGRATIONS.md` for how migrations are applied and the DB kept reproducible.
 Tables:
 
@@ -479,7 +525,7 @@ working_weights (
   id            uuid primary key default gen_random_uuid(),
   macro_id      uuid references macros not null,
   cycle         int not null,              -- 1, 2, 3
-  lift          text not null,             -- deadlift | ohp | squat | bench (GiantFit)
+  lift          text not null,             -- deadlift | ohp | squat | bench | db_row | pendlay_row (GiantFit; 0017)
                                            --   | dips | pullup (DEPRECATED Giant-era — read-only legacy)
   hard          numeric,                   -- the Hard top set (anchor); everything cascades off it
   unique (macro_id, cycle, lift)
@@ -530,8 +576,9 @@ sessions (
   vol_done      boolean default true,
   vol_rpe       text,
   vol_speed     text,
-  -- GiantFit paired-row weight (DB Row / Pendlay Row) — free per-session entry,
-  -- unanchored (0016). Null pre-GiantFit / squat days.
+  -- DEPRECATED 2026-07-30 (never dropped): the paired row's free per-session weight
+  -- (0016), from the era when the rows were unanchored. The rows are anchored lifts
+  -- now (§2.3) so nothing writes this again; logged values still render as history.
   pair_weight   numeric,
   -- bodyweight-mode final-round clusters (dips day) e.g. "6+4"
   pullup_cluster text,
@@ -629,10 +676,24 @@ capacity_config (
   id            uuid primary key default gen_random_uuid(),
   user_id       uuid references auth.users not null default auth.uid(),
   variant       text not null,             -- A | B
-  movement_key  text not null,             -- e.g. db_snatch, bb_clean (app-defined)
+  movement_key  text not null,             -- e.g. db_snatch, hang_bb_snatch (app-defined);
+                                           -- rows for retired movements are ignored on read
   rep_target    int,                       -- null = the movement's app default
   weight        numeric,                   -- kg; loaded movements only
   unique (user_id, variant, movement_key)
+)
+
+-- Giant Block bodyweight-accessory rep targets (0018). Same pattern as
+-- capacity_config: the movements + default reps are app content
+-- (GIANTFIT_GB_ACCESSORY), only the athlete's edited target is stored, defaults
+-- are merged on read, and unknown/retired keys are ignored. Prescription config —
+-- NOT a per-session log.
+giant_accessory_config (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid references auth.users not null default auth.uid(),
+  movement_key  text not null,             -- ab_rollout | toes_to_bar | ghd_abs | ghd_back_ext
+  rep_target    int,                       -- null = the movement's app default
+  unique (user_id, movement_key)
 )
 
 -- Shared capacity settings — one row per user
@@ -683,6 +744,20 @@ repeated here. The two load-bearing domain invariants to preserve, wherever the 
 
 ## 11. Decisions log (settled — don't relitigate)
 
+- **GiantFit revision — rows anchored, Giant Block recomposed, capacity trimmed
+  (2026-07-30):** the paired rows became **full anchors** (`db_row` per hand, `pendlay_row`;
+  migration `0017`) rather than free per-session weights — one loading engine, no
+  special-casing, so a row gets its own build-up, its own 85/90/95/100 ladder at fixed reps
+  (H8/M9/L10), and its own 80% Volume line, all off its own per-cycle anchor. The Giant
+  Block's second slot is now **row + one bodyweight accessory per day** (§2.3); the accessory
+  is **prescription config, not a per-session log** — its rep target lives in Setup
+  (`giant_accessory_config`, migration `0018`, default 10) exactly like capacity movement
+  reps, so no session columns were added. Volume keeps ONE completion checkbox + RPE for the
+  whole block (lift and row together), leaving the S2 signal semantics untouched. Capacity
+  dropped to 7 movements per variant (§2.11) with **no migration** — retired movement keys
+  are ignored on read and `capacity_logs` never referenced them. **Nothing was dropped or
+  rewritten:** `pair_weight` and every retired config row remain, and pre-revision sessions
+  render what they logged, marked as such.
 - **GiantFit Phase 5 (2026-07-23):** two-era data stays uncontaminated by construction —
   trend series are drawn only where their era has data (Bench post-cutover, Dips frozen at
   the cutover with no empty tail), capacity charts split by variant (A and B are different
@@ -763,7 +838,8 @@ repeated here. The two load-bearing domain invariants to preserve, wherever the 
 - **Pairings corrected 2026-07-24:** deadlift trains ALONE (it briefly shipped paired with
   a DB Row); the set is DL alone · OHP + DB Row · Squat alone · Bench + Pendlay Row. Any
   pair weights logged on DL days during the brief window stay renderable — History shows
-  what was logged.
+  what was logged. *(Still the day↔row assignment; the rows became anchored on 2026-07-30 —
+  see the top of this log and §2.3.)*
 - Carries are accessory/reward effort, ~RPE 6, never pushed.
 - Reactive deload: advise-and-confirm, never auto-forced; revised signal rule (§5) supersedes the v7 book.
 - Testing weights: recorded, not prescribed.

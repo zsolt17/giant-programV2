@@ -3,11 +3,24 @@
 // and unit-tested. Captures the complete session picture: the Giant Block set
 // ladder comes from the SAME loading-engine computation Today renders (giantSets/
 // volumeWeight), never re-derived. Non-applicable / unlogged lines are omitted.
-import { LIFT_SHORT, SCHEMES, DAY_META, SECONDARY_ITEM, BLOCK_COMPLETION, RUN_TYPE_LABEL, RUN_COMPLETION, GIANTFIT_PAIRING } from './constants'
+import {
+  LIFT_SHORT,
+  SCHEMES,
+  DAY_META,
+  SECONDARY_ITEM,
+  BLOCK_COMPLETION,
+  RUN_TYPE_LABEL,
+  RUN_COMPLETION,
+  GIANTFIT_PAIRING,
+  GIANTFIT_ROW,
+  GIANTFIT_ROW_REPS,
+  GIANTFIT_GB_ACCESSORY,
+  ANCHOR_LABEL,
+} from './constants'
 import { giantSets, volumeWeight, liftMode, fmt } from './loading'
 import { isGiantFitDate } from './date-engine'
 import { derivedPaceS, fmtPace, fmtRunDuration } from './runs'
-import type { Session, Lift, AccessoryByCycle, WeightsByCycle, TestingResult, Run, CapacityLog } from './types'
+import type { Session, Lift, AccessoryByCycle, WeightsByCycle, TestingResult, Run, CapacityLog, GiantAccessoryReps } from './types'
 import type { DayMeta } from './types'
 
 // 'up' -> ↑, 'down' -> ↓, 'normal' -> →; blank -> '' (no stray arrow when unlogged).
@@ -69,7 +82,8 @@ export function sessionSummary(
   accessory?: AccessoryByCycle,
   weights?: WeightsByCycle,
   deloadWeek?: boolean,
-  capacityLog?: CapacityLog | null
+  capacityLog?: CapacityLog | null,
+  giantAccessory?: GiantAccessoryReps
 ): string {
   // Legacy/hypothetical weekType 'deload' rows (W15): minimal format — the app
   // never writes these today, but the schema allows them.
@@ -119,13 +133,30 @@ export function sessionSummary(
   // alone). Legacy: the weighted secondary with its recorded per-cycle weight;
   // dips day is bodyweight pull-ups — the cluster line below covers it.
   if (giantfit) {
-    const pairing = s.dayType ? GIANTFIT_PAIRING[s.dayType] : null
-    if (pairing) {
-      lines.push(`  Pair: ${pairing}${s.pairWeight != null ? ` ${kg(s.pairWeight)}kg` : ''}`)
-    } else if (s.pairWeight != null) {
-      // History renders what was logged: a pair weight recorded while the day
-      // briefly carried a DB Row pairing (pre-2026-07-24 correction) stays.
-      lines.push(`  Pair: DB Row ${kg(s.pairWeight)}kg`)
+    // The row is an ANCHORED lift (2026-07-30 revision): its ladder computes off
+    // its own per-cycle anchor at fixed reps. Falls back to the name alone when
+    // the anchor isn't set for that cycle.
+    const rowKey = s.dayType ? GIANTFIT_ROW[s.dayType] : undefined
+    const rowTop = rowKey && s.cycle != null && s.difficulty ? weights?.[s.cycle]?.[rowKey]?.[s.difficulty] ?? null : null
+    if (rowKey) {
+      const reps = s.difficulty ? GIANTFIT_ROW_REPS[s.difficulty] : null
+      const ladder =
+        rowTop != null && s.difficulty
+          ? giantSets(rowTop, s.difficulty)
+              .map((g) => `${reps}@${kg(g.weight)}`)
+              .join(' · ')
+          : reps != null
+            ? `${reps} reps/round`
+            : ''
+      lines.push(`  ${ANCHOR_LABEL[rowKey]}: ${ladder}`)
+    }
+    // The day's bodyweight accessory (rep-only; Setup target over the default).
+    const gbAcc = s.dayType ? GIANTFIT_GB_ACCESSORY[s.dayType] : undefined
+    if (gbAcc) lines.push(`  ${gbAcc.name}: ${giantAccessory?.[gbAcc.key] ?? gbAcc.reps} reps (BW)`)
+    // A pre-revision session's free-entry row weight is still what was logged.
+    if (s.pairWeight != null) {
+      const pairing = s.dayType ? GIANTFIT_PAIRING[s.dayType] : null
+      lines.push(`  Pair (logged): ${pairing ?? 'DB Row'} ${kg(s.pairWeight)}kg`)
     }
   } else if (meta && s.dayType) {
     const reps = SECONDARY_REPS[meta.secondaryType]
@@ -160,6 +191,12 @@ export function sessionSummary(
         ? `Push-ups 2×${scheme.vol} (BW)`
         : `2×${scheme.vol}${s.topWeight != null ? ` @ ${kg(volumeWeight(s.topWeight))}` : ''}`
     lines.push(`Volume Block: ${seg(rx, rpeStr(s.volRpe), arrow(s.volSpeed), s.volDone === false ? 'incomplete' : '')}`)
+    // GiantFit: the anchored row shares the Volume block (80% of ITS day top).
+    const volRowKey = giantfit && s.dayType ? GIANTFIT_ROW[s.dayType] : undefined
+    const volRowTop = volRowKey && s.cycle != null ? weights?.[s.cycle]?.[volRowKey]?.[s.difficulty] ?? null : null
+    if (volRowKey) {
+      lines.push(`  ${ANCHOR_LABEL[volRowKey]}: 2×${scheme.vol}${volRowTop != null ? ` @ ${kg(volumeWeight(volRowTop))}` : ''}`)
+    }
   }
 
   // ---- Capacity (GiantFit) ----------------------------------------------------

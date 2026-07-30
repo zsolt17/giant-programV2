@@ -7,7 +7,7 @@ import { todayISO } from '../engine/date-engine'
 import { daysSinceStart } from '../engine/recovery'
 import { weekKeyFor } from '../engine/deload-rule'
 import { LIFT_SHORT, RUN_TYPE_LABEL } from '../engine/constants'
-import type { Session, Macro, Lift, AccessoryByCycle, WeightsByCycle, TestingResult, DeloadMap, Run, CapacityLog } from '../engine/types'
+import type { Session, Macro, Lift, AccessoryByCycle, WeightsByCycle, TestingResult, DeloadMap, Run, CapacityLog, GiantAccessoryReps } from '../engine/types'
 
 const btn = (disabled = false) => ({
   background: disabled ? 'rgba(201,168,76,0.3)' : C.gold,
@@ -91,9 +91,11 @@ interface DataProps {
   deloads?: DeloadMap
   runs?: Run[]
   capacityLogs?: CapacityLog[]
+  // Giant Block accessory rep targets (user-scoped) — the summary's accessory line.
+  giantAccessory?: GiantAccessoryReps
 }
 
-export function Data({ sessions, macros, accessory = {}, weights = {}, testing = [], deloads = {}, runs = [], capacityLogs = [] }: DataProps) {
+export function Data({ sessions, macros, accessory = {}, weights = {}, testing = [], deloads = {}, runs = [], capacityLogs = [], giantAccessory }: DataProps) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [copyErr, setCopyErr] = useState('')
@@ -147,7 +149,7 @@ export function Data({ sessions, macros, accessory = {}, weights = {}, testing =
     if (e.kind === 'test') return testSummary(e.r, numberById.get(e.r.macroId) ?? 0, e.week, weights[e.r.macroId])
     if (e.kind === 'run') return runSummary(e.run, numberById.get(e.run.macroId) ?? 0)
     const capLog = capacityLogs.find((l) => l.sessionId === e.s.id) ?? null
-    return sessionSummary(e.s, numberById.get(e.s.macroId) ?? 0, accessory[e.s.macroId], weights[e.s.macroId], e.isDeload, capLog)
+    return sessionSummary(e.s, numberById.get(e.s.macroId) ?? 0, accessory[e.s.macroId], weights[e.s.macroId], e.isDeload, capLog, giantAccessory)
   }
 
   async function onCopy() {

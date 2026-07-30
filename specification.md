@@ -51,10 +51,12 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
   each macro opens on a **Medium deadlift** (C1W1D1 override), capacity variant A/B alternates by
   scheduled strength slot, and off-days are plain rest (no skill days). Pre-cutover days render
   the legacy Giant rules unchanged.
-- **GiantFit sessions (post-cutover)** — Warm-Up → Giant Block (ladder + paired row with free
-  per-session weight entry; squat alone) → Volume → **Capacity** (variant A/B prescription,
-  count-up stopwatch, one `capacity_logs` result per session — rounds/time/Bike cals/RPE/notes,
-  backfillable) → Carry (Farmers/Overhead/Bearhug/Suitcase by day, per-cycle weights in Setup).
+- **GiantFit sessions (post-cutover)** — Warm-Up (activation + barbell build-up, plus the row's
+  own build-up on row days) → Giant Block (the lift's ladder + the day's **anchored row** at
+  fixed reps H8/M9/L10 + a bodyweight accessory; DL and squat train alone) → Volume (lift **and**
+  row at 80%) → **Capacity** (variant A/B prescription, count-up stopwatch, one `capacity_logs`
+  result per session — rounds/time/Bike cals/RPE/notes, backfillable) → Carry
+  (Farmers/Overhead/Bearhug/Suitcase by day, per-cycle weights in Setup).
 - **Today** — date-computed position; full session prescription (warm-up,
   Giant Block, volume, carry) and logging. **Optional session
   timer:** Start → live timer → End, duration derived from `started_at`/`ended_at`,
@@ -66,12 +68,14 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
   pooled lift + run + capacity signals — S6 "Capacity time ↑" watches per-round time vs the
   rolling same-variant average; the recommendation card lists every fired signal incl. S6's
   offending dates).
-- **Setup** — per-cycle (C1/C2/C3) **Hard-top anchor** per GiantFit lift (DL/OHP/Squat/**Bench**;
-  Medium/Light, the Giant Block ladder and Volume all compute live, with a read-only preview) +
-  the **Capacity** section (variants A/B, editable rep targets + weights, rounds 3/4) + recorded
-  accessories (RDL/row, auto-seeded) & carries, macro anchor, macro picker, and "start next macro"
-  archiving (carries C3→C1, GiantFit anchors only).
-- **Data** — export all data as four CSVs (sessions incl. pair_weight + deload_week columns,
+- **Setup** — per-cycle (C1/C2/C3) **Hard-top anchor** per GiantFit lift — six of them:
+  DL/OHP/Squat/**Bench** + **DB Row** (per hand) / **Pendlay Row** (Medium/Light, the build-up,
+  Giant Block ladder and Volume all compute live off each anchor, with a read-only preview) +
+  **Giant Block Accessories** (rep target per day's bodyweight movement) + the **Capacity**
+  section (variants A/B, editable rep targets + weights, rounds 3/4) + carries, macro anchor,
+  macro picker, and "start next macro" archiving (carries C3→C1, GiantFit anchors only).
+- **Data** — export all data as four CSVs (sessions incl. the deprecated-but-kept pair_weight +
+  deload_week columns,
   capacity results incl. derived per_round_s, runs, legacy testing results — a union of both
   program eras, old rows never rewritten), and copy a plain-text summary of **any** logged
   session — GiantFit summaries carry the pairing weight + a capacity line — to the clipboard
@@ -107,6 +111,27 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ---
 
 ## Change log
+
+## 2026-07-30 (docs + summaries)
+- `feat(data)` + `docs`: **GiantFit revision — Phase 6 (copy-summaries, migration audit, docs).**
+  **Copy-summaries** now match the revised session: the Giant Block prints the **anchored row's
+  computed ladder** off its own per-cycle anchor at fixed reps (`Pendlay Row: 8@50 · 8@55 ·
+  8@57.5 · 8@60`, degrading to `9 reps/round` when that cycle's anchor is unset) plus the day's
+  **bodyweight accessory** (`GHD Abs: 10 reps (BW)`, honouring the Setup target), and the Volume
+  block prints the row's own 80% line; a pre-revision free row weight still renders, now marked
+  `Pair (logged): …`. `sessionSummary` takes `giantAccessory` as a new optional trailing param
+  (additive signature); **legacy pre-cutover summaries are byte-identical** (asserted).
+  **Migration audit** (no new migration needed): `0017` + `0018` applied on both sides; the
+  revision added **no** session columns and dropped nothing — `sessions.pair_weight` is retained
+  and marked deprecated in the schema, retired `capacity_config` rows are ignored on read, and
+  `capacity_logs` never referenced a movement key; `rollToNextMacro` carries the two new anchors
+  forward automatically (it iterates `ANCHOR_LIFTS`). **Docs:** `ARCHITECTURE.md` §2.1 (six-anchor
+  model incl. the per-hand DB Row), **§2.3 rewritten** as the Giant Block composition table (rows
+  + accessories, with the superseded free-weight era recorded), §2.2/§2.4 (row build-up, row reps
+  vs the descending table), §2.11 (7-movement variants + the content-evolution rule), §2.12, §3,
+  §8, §9 (both new migrations, the `giant_accessory_config` DDL, deprecated `pair_weight`) and a
+  new decisions-log entry; `CONVENTIONS.md` §1 constants inventory, §7 loading/capacity rules and
+  the REMOVED list. typecheck + **153 tests** + build green; **smoke 89/89**.
 
 ## 2026-07-30 (late night)
 - `feat(capacity)`: **GiantFit revision — Phase 5 (capacity variant edits).** Both circuits

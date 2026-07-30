@@ -226,22 +226,41 @@ test('runSummary: Bulletproof line when done, no residue when not', () => {
 
 // ---- GiantFit era (post-cutover dates) --------------------------------------
 
-test('GiantFit session: pairing line with logged weight replaces the legacy secondary; capacity line appended', () => {
+test('GiantFit session: anchored row ladder + bodyweight accessory replace the legacy secondary; capacity line appended', () => {
   const s = base({ id: '2026-08-03-bench-H', date: '2026-08-03', cycle: 1, week: 2, dayType: 'bench', topWeight: 100, topReps: 2, pairWeight: 42.5, cardioCals: [null, null, null, null] })
   const cap = { sessionId: s.id, variant: 'B', roundsCompleted: 3, totalTimeSeconds: 702, calories: 27, rpe: 'R7', notes: '' }
-  const out = sessionSummary(s, 3, ACC, undefined, false, cap)
+  // The row's ladder computes off ITS OWN per-cycle anchor (2026-07-30 revision).
+  const W = { 1: { pendlay_row: { hard: 60, medium: 57.5, light: 55 } } }
+  const out = sessionSummary(s, 3, ACC, W, false, cap)
   assert.match(out, /Bench Hard — 03.08.2026/)
-  assert.match(out, /\n {2}Pair: Pendlay Row 42.5kg\n/)
+  // Fixed reps (hard = 8) at the row's own 85/90/95/100 ladder off a 60 kg anchor.
+  assert.match(out, /\n {2}Pendlay Row: 8@50 · 8@55 · 8@57.5 · 8@60\n/)
+  assert.match(out, /\n {2}GHD Back Extension: 10 reps \(BW\)\n/)
+  assert.match(out, /\n {2}Pendlay Row: 2×6 @ 47.5\n/) // Volume: 80% of the row's day top
   assert.match(out, /\nCapacity B — 3 rds, 11:42, 27 cal, R7\n/)
   assert.doesNotMatch(out, /Secondary:/) // legacy line never renders post-cutover
   assert.doesNotMatch(out, /Cardio:/) // no per-round cardio in GiantFit
 })
 
-test('GiantFit squat trains alone: no pairing line; capacity segments drop when unlogged', () => {
+test('GiantFit row line degrades to reps-only when that cycle has no row anchor', () => {
+  const s = base({ id: '2026-07-29-ohp-M', date: '2026-07-29', cycle: 1, week: 1, dayType: 'ohp', difficulty: 'medium', cardioCals: [null, null, null, null] })
+  const out = sessionSummary(s, 3, ACC)
+  assert.match(out, /\n {2}DB Row: 9 reps\/round\n/) // medium = 9 reps, no loads
+  assert.match(out, /\n {2}Toes-to-Bar: 10 reps \(BW\)\n/)
+})
+
+test('GiantFit accessory line honours the Setup rep target over the default', () => {
+  const s = base({ id: '2026-07-31-squat-L', date: '2026-07-31', cycle: 1, week: 1, dayType: 'squat', difficulty: 'light' })
+  const out = sessionSummary(s, 3, ACC, undefined, false, null, { ghd_abs: 15 })
+  assert.match(out, /\n {2}GHD Abs: 15 reps \(BW\)\n/)
+})
+
+test('GiantFit squat trains alone: no row line; capacity segments drop when unlogged', () => {
   const s = base({ id: '2026-07-31-squat-L', date: '2026-07-31', cycle: 1, week: 1, dayType: 'squat', difficulty: 'light' })
   const cap = { sessionId: s.id, variant: 'A', roundsCompleted: 3, totalTimeSeconds: 612, calories: null, rpe: '', notes: '' }
   const out = sessionSummary(s, 3, ACC, undefined, false, cap)
-  assert.doesNotMatch(out, /Pair:/)
+  assert.doesNotMatch(out, /Row/) // squat and DL train alone — no row anywhere
+  assert.match(out, /\n {2}GHD Abs: 10 reps \(BW\)\n/) // but it does carry its accessory
   assert.match(out, /\nCapacity A — 3 rds, 10:12\n/) // no cal, no RPE — dropped, not faked
 })
 
@@ -251,12 +270,13 @@ test('legacy sessions are untouched by the capacity param (no capacity line with
   assert.match(out, /Secondary:/) // pre-cutover keeps the Giant format
 })
 
-test('pairing correction (2026-07-24): DL trains alone — no Pair line unless one was logged', () => {
+test('DL trains alone — no row line; a PRE-REVISION logged pair weight still renders', () => {
   const dl = base({ id: '2026-07-27-deadlift-M', date: '2026-07-27', cycle: 1, week: 1, dayType: 'deadlift', difficulty: 'medium', cardioCals: [null, null, null, null] })
-  assert.doesNotMatch(sessionSummary(dl, 3, ACC), /Pair:/)
-  // A row weight logged during the brief DL+DB-Row window still renders.
-  assert.match(sessionSummary({ ...dl, pairWeight: 24 }, 3, ACC), /\n {2}Pair: DB Row 24kg\n/)
-  // OHP keeps its DB Row pairing.
+  assert.doesNotMatch(sessionSummary(dl, 3, ACC), /Pair/)
+  assert.doesNotMatch(sessionSummary(dl, 3, ACC), /DB Row/)
+  // Free-entry weights logged before the rows became anchored are still what was
+  // logged — history renders it, marked as such (no data rewrite, ever).
+  assert.match(sessionSummary({ ...dl, pairWeight: 24 }, 3, ACC), /\n {2}Pair \(logged\): DB Row 24kg\n/)
   const ohp = base({ id: '2026-07-29-ohp-M', date: '2026-07-29', cycle: 1, week: 1, dayType: 'ohp', difficulty: 'medium', pairWeight: 22.5, cardioCals: [null, null, null, null] })
-  assert.match(sessionSummary(ohp, 3, ACC), /\n {2}Pair: DB Row 22.5kg\n/)
+  assert.match(sessionSummary(ohp, 3, ACC), /\n {2}Pair \(logged\): DB Row 22.5kg\n/)
 })

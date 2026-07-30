@@ -616,7 +616,7 @@ export function App() {
         (dataErr ? (
           <Card style={{ textAlign: 'center', color: C.red }}>Couldn't load data — {dataErr}.</Card>
         ) : allSessions ? (
-          <Data sessions={allSessions} macros={macros} accessory={allAccessory} weights={allWeights} testing={allTesting} deloads={allDeloads} runs={allRuns} capacityLogs={allCapacityLogs} />
+          <Data sessions={allSessions} macros={macros} accessory={allAccessory} weights={allWeights} testing={allTesting} deloads={allDeloads} runs={allRuns} capacityLogs={allCapacityLogs} giantAccessory={giantAccessory} />
         ) : (
           <Center>
             <Spinner /> Loading data…
