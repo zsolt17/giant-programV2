@@ -297,7 +297,7 @@ export async function getCapacityConfig(): Promise<CapacityConfig> {
   return M.rowsToCapacityConfig(cfg.data || [], settings.data?.rounds)
 }
 
-// byMovement = { db_snatch: {reps: 8, weight: 17.5}, ... } for one variant.
+// byMovement = { db_snatch: {reps: 4, weight: 17.5}, ... } for one variant.
 export async function saveCapacityConfig(
   variant: CapacityVariant,
   byMovement: Record<string, { reps: number | string | null; weight: number | string | null }>

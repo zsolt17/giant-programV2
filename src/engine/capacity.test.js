@@ -9,17 +9,18 @@ import {
   mergeCapacityConfig,
 } from './capacity'
 
-test('both variants define exactly 8 ordered movements', () => {
+test('both variants define exactly 7 ordered movements', () => {
   for (const v of CAPACITY_VARIANTS) {
-    assert.equal(CAPACITY_MOVEMENTS[v].length, 8)
+    assert.equal(CAPACITY_MOVEMENTS[v].length, 7)
     // keys are unique within a variant (they're the persistence key)
     const keys = CAPACITY_MOVEMENTS[v].map((m) => m.key)
-    assert.equal(new Set(keys).size, 8)
+    assert.equal(new Set(keys).size, 7)
   }
 })
 
-test('spec defaults: loaded flags and rep targets', () => {
-  // Variant A: DB Snatch 4/side (loaded), Pull-ups 6, Single Unders 40
+test('spec defaults: loaded flags and rep targets (2026-07-30 revision)', () => {
+  // Variant A: DB Snatch 4/side (loaded), Pull-ups 6, Double Unders 20.
+  // GHD and Single Unders retired — double unders replace the singles.
   assert.deepEqual(
     CAPACITY_MOVEMENTS.A.map((m) => [m.key, m.reps, !!m.loaded]),
     [
@@ -27,26 +28,32 @@ test('spec defaults: loaded flags and rep targets', () => {
       ['pullups', 6, false],
       ['dips', 8, false],
       ['reverse_lunges', 8, true],
-      ['ghd', 10, false],
       ['goblet_curl', 10, true],
-      ['single_unders', 40, false],
+      ['double_unders', 20, false],
       ['box_over_burpees', 8, false],
     ]
   )
-  // Variant B: BB Clean 6 (loaded), Double Unders 20, Bike 30 sec for calories
+  // Variant B: Hang BB Snatch 5 (loaded — replaces the BB Clean), Double Unders
+  // 20, Bike 30 sec for calories. Toes-to-Bar retired (it lives on as the OHP
+  // day's Giant Block accessory, a different table).
   assert.deepEqual(
     CAPACITY_MOVEMENTS.B.map((m) => [m.key, m.reps, !!m.loaded]),
     [
-      ['bb_clean', 6, true],
+      ['hang_bb_snatch', 5, true],
       ['chinups', 6, false],
       ['pushups', 12, false],
       ['walking_lunges', 10, true],
-      ['toes_to_bar', 8, false],
       ['bb_curl', 10, true],
       ['double_unders', 20, false],
       ['bike', 30, false],
     ]
   )
+  // Retired keys are gone from the content (stored rows for them are ignored on read).
+  for (const v of CAPACITY_VARIANTS) {
+    for (const dead of ['ghd', 'single_unders', 'bb_clean', 'toes_to_bar']) {
+      assert.equal(movementDef(v, dead), undefined, `${dead} should be retired from variant ${v}`)
+    }
+  }
   // The Bike is the calories movement; lunges are load-optional in both variants
   assert.equal(movementDef('B', 'bike')?.calories, true)
   // Per-limb rep semantics: the rep value IS per side/leg (no totals, no hardcoded hints)
@@ -64,8 +71,8 @@ test('defaultCapacityConfig: every movement present, default reps, no weights, 3
   assert.equal(cfg.movements.A.db_snatch.reps, 4)
   assert.equal(cfg.movements.A.db_snatch.weight, null)
   assert.equal(cfg.movements.B.bike.reps, 30)
-  assert.equal(Object.keys(cfg.movements.A).length, 8)
-  assert.equal(Object.keys(cfg.movements.B).length, 8)
+  assert.equal(Object.keys(cfg.movements.A).length, 7)
+  assert.equal(Object.keys(cfg.movements.B).length, 7)
 })
 
 test('mergeCapacityConfig: stored values override defaults; nulls fall back; unknown keys ignored', () => {
@@ -75,6 +82,9 @@ test('mergeCapacityConfig: stored values override defaults; nulls fall back; unk
         db_snatch: { reps: 10, weight: 17.5 },
         pullups: { reps: null, weight: null }, // null reps -> default 6
         retired_movement: { reps: 99, weight: 99 }, // unknown -> ignored
+        // A RETIRED movement's stored row (still in the DB) must be ignored too —
+        // this is what keeps a content change from resurrecting old prescriptions.
+        single_unders: { reps: 40, weight: null },
       },
     },
     4
@@ -83,8 +93,9 @@ test('mergeCapacityConfig: stored values override defaults; nulls fall back; unk
   assert.deepEqual(cfg.movements.A.db_snatch, { reps: 10, weight: 17.5 })
   assert.equal(cfg.movements.A.pullups.reps, 6)
   assert.equal(cfg.movements.A.retired_movement, undefined)
+  assert.equal(cfg.movements.A.single_unders, undefined)
   // untouched variant keeps pure defaults
-  assert.equal(cfg.movements.B.bb_clean.reps, 6)
+  assert.equal(cfg.movements.B.hang_bb_snatch.reps, 5)
 })
 
 test('mergeCapacityConfig: invalid rounds falls back to default 3', () => {

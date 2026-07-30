@@ -1,9 +1,13 @@
 // GiantFit capacity block — static content + config helpers.
-// Two fixed circuit variants (A/B), 8 movements each, performed for 3 or 4
+// Two fixed circuit variants (A/B), 7 movements each, performed for 3 or 4
 // rounds. The definitions here (names, order, which movements are loaded,
 // default rep targets) are app content and never persisted; the user's editable
 // numbers (rep target, weight, rounds) live in capacity_config /
 // capacity_settings and are merged over these defaults on read.
+// Content evolves: a retired movement is simply removed from the list below —
+// its stored capacity_config rows stay in the DB and are IGNORED on read
+// (mergeCapacityConfig drops unknown keys), and capacity_logs never reference a
+// movement key at all, so every historical result keeps rendering unchanged.
 import type { CapacityVariant, CapacityConfig, CapacityMovementConfig, CapacityMovementsConfig, CapacityLog, Session } from './types'
 
 export interface CapacityMovementDef {
@@ -28,17 +32,15 @@ export const CAPACITY_MOVEMENTS: Record<CapacityVariant, CapacityMovementDef[]> 
     { key: 'pullups', name: 'Pull-ups', reps: 6 },
     { key: 'dips', name: 'Dips', reps: 8 },
     { key: 'reverse_lunges', name: 'Reverse Lunges', reps: 8, repUnit: '/leg', loaded: true, loadOptional: true },
-    { key: 'ghd', name: 'GHD', reps: 10 },
     { key: 'goblet_curl', name: 'Goblet Curl', reps: 10, loaded: true },
-    { key: 'single_unders', name: 'Single Unders', reps: 40 },
+    { key: 'double_unders', name: 'Double Unders', reps: 20 },
     { key: 'box_over_burpees', name: 'Box-over Burpees', reps: 8 },
   ],
   B: [
-    { key: 'bb_clean', name: 'BB Clean', reps: 6, loaded: true },
+    { key: 'hang_bb_snatch', name: 'Hang BB Snatch', reps: 5, loaded: true },
     { key: 'chinups', name: 'Chin-ups', reps: 6 },
     { key: 'pushups', name: 'Push-ups', reps: 12 },
     { key: 'walking_lunges', name: 'Walking Lunges', reps: 10, repUnit: '/leg', loaded: true, loadOptional: true },
-    { key: 'toes_to_bar', name: 'Toes-to-Bar', reps: 8 },
     { key: 'bb_curl', name: 'BB Curl', reps: 10, loaded: true },
     { key: 'double_unders', name: 'Double Unders', reps: 20 },
     { key: 'bike', name: 'Bike', reps: 30, repUnit: 'sec', note: 'for calories', calories: true },

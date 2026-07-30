@@ -108,6 +108,21 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-07-30 (late night)
+- `feat(capacity)`: **GiantFit revision — Phase 5 (capacity variant edits).** Both circuits
+  are now **7 movements**. **Variant A:** GHD 10 removed; Single Unders 40 → **Double Unders
+  20** (new `double_unders` key — same movement/count as variant B's). **Variant B:** BB
+  Clean 6 → **Hang BB Snatch 5** (loaded, new `hang_bb_snatch` key); Toes-to-Bar 8 removed
+  (it lives on as the OHP day's Giant Block accessory — a different table, no collision).
+  Everything else is unchanged: timer-only logging, no time cap, A/B alternation by
+  scheduled slot, absent on deload weeks, reps/weights user-configurable in Setup, Bike
+  still the variant-B calories movement. **No schema change and no data loss:** stored
+  `capacity_config` rows for retired movements stay in the DB and are ignored on read
+  (`mergeCapacityConfig` drops unknown keys — now covered by a test + a smoke assert), and
+  `capacity_logs` never referenced a movement key, so every historical result, the S6
+  signal series, the Trends capacity view and the capacity CSV render exactly as before.
+  typecheck + **151 tests** + build green; **smoke 89/89**.
+
 ## 2026-07-30 (night)
 - `feat(giantfit)`: **GiantFit revision — Phase 4 (rows join the Volume Block).** OHP-day
   Volume now lists **DB Row** and bench-day Volume **Pendlay Row** beneath the main lift,

@@ -159,8 +159,13 @@ async function main() {
     // Config is USER-scoped (not throwaway-macro-scoped), so smoke only READS it —
     // never mutate the real config. The read also proves 0014's tables are live.
     const capCfg = await repo.getCapacityConfig()
-    ok('capacity config loads with defaults merged (A/B × 8 movements)',
-      Object.keys(capCfg.movements.A).length === 8 && Object.keys(capCfg.movements.B).length === 8, capCfg.movements)
+    ok('capacity config loads with defaults merged (A/B × 7 movements)',
+      Object.keys(capCfg.movements.A).length === 7 && Object.keys(capCfg.movements.B).length === 7, capCfg.movements)
+    // Retired movements (ghd / single_unders / bb_clean / toes_to_bar) may still have
+    // stored rows — they must never come back through the merge.
+    ok('retired capacity movements stay out of the merged config',
+      ['ghd', 'single_unders', 'bb_clean', 'toes_to_bar'].every((k) => capCfg.movements.A[k] === undefined && capCfg.movements.B[k] === undefined),
+      capCfg.movements)
     ok('capacity rounds is 3 or 4', capCfg.rounds === 3 || capCfg.rounds === 4, capCfg.rounds)
 
     // Giant Block accessory config (0018) — USER-scoped like capacity config, so
