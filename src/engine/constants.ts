@@ -72,15 +72,22 @@ export const VOLUME_PCT = 0.8
 export const DEFAULT_INCREMENT = 2.5
 
 // GiantFit anchor lifts — the per-cycle Hard-top anchors Setup shows and writes,
-// and the set rollToNextMacro carries forward. Legacy 'dips'/'pullup' anchor rows
-// still LOAD (old sessions render off them) but are never written again.
-export const ANCHOR_LIFTS: AnchorLift[] = ['deadlift', 'ohp', 'squat', 'bench']
+// and the set rollToNextMacro carries forward. The rows (2026-07-30 revision) are
+// full anchors with the identical cascade: DB Row on OHP day (anchor = kg PER
+// HAND), Pendlay Row on bench day. Legacy 'dips'/'pullup' anchor rows still LOAD
+// (old sessions render off them) but are never written again.
+export const ANCHOR_LIFTS: AnchorLift[] = ['deadlift', 'ohp', 'squat', 'bench', 'db_row', 'pendlay_row']
 export const ANCHOR_LABEL: Record<string, string> = {
   deadlift: 'Deadlift',
   ohp: 'Overhead Press',
   squat: 'Back Squat',
   bench: 'Bench Press',
+  db_row: 'DB Row',
+  pendlay_row: 'Pendlay Row',
 }
+// Optional per-anchor entry hint shown next to the Setup label (data-driven —
+// no per-lift branching in the UI).
+export const ANCHOR_NOTE: Partial<Record<AnchorLift, string>> = { db_row: 'per hand' }
 
 // Barbell build-up sets: 8-5-3-2 reps at ~40/55/70/85% of Giant Block Set 1.
 export const WU_PCT: number[] = [0.4, 0.55, 0.7, 0.85]

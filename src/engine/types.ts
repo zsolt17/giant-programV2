@@ -6,10 +6,12 @@ export type Difficulty = 'hard' | 'medium' | 'light'
 // the DEPRECATED Giant-era day lift — kept so pre-cutover history renders.
 export type Lift = 'deadlift' | 'ohp' | 'squat' | 'bench' | 'dips'
 // Lifts that can hold a per-cycle Hard-top anchor in working_weights. GiantFit
-// anchors are DL/OHP/Squat/Bench (ANCHOR_LIFTS in constants.ts); 'dips' and
-// 'pullup' are DEPRECATED Giant-era anchors — stored rows keep loading so old
-// sessions render, but Setup no longer shows or writes them.
-export type AnchorLift = Lift | 'pullup'
+// anchors are DL/OHP/Squat/Bench plus the two anchored rows — DB Row (OHP day,
+// per-hand load) and Pendlay Row (bench day) — see ANCHOR_LIFTS in constants.ts.
+// The rows are anchors, not day lifts: they never appear in the rotation.
+// 'dips' and 'pullup' are DEPRECATED Giant-era anchors — stored rows keep
+// loading so old sessions render, but Setup no longer shows or writes them.
+export type AnchorLift = Lift | 'pullup' | 'db_row' | 'pendlay_row'
 export type WeekType = 'training' | 'testing' | 'deload'
 export type TestRole = 'test' | 'light'
 

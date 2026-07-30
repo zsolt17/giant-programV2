@@ -108,6 +108,20 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-07-30
+- `feat(giantfit)`: **GiantFit revision — Phase 1 (rows become anchored lifts).** DB Row
+  (OHP day, anchor entered as kg **per hand**) and Pendlay Row (bench day) join the anchor
+  set: `ANCHOR_LIFTS` is now six (`db_row`, `pendlay_row` added), each with the identical
+  single-anchor cascade — per-cycle Hard-top entry in Setup (C1/C2/C3), 100/95/90 day
+  spread, 85/90/95/100 ladder, 80% volume, uniform 2.5 kg rounding — no special-casing
+  anywhere (Setup grid/preview, mappers, `rollToNextMacro` are all generic over
+  `ANCHOR_LIFTS`). New data-driven `ANCHOR_NOTE` shows "per hand" on the DB Row Setup
+  label. Migration `0017_row_anchors.sql` (applied) widens the `working_weights`
+  lift CHECK with the two row values; legacy `dips`/`pullup` stay valid. Later phases:
+  build-up (2), Giant Block composition + configurable bodyweight accessories (3), Volume
+  rows (4), Capacity edits (5), docs (6). typecheck + **147 tests** + build green;
+  **smoke 87/87** incl. row-anchor round-trips against the applied CHECK.
+
 ## 2026-07-24 (capacity rep semantics)
 - `feat(capacity)`: **DB Snatch reps are now per-side, consistent with the lunges' per-leg
   pattern.** The Setup rep value for DB Snatch (variant A) is reps PER SIDE — `repUnit: '/side'`

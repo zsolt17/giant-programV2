@@ -86,6 +86,15 @@ async function main() {
     ok('C1 bench anchor = 100 (0014 CHECK accepts bench)', w?.[1]?.bench?.hard === 100, w?.[1]?.bench)
     ok('bench medium computed at 2.5 kg = 95', w?.[1]?.bench?.medium === 95, w?.[1]?.bench?.medium)
 
+    // Row anchors (0017, GiantFit revision): DB Row (per-hand) + Pendlay Row
+    // store/cascade like any anchor.
+    await repo.saveWorkingWeights(id, 1, { db_row: { hard: 30 }, pendlay_row: { hard: 60 } })
+    w = await repo.getWorkingWeights(id)
+    ok('C1 db_row anchor = 30 (0017 CHECK accepts db_row)', w?.[1]?.db_row?.hard === 30, w?.[1]?.db_row)
+    ok('db_row medium computed at 2.5 kg = 27.5 (round 30×0.95)', w?.[1]?.db_row?.medium === 27.5, w?.[1]?.db_row?.medium)
+    ok('C1 pendlay_row anchor = 60 (0017 CHECK accepts pendlay_row)', w?.[1]?.pendlay_row?.hard === 60, w?.[1]?.pendlay_row)
+    ok('pendlay_row light computed = 55 (round 60×0.90)', w?.[1]?.pendlay_row?.light === 55, w?.[1]?.pendlay_row?.light)
+
     // LEGACY anchors (dips/pullup) still store/load so old macros' history renders;
     // rounding is now uniform 2.5 kg (0.5 retired) and the anchor itself stays exact.
     await repo.saveWorkingWeights(id, 1, { pullup: { hard: 10 }, dips: { hard: 1 } })

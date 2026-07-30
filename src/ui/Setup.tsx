@@ -4,14 +4,15 @@ import { C, cardStyle, inp, lbl, pillColor } from './theme'
 import { Card, BlockTitle } from './components'
 import * as repo from '../data/repository'
 import { computePosition, totalWeeksOf, parseLocalDate, mondayOf, isoLocal } from '../engine/date-engine'
-import { SET_LADDER, VOLUME_PCT, PACE_ROUND_S, ANCHOR_LIFTS, ANCHOR_LABEL, GIANTFIT_ACC_ITEMS, GIANTFIT_CARRY_DEFAULTS } from '../engine/constants'
+import { SET_LADDER, VOLUME_PCT, PACE_ROUND_S, ANCHOR_LIFTS, ANCHOR_LABEL, ANCHOR_NOTE, GIANTFIT_ACC_ITEMS, GIANTFIT_CARRY_DEFAULTS } from '../engine/constants'
 import { expandDayTops, giantSets, volumeWeight } from '../engine/loading'
 import { CAPACITY_MOVEMENTS, CAPACITY_VARIANTS, CAPACITY_ROUNDS_OPTIONS } from '../engine/capacity'
 import { runMode, easyPace, qualityRange, fmtPace, parseClock } from '../engine/runs'
 import { errMsg } from './controls'
 import type { Macro, WeightsByCycle, AccessoryByCycle, RunTargetsByCycle, RunSlotKey, CapacityConfig, CapacityVariant, Difficulty } from '../engine/types'
 
-// Anchor rows in the weights card: the GiantFit lifts (DL/OHP/Squat/Bench).
+// Anchor rows in the weights card: the GiantFit anchors (DL/OHP/Squat/Bench +
+// DB Row / Pendlay Row — the rows cascade identically off their own anchor).
 // Legacy dips/pull-up anchors are read-only history — never shown or written here.
 const ANCHORS = ANCHOR_LIFTS
 const DIFFS: Difficulty[] = ['hard', 'medium', 'light']
@@ -345,6 +346,7 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: 8, alignItems: 'center' }}>
               <label htmlFor={`hard-${cycle}-${lift}`} style={{ fontSize: 13, color: C.off, fontWeight: 600 }}>
                 {ANCHOR_LABEL[lift]} <span style={{ color: pillColor('hard') }}>· Hard top</span>
+                {ANCHOR_NOTE[lift] && <span style={{ fontSize: 10, color: C.muted, fontWeight: 400 }}> · {ANCHOR_NOTE[lift]}</span>}
               </label>
               <input
                 id={`hard-${cycle}-${lift}`}
