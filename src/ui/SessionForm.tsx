@@ -289,6 +289,11 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
           ) : (
             <Row a={LIFT_LABEL[dayType]} b={`2 × ${scheme.vol} @ 80%`} c={hasTop && top != null ? fmt(volumeWeight(top)) : '—'} cls={C.blue} />
           )}
+          {/* The anchored row joins Volume on its day — same 80% / 2×vol logic,
+              off the ROW's own day top (2026-07-30 revision). */}
+          {rowKey && (
+            <Row a={ANCHOR_LABEL[rowKey]} b={`2 × ${scheme.vol} @ 80%`} c={rowTop != null ? fmt(volumeWeight(rowTop)) : '—'} cls={C.blue} />
+          )}
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.off, marginTop: 10 }}>
             <input type="checkbox" checked={draft.volDone} onChange={(e) => setField('volDone', e.target.checked)} /> Both sets
             completed

@@ -124,3 +124,12 @@ test('GIANTFIT_GB_ACCESSORY: one bodyweight accessory per day, default 10 reps e
   )
   assert.deepEqual(GIANTFIT_GB_DEFAULT_REPS, { ab_rollout: 10, toes_to_bar: 10, ghd_abs: 10, ghd_back_ext: 10 })
 })
+
+test('volume rep scheme (main lift AND the anchored row): H 2×6 / M 2×8 / L 2×10', () => {
+  assert.equal(schemeFor('hard').vol, 6)
+  assert.equal(schemeFor('medium').vol, 8)
+  assert.equal(schemeFor('light').vol, 10)
+  // The row's volume load uses the identical 80% helper off the ROW's day top.
+  assert.equal(volumeWeight(dayTop(60, 'medium')), volumeWeight(57.5)) // 60×0.95 -> 57.5 -> 45
+  assert.equal(volumeWeight(dayTop(60, 'medium')), 45)
+})

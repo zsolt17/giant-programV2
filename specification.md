@@ -108,6 +108,16 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-07-30 (night)
+- `feat(giantfit)`: **GiantFit revision — Phase 4 (rows join the Volume Block).** OHP-day
+  Volume now lists **DB Row** and bench-day Volume **Pendlay Row** beneath the main lift,
+  through the identical helpers — `volumeWeight(rowDayTop)` (80% of the ROW's own day top,
+  2.5 kg rounding) and `SCHEMES[difficulty].vol` reps (**Hard 2×6 · Medium 2×8 · Light
+  2×10**). No new logging fields: the block's existing "Both sets completed" checkbox and
+  Volume RPE/bar-speed cover the whole block (so the S2 volume-incomplete deload signal is
+  unchanged). DL/squat days render Volume exactly as before; deload weeks still have no
+  Volume block. No schema change. typecheck + **151 tests** + build green.
+
 ## 2026-07-30 (evening)
 - `feat(giantfit)`: **GiantFit revision — Phase 3 (Giant Block composition).** The Giant
   Block per day is now DL + Ab Rollout · OHP + DB Row + Toes-to-Bar · Squat + GHD Abs ·
