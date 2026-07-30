@@ -110,10 +110,6 @@ function buildContracts(): Record<string, SlotContract> {
 
 export const SLOT_CONTRACTS: Record<string, SlotContract> = buildContracts()
 
-export function contractFor(slotKey: string): SlotContract | undefined {
-  return SLOT_CONTRACTS[slotKey]
-}
-
 // ---- the stored shapes -------------------------------------------------------
 
 export interface ProgramVersion {
