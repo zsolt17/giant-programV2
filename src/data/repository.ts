@@ -28,11 +28,15 @@ import type {
   CapacityLog,
   CapacityLogDraft,
   GiantAccessoryReps,
+  Lift,
 } from '../engine/types'
 import type { Joint, Phase } from '../engine/recovery-content'
 import type { Movement } from '../engine/movements'
-import { SEED_MOVEMENTS } from '../engine/movements'
-import { ANCHOR_LIFTS, GIANTFIT_ACC_ITEMS } from '../engine/constants'
+import { SEED_MOVEMENTS, SEED_CAPACITY_KEYS, SEED_ACTIVATION_KEYS, SEED_BULLETPROOF_KEYS, SEED_BULLETPROOF_OPTIONAL } from '../engine/movements'
+import type { ProgramVersion, ProgramSlot } from '../engine/program'
+import { buildSeedSlots } from '../engine/program'
+import { CAPACITY_VARIANTS } from '../engine/capacity'
+import { ANCHOR_LIFTS, GIANTFIT_ACC_ITEMS, GIANTFIT_START_DATE, GIANTFIT_GB_ACCESSORY } from '../engine/constants'
 
 // Browser-only offline handling (Node smoke test has no navigator/window).
 const isBrowser = typeof navigator !== 'undefined' && typeof window !== 'undefined'
@@ -354,6 +358,66 @@ export async function ensureSeedMovements(): Promise<Movement[]> {
   const { data, error } = await supabase.from('movements').insert(rows).select()
   if (error) throw error
   return (data || []).map(M.rowToMovement)
+}
+
+// ---- program versions + slots (user-scoped; nothing reads these for
+// ---- prescription yet — the data path is proven against the constants first)
+export async function listProgramVersions(): Promise<ProgramVersion[]> {
+  const { data, error } = await supabase.from('program_versions').select('*').order('effective_from')
+  if (error) throw error
+  return (data || []).map(M.rowToProgramVersion)
+}
+
+export async function listProgramSlots(): Promise<ProgramSlot[]> {
+  const { data, error } = await supabase.from('program_slots').select('*').order('order_index')
+  if (error) throw error
+  return (data || []).map(M.rowToProgramSlot)
+}
+
+// Seed version 1 for a user who has none: effective from the GiantFit cutover,
+// with today's hardcoded occupants — but the athlete's OWN numbers wherever
+// they've set them (capacity_config / capacity_settings / giant_accessory_config),
+// so their current program survives verbatim. Those three tables stay in place
+// and keep being written; they're absorbed only after the switchover is proven.
+// Idempotent: only writes when the user has no versions.
+export async function ensureSeedProgramVersion(): Promise<{ versions: ProgramVersion[]; slots: ProgramSlot[] }> {
+  const existing = await listProgramVersions()
+  if (existing.length) return { versions: existing, slots: await listProgramSlots() }
+
+  assertWritable()
+  const [movements, capacity, gbAccessory] = await Promise.all([ensureSeedMovements(), getCapacityConfig(), getGiantAccessoryConfig()])
+
+  const { data: vRow, error: vErr } = await supabase
+    .from('program_versions')
+    .insert({ number: 1, effective_from: GIANTFIT_START_DATE, note: 'Seeded from the built-in GiantFit program' })
+    .select()
+    .single()
+  if (vErr) throw vErr
+  const version = M.rowToProgramVersion(vRow)
+
+  // The athlete's per-movement capacity reps, keyed the way the seed expects.
+  const capacityReps: Partial<Record<CapacityVariant, Record<string, number | null>>> = {}
+  for (const v of CAPACITY_VARIANTS) {
+    capacityReps[v] = Object.fromEntries(Object.entries(capacity.movements[v] || {}).map(([k, cfg]) => [k, cfg.reps ?? null]))
+  }
+  const gbAccessoryKeys = Object.fromEntries(
+    Object.entries(GIANTFIT_GB_ACCESSORY).map(([day, m]) => [day, m.key])
+  ) as Partial<Record<Lift, string>>
+
+  const slots = buildSeedSlots(version.id, movements, {
+    gbAccessoryReps: gbAccessory,
+    gbAccessoryKeys,
+    capacityReps,
+    capacityRounds: capacity.rounds,
+    capacityKeys: SEED_CAPACITY_KEYS,
+    activationKeys: SEED_ACTIVATION_KEYS,
+    bulletproofKeys: SEED_BULLETPROOF_KEYS,
+    optionalKeys: SEED_BULLETPROOF_OPTIONAL,
+  })
+
+  const { error: sErr } = await supabase.from('program_slots').insert(slots.map(M.programSlotToRow))
+  if (sErr) throw sErr
+  return { versions: [version], slots: await listProgramSlots() }
 }
 
 // ---- Giant Block accessory rep targets (user-scoped, capacity-config pattern)

@@ -33,6 +33,7 @@ import type {
 } from '../engine/types'
 import type { Joint, Phase } from '../engine/recovery-content'
 import type { Movement, MovementSeed, LoadType, CountType } from '../engine/movements'
+import type { ProgramVersion, ProgramSlot } from '../engine/program'
 import { expandDayTops } from '../engine/loading'
 import { mergeCapacityConfig } from '../engine/capacity'
 import { GIANTFIT_GB_DEFAULT_REPS } from '../engine/constants'
@@ -433,6 +434,52 @@ export function movementToRow(m: Movement | MovementSeed): MovementRow {
     rep_unit: blankToNull(m.repUnit),
     note: blankToNull(m.note),
     archived: 'archived' in m ? !!m.archived : false,
+  }
+}
+
+// ---- program versions + slots (the occupants of code-owned slots) ----------
+export interface ProgramVersionRow {
+  id?: string
+  number: number
+  effective_from: string
+  note: string | null
+}
+export function rowToProgramVersion(r: ProgramVersionRow): ProgramVersion {
+  return { id: r.id as string, number: r.number, effectiveFrom: r.effective_from, note: blankToNull(r.note) }
+}
+
+export interface ProgramSlotRow {
+  id?: string
+  version_id: string
+  slot_key: string
+  order_index: number
+  movement_id: string | null
+  reps: number | null
+  rounds: number | null
+  optional?: boolean
+}
+export function rowToProgramSlot(r: ProgramSlotRow): ProgramSlot {
+  return {
+    id: r.id,
+    versionId: r.version_id,
+    slotKey: r.slot_key,
+    orderIndex: r.order_index,
+    movementId: r.movement_id,
+    reps: toNum(r.reps),
+    rounds: toNum(r.rounds),
+    optional: !!r.optional,
+  }
+}
+export function programSlotToRow(s: ProgramSlot): ProgramSlotRow {
+  return {
+    ...(s.id ? { id: s.id } : {}),
+    version_id: s.versionId,
+    slot_key: s.slotKey,
+    order_index: s.orderIndex,
+    movement_id: s.movementId,
+    reps: toNum(s.reps),
+    rounds: toNum(s.rounds),
+    optional: !!s.optional,
   }
 }
 

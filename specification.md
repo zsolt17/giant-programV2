@@ -112,6 +112,43 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-07-31 (later)
+- `feat(program)`: **modular program content — Phase 2: versioned slot assignment + the
+  resolver.** The data-driven path is built **alongside** the hardcoded one and proven
+  identical; **nothing in `src/ui/` reads it yet**, so there is no behavioural change.
+  **The slot registry is CODE** (new `engine/program.ts`): 8 **anchored lanes** whose keys
+  *are* the `working_weights.lift` values (`deadlift`/`ohp`/`squat`/`bench` mains, `db_row`/
+  `pendlay_row` secondaries, and the nullable `secondary_deadlift`/`secondary_squat` lanes —
+  so an anchor follows its LANE, never its occupant; `GIANTFIT_ROW` becomes the day→lane
+  lookup), plus the variable-count groups `gb_accessory.{day}` · `capacity.{A,B}` ·
+  `carry.{day}` · `activation` · `bulletproof`. `SLOT_CONTRACTS` says what each will accept
+  and `validateVersion` returns every violation (empty = publishable). **Versioning**
+  (migration `0020`, applied): `program_versions` (user-scoped, unique per number and per
+  `effective_from`) + `program_slots` (`slot_key` · `order_index` · nullable `movement_id` ·
+  `reps` · `rounds` · `optional`), RLS on both (slots transitive via version). **Editing is
+  effective-dated, never retroactive:** `versionForDate` picks the greatest
+  `effective_from <= date` (local-date math), so a session renders as it was lived; v1 is
+  seeded at `GIANTFIT_START_DATE`, and **pre-cutover dates resolve to NO version** and keep
+  the legacy path. `resolveProgram` exposes the same shape the constants do —
+  `mainFor`/`secondaryFor`/`accessoriesFor`/`capacityFor`/`carryFor`/`activation`/
+  `bulletproof` — ordered by `order_index`, with unknown or **archived** occupants skipped
+  (`mergeCapacityConfig`'s drop-on-read rule). **Seeding v1** takes the hardcoded occupants
+  but the athlete's OWN numbers from `capacity_config` / `capacity_settings` /
+  `giant_accessory_config` where set; those three tables are **left in place and still
+  written** (absorbed only after the switchover). **The acceptance gate — 18 parity tests**
+  (`program.test.js`): the resolver reproduces the constants for every day × difficulty ×
+  variant (mains, rows, accessories, both circuits in order, carries, activation doses,
+  Bulletproof incl. its optional tail), `sessionSummary` is **byte-identical** fed from the
+  resolver vs the constants for all four day types, `versionForDate` is null pre-cutover and
+  v1 after, and `validateVersion` rejects a non-anchored movement in an anchored lane while
+  accepting an empty nullable lane. **They passed without editing a single constant.**
+  `deload-rule.ts`, `date-engine.ts`, `loading.ts`, `constants.ts`, `capacity.ts`,
+  `session-summary.ts` and every session view are byte-identical (`git diff` empty).
+  typecheck + **178 tests** + build green; **smoke 105/105** (v1 seeded at the cutover, all
+  8 lanes present with the two empty ones carrying an explicit null occupant, 7+7 circuits
+  in order, the seeded version passes every contract and resolves, and re-seeding is a
+  no-op).
+
 ## 2026-07-31
 - `feat(program)`: **modular program content — Phase 1: the movement library.** Program
   content (which exercise sits in which slot, and its default reps) has been hardcoded in

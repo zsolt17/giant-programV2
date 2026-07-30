@@ -13,6 +13,8 @@
 import { supabase, signIn, signOut } from '../src/data/supabase'
 import * as repo from '../src/data/repository'
 import { SEED_MOVEMENTS } from '../src/engine/movements'
+import { ANCHORED_LANES, validateVersion, resolveProgram } from '../src/engine/program'
+import { GIANTFIT_START_DATE } from '../src/engine/constants'
 
 const email = process.env.SMOKE_EMAIL
 const password = process.env.SMOKE_PASSWORD
@@ -206,6 +208,37 @@ async function main() {
     ok('ensureSeedMovements is idempotent (no re-seed)', again.length === lib.length, { before: lib.length, after: again.length })
     const anchoredCount = lib.filter((m) => m.loadType === 'anchored').length
     ok('capabilities round-trip (six anchored movements)', anchoredCount === 6, anchoredCount)
+
+    console.log('Program versions + slots (0020: versioned slot assignment)')
+    // Same reasoning as the movement library: user-scoped, and the seed IS the
+    // product bootstrap — additive, idempotent, written only when the user has
+    // no version. NOTHING reads these for prescription yet.
+    const seeded = await repo.ensureSeedProgramVersion()
+    ok('version 1 exists, effective from the GiantFit cutover',
+      seeded.versions.length >= 1 && seeded.versions[0].number === 1 && seeded.versions[0].effectiveFrom === GIANTFIT_START_DATE,
+      seeded.versions[0])
+    const v1Slots = seeded.slots.filter((s) => s.versionId === seeded.versions[0].id)
+    ok('every anchored lane has a slot row (incl. the two deliberately empty ones)',
+      ANCHORED_LANES.every((lane) => v1Slots.some((s) => s.slotKey === lane)),
+      ANCHORED_LANES.filter((lane) => !v1Slots.some((s) => s.slotKey === lane)))
+    ok('the empty secondary lanes carry a row with NO movement',
+      ['secondary_deadlift', 'secondary_squat'].every((lane) => v1Slots.find((s) => s.slotKey === lane)?.movementId === null))
+    ok('both capacity circuits seeded in order (7 + 7)',
+      v1Slots.filter((s) => s.slotKey === 'capacity.A').length === 7 && v1Slots.filter((s) => s.slotKey === 'capacity.B').length === 7)
+    // The gate: the seeded version must validate against its own contracts.
+    const violations = validateVersion(v1Slots, await repo.listMovements())
+    ok('the seeded version passes every slot contract', violations.length === 0, violations)
+    // ...and it resolves to a program with a main lift + carry on every day.
+    const resolvedV1 = resolveProgram(seeded.versions[0], v1Slots, await repo.listMovements())
+    ok('resolves a main lift and a carry for all four days',
+      ['deadlift', 'ohp', 'squat', 'bench'].every((d) => resolvedV1.mainFor(d) && resolvedV1.carryFor(d)))
+    ok('resolves the rows on OHP/bench and nothing on DL/squat',
+      !!resolvedV1.secondaryFor('ohp') && !!resolvedV1.secondaryFor('bench') &&
+      resolvedV1.secondaryFor('deadlift') === null && resolvedV1.secondaryFor('squat') === null)
+    const seededAgain = await repo.ensureSeedProgramVersion()
+    ok('ensureSeedProgramVersion is idempotent (no second version)',
+      seededAgain.versions.length === seeded.versions.length && seededAgain.slots.length === seeded.slots.length,
+      { before: seeded.slots.length, after: seededAgain.slots.length })
 
     // capacity_logs hangs off the throwaway macro's session — safe to write.
     const cl = await repo.saveCapacityLog({
