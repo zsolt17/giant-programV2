@@ -19,6 +19,7 @@ import type {
   CapacityConfig,
   CapacityLog,
   CapacityLogDraft,
+  GiantAccessoryReps,
 } from '../engine/types'
 
 function shortDate(iso: string): string {
@@ -43,6 +44,8 @@ interface SessionModalProps {
   // GiantFit capacity (post-cutover training cells): config + macro logs + handlers.
   capacity?: CapacityConfig
   capacityLogs?: CapacityLog[]
+  // Giant Block accessory rep targets (Setup config, defaults merged).
+  giantAccessory?: GiantAccessoryReps
   onSaveCapacityLog?: (log: CapacityLogDraft) => Promise<CapacityLog>
   onDeleteCapacityLog?: (sessionId: string) => Promise<void>
   onClose: () => void
@@ -65,6 +68,7 @@ export function SessionModal({
   onDeleteTestingResult,
   capacity,
   capacityLogs = [],
+  giantAccessory,
   onSaveCapacityLog,
   onDeleteCapacityLog,
   onClose,
@@ -255,7 +259,7 @@ export function SessionModal({
           </div>
         ) : (
           <>
-            <SessionForm dayType={dayType!} difficulty={difficulty!} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} carryLoad={carryDefault} secondaryLoad={secondaryDefault} pullupCell={pullupCell} rowCell={rowCell} capacity={capacityProp} />
+            <SessionForm dayType={dayType!} difficulty={difficulty!} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} carryLoad={carryDefault} secondaryLoad={secondaryDefault} pullupCell={pullupCell} rowCell={rowCell} giantAccessory={giantAccessory} capacity={capacityProp} />
             {draft.startedAt && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
                 <div>

@@ -23,6 +23,7 @@ import type {
   CapacityConfig,
   CapacityLog,
   CapacityLogDraft,
+  GiantAccessoryReps,
 } from '../engine/types'
 
 function shortDate(iso: string): string {
@@ -59,11 +60,13 @@ interface CalendarProps {
   // GiantFit capacity: Setup config + this macro's logs + handlers (modal block).
   capacity?: CapacityConfig
   capacityLogs?: CapacityLog[]
+  // Giant Block accessory rep targets (Setup config, defaults merged).
+  giantAccessory?: GiantAccessoryReps
   onSaveCapacityLog?: (log: CapacityLogDraft) => Promise<CapacityLog>
   onDeleteCapacityLog?: (sessionId: string) => Promise<void>
 }
 
-export function Calendar({ startISO, macroNumber, macroId, weights, accessory, sessions, deloads, breakDays, testingResults, runs = [], runTargets = {}, refPaceS = null, macroWeeks, deloadExtended = false, onToggleBreak, onSaveSession, onDeleteSession, onSaveTestingResult, onDeleteTestingResult, onSaveRun, onDeleteRun, onSetRefPace, capacity, capacityLogs = [], onSaveCapacityLog, onDeleteCapacityLog }: CalendarProps) {
+export function Calendar({ startISO, macroNumber, macroId, weights, accessory, sessions, deloads, breakDays, testingResults, runs = [], runTargets = {}, refPaceS = null, macroWeeks, deloadExtended = false, onToggleBreak, onSaveSession, onDeleteSession, onSaveTestingResult, onDeleteTestingResult, onSaveRun, onDeleteRun, onSetRefPace, capacity, capacityLogs = [], giantAccessory, onSaveCapacityLog, onDeleteCapacityLog }: CalendarProps) {
   const shape = { weeks: macroWeeks, deloadExtended }
   const rows = enumerateMacro(startISO, macroNumber, shape)
   const todayStr = todayISO()
@@ -275,6 +278,7 @@ export function Calendar({ startISO, macroNumber, macroId, weights, accessory, s
           onDeleteTestingResult={onDeleteTestingResult}
           capacity={capacity}
           capacityLogs={capacityLogs}
+          giantAccessory={giantAccessory}
           onSaveCapacityLog={onSaveCapacityLog}
           onDeleteCapacityLog={onDeleteCapacityLog}
           onClose={() => setModal(null)}

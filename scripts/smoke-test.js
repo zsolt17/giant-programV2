@@ -163,6 +163,12 @@ async function main() {
       Object.keys(capCfg.movements.A).length === 8 && Object.keys(capCfg.movements.B).length === 8, capCfg.movements)
     ok('capacity rounds is 3 or 4', capCfg.rounds === 3 || capCfg.rounds === 4, capCfg.rounds)
 
+    // Giant Block accessory config (0018) — USER-scoped like capacity config, so
+    // smoke only READS it (proves the table is live + defaults merge).
+    const gbCfg = await repo.getGiantAccessoryConfig()
+    ok('giant accessory config loads with defaults merged (4 movements)',
+      ['ab_rollout', 'toes_to_bar', 'ghd_abs', 'ghd_back_ext'].every((k) => typeof gbCfg[k] === 'number'), gbCfg)
+
     // capacity_logs hangs off the throwaway macro's session — safe to write.
     const cl = await repo.saveCapacityLog({
       sessionId: sid, variant: 'A', roundsCompleted: 3, totalTimeSeconds: 754, calories: '', rpe: 'R8', notes: 'smoke',

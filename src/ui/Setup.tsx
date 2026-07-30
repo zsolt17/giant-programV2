@@ -4,12 +4,12 @@ import { C, cardStyle, inp, lbl, pillColor } from './theme'
 import { Card, BlockTitle } from './components'
 import * as repo from '../data/repository'
 import { computePosition, totalWeeksOf, parseLocalDate, mondayOf, isoLocal } from '../engine/date-engine'
-import { SET_LADDER, VOLUME_PCT, PACE_ROUND_S, ANCHOR_LIFTS, ANCHOR_LABEL, ANCHOR_NOTE, GIANTFIT_ACC_ITEMS, GIANTFIT_CARRY_DEFAULTS } from '../engine/constants'
+import { SET_LADDER, VOLUME_PCT, PACE_ROUND_S, ANCHOR_LIFTS, ANCHOR_LABEL, ANCHOR_NOTE, GIANTFIT_ACC_ITEMS, GIANTFIT_CARRY_DEFAULTS, GIANTFIT_GB_ACCESSORY, GIANTFIT_GB_DEFAULT_REPS, LIFT_SHORT } from '../engine/constants'
 import { expandDayTops, giantSets, volumeWeight } from '../engine/loading'
 import { CAPACITY_MOVEMENTS, CAPACITY_VARIANTS, CAPACITY_ROUNDS_OPTIONS } from '../engine/capacity'
 import { runMode, easyPace, qualityRange, fmtPace, parseClock } from '../engine/runs'
 import { errMsg } from './controls'
-import type { Macro, WeightsByCycle, AccessoryByCycle, RunTargetsByCycle, RunSlotKey, CapacityConfig, CapacityVariant, Difficulty } from '../engine/types'
+import type { Macro, WeightsByCycle, AccessoryByCycle, RunTargetsByCycle, RunSlotKey, CapacityConfig, CapacityVariant, Difficulty, GiantAccessoryReps, Lift } from '../engine/types'
 
 // Anchor rows in the weights card: the GiantFit anchors (DL/OHP/Squat/Bench +
 // DB Row / Pendlay Row — the rows cascade identically off their own anchor).
@@ -29,6 +29,9 @@ const ACC_LABEL: Record<string, string> = {
   carry_bench: 'Suitcase Carry — Bench day',
 }
 const ACC_ITEMS = GIANTFIT_ACC_ITEMS
+
+// Giant Block accessory rows render in day order (DL/OHP/Squat/Bench).
+const GB_ACC_DAYS: Lift[] = ['deadlift', 'ohp', 'squat', 'bench']
 
 // Giant Run distance-target slots (guidance only, per cycle, seeded like SEED_ITEMS).
 const RUN_SLOTS: RunSlotKey[] = ['easy', 'quality', 'long']
@@ -102,7 +105,7 @@ function initCapacity(loaded?: CapacityConfig): EditCapacity {
 
 interface SetupProps {
   macro: Macro | null
-  bundle: { weights: WeightsByCycle; accessory: AccessoryByCycle; runTargets: RunTargetsByCycle; capacity: CapacityConfig }
+  bundle: { weights: WeightsByCycle; accessory: AccessoryByCycle; runTargets: RunTargetsByCycle; capacity: CapacityConfig; giantAccessory: GiantAccessoryReps }
   macros?: Macro[]
   onReload: () => Promise<void>
   onSelectMacro: (id: string) => void
@@ -187,6 +190,8 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
   const [cap, setCap] = useState<EditCapacity>(() => initCapacity(bundle?.capacity))
   const [capVariant, setCapVariant] = useState<CapacityVariant>('A')
   const [capRounds, setCapRounds] = useState<number>(bundle?.capacity?.rounds ?? 3)
+  // Giant Block accessory rep targets (rep-only; defaults merged on load).
+  const [gbAcc, setGbAcc] = useState<Record<string, number | string>>(() => ({ ...GIANTFIT_GB_DEFAULT_REPS, ...(bundle?.giantAccessory || {}) }))
   // Reference pace P held as min:sec text; parsed (never rounded) on save.
   const [pace, setPace] = useState(() => (macro?.refPaceS != null ? fmtPace(macro.refPaceS) : ''))
   const [saving, setSaving] = useState(false)
@@ -250,6 +255,7 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
       }
       for (const v of CAPACITY_VARIANTS) await repo.saveCapacityConfig(v, cap[v])
       await repo.setCapacityRounds(capRounds)
+      await repo.saveGiantAccessoryConfig(gbAcc)
       setSaved(true)
       setTimeout(() => setSaved(false), 1600)
       await onReload()
@@ -364,6 +370,35 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
             <CascadePreview anchor={weights[cycle][lift].hard} />
           </div>
         ))}
+      </Card>
+
+      {/* Giant Block bodyweight accessories — rep-only targets (no load, no cycle) */}
+      <Card>
+        <BlockTitle tag="giantfit">Giant Block Accessories</BlockTitle>
+        <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>
+          The bodyweight movement each Giant Block carries alongside the lift — rep target only, no load. Same target
+          on every difficulty and cycle.
+        </div>
+        {GB_ACC_DAYS.map((day) => {
+          const m = GIANTFIT_GB_ACCESSORY[day]!
+          return (
+            <div key={m.key} style={{ display: 'grid', gridTemplateColumns: '1fr 64px', gap: 8, alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+              <span style={{ fontSize: 13, color: C.off }}>
+                {m.name} <span style={{ fontSize: 10, color: C.muted }}>— {LIFT_SHORT[day]} day</span>
+              </span>
+              <input
+                data-gb-reps={m.key}
+                aria-label={`${m.name} rep target`}
+                style={{ ...inp, padding: '6px', textAlign: 'center' }}
+                type="number"
+                step="1"
+                inputMode="numeric"
+                value={gbAcc[m.key]}
+                onChange={(e) => setGbAcc((p) => ({ ...p, [m.key]: e.target.value }))}
+              />
+            </div>
+          )
+        })}
       </Card>
 
       {/* GiantFit capacity block — two circuit variants, editable targets */}

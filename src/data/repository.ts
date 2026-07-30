@@ -27,6 +27,7 @@ import type {
   CapacityConfig,
   CapacityLog,
   CapacityLogDraft,
+  GiantAccessoryReps,
 } from '../engine/types'
 import type { Joint, Phase } from '../engine/recovery-content'
 import { ANCHOR_LIFTS, GIANTFIT_ACC_ITEMS } from '../engine/constants'
@@ -310,6 +311,21 @@ export async function saveCapacityConfig(
 export async function setCapacityRounds(rounds: number): Promise<void> {
   assertWritable()
   const { error } = await supabase.from('capacity_settings').upsert({ rounds }, { onConflict: 'user_id' })
+  if (error) throw error
+}
+
+// ---- Giant Block accessory rep targets (user-scoped, capacity-config pattern)
+export async function getGiantAccessoryConfig(): Promise<GiantAccessoryReps> {
+  const { data, error } = await supabase.from('giant_accessory_config').select('*')
+  if (error) throw error
+  return M.rowsToGiantAccessory(data || [])
+}
+
+// byKey = { ab_rollout: 10, toes_to_bar: 12, ... }
+export async function saveGiantAccessoryConfig(byKey: Record<string, number | string | null>): Promise<void> {
+  assertWritable()
+  const rows = M.giantAccessoryToRows(byKey)
+  const { error } = await supabase.from('giant_accessory_config').upsert(rows, { onConflict: 'user_id,movement_key' })
   if (error) throw error
 }
 
@@ -663,7 +679,7 @@ export async function setTendonLog(protocolId: string, tendonKey: string, dateIS
 
 // ---- bundle (one round-trip for app boot) ---------------------------------
 export async function loadMacroBundle(macroId: string): Promise<MacroBundle> {
-  const [weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs] = await Promise.all([
+  const [weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs, giantAccessory] = await Promise.all([
     getWorkingWeights(macroId),
     getAccessoryWeights(macroId),
     getSessions(macroId),
@@ -674,6 +690,7 @@ export async function loadMacroBundle(macroId: string): Promise<MacroBundle> {
     getRunTargets(macroId),
     getCapacityConfig(),
     getCapacityLogs(macroId),
+    getGiantAccessoryConfig(),
   ])
-  return { weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs }
+  return { weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs, giantAccessory }
 }

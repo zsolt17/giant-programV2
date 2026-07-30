@@ -51,9 +51,11 @@ import type {
   RunTargetsByCycle,
   CapacityConfig,
   CapacityLog,
+  GiantAccessoryReps,
   CapacityLogDraft,
 } from '../engine/types'
 import { defaultCapacityConfig } from '../engine/capacity'
+import { GIANTFIT_GB_DEFAULT_REPS } from '../engine/constants'
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -127,6 +129,7 @@ export function App() {
   const [runTargets, setRunTargets] = useState<RunTargetsByCycle>({})
   const [capacity, setCapacity] = useState<CapacityConfig>(() => defaultCapacityConfig())
   const [capacityLogs, setCapacityLogs] = useState<CapacityLog[]>([])
+  const [giantAccessory, setGiantAccessory] = useState<GiantAccessoryReps>(() => ({ ...GIANTFIT_GB_DEFAULT_REPS }))
   const [status, setStatus] = useState<LoadStatus>('idle')
   const [err, setErr] = useState('')
   const [online, setOnline] = useState(typeof navigator === 'undefined' || navigator.onLine !== false)
@@ -156,6 +159,7 @@ export function App() {
     setRunTargets(snap.runTargets || {})
     setCapacity(snap.capacity || defaultCapacityConfig())
     setCapacityLogs(snap.capacityLogs || [])
+    setGiantAccessory(snap.giantAccessory || { ...GIANTFIT_GB_DEFAULT_REPS })
   }
 
   const load = useCallback(async () => {
@@ -172,7 +176,7 @@ export function App() {
         null
       const b: MacroBundle = target
         ? await repo.loadMacroBundle(target.id)
-        : { weights: {}, accessory: {}, sessions: [], deloads: {}, breakDays: {}, testing: [], runs: [], runTargets: {}, capacity: defaultCapacityConfig(), capacityLogs: [] }
+        : { weights: {}, accessory: {}, sessions: [], deloads: {}, breakDays: {}, testing: [], runs: [], runTargets: {}, capacity: defaultCapacityConfig(), capacityLogs: [], giantAccessory: { ...GIANTFIT_GB_DEFAULT_REPS } }
       setMacros(all)
       setMacro(target)
       setViewedMacroId(target?.id ?? null)
@@ -186,6 +190,7 @@ export function App() {
       setRunTargets(b.runTargets)
       setCapacity(b.capacity)
       setCapacityLogs(b.capacityLogs)
+      setGiantAccessory(b.giantAccessory)
       setStatus('ready')
       setBooted(true)
     } catch (e) {
@@ -325,9 +330,9 @@ export function App() {
   // optimistic offline writes, since those flow through state).
   useEffect(() => {
     if (status === 'ready' && user && macro) {
-      saveSnapshot({ macros, viewedMacroId, macro, weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs })
+      saveSnapshot({ macros, viewedMacroId, macro, weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs, giantAccessory })
     }
-  }, [status, user, macro, macros, viewedMacroId, weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs])
+  }, [status, user, macro, macros, viewedMacroId, weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs, giantAccessory])
 
   const onSaveSession = useCallback(async (record: SessionDraft): Promise<Session> => {
     const saved = await repo.saveSession(record)
@@ -531,6 +536,7 @@ export function App() {
           dateISO={isoLocal(devNow())}
           capacity={capacity}
           capacityLogs={capacityLogs}
+          giantAccessory={giantAccessory}
           onSaveSession={onSaveSession}
           onDeleteSession={onDeleteSession}
           onApplyDeload={onApplyDeload}
@@ -563,6 +569,7 @@ export function App() {
           deloadExtended={macro.deloadExtended}
           capacity={capacity}
           capacityLogs={capacityLogs}
+          giantAccessory={giantAccessory}
           onToggleBreak={onToggleBreak}
           onSaveSession={onSaveSession}
           onDeleteSession={onDeleteSession}
@@ -580,7 +587,7 @@ export function App() {
         <Setup
           key={macro?.id || 'new'}
           macro={macro}
-          bundle={{ weights, accessory, runTargets, capacity }}
+          bundle={{ weights, accessory, runTargets, capacity, giantAccessory }}
           macros={macros}
           onReload={load}
           onSelectMacro={onSelectMacro}

@@ -345,7 +345,14 @@ export interface MacroBundle {
   capacity: CapacityConfig
   // Capacity-block results for this macro's sessions (one per session).
   capacityLogs: CapacityLog[]
+  // User-scoped Giant Block accessory rep targets (movement key → reps),
+  // app defaults already merged in (GIANTFIT_GB_ACCESSORY).
+  giantAccessory: GiantAccessoryReps
 }
+
+// GiantFit Giant Block bodyweight-accessory rep targets, keyed by movement key
+// (ab_rollout / toes_to_bar / ghd_abs / ghd_back_ext), defaults merged on read.
+export type GiantAccessoryReps = Record<string, number>
 
 // ---- Trends tab ------------------------------------------------------------
 // All of the user's data across every macro (RLS-scoped), loaded once when the

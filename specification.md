@@ -108,6 +108,21 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-07-30 (evening)
+- `feat(giantfit)`: **GiantFit revision — Phase 3 (Giant Block composition).** The Giant
+  Block per day is now DL + Ab Rollout · OHP + DB Row + Toes-to-Bar · Squat + GHD Abs ·
+  Bench + Pendlay Row + GHD Back Extension. **Rows:** rendered as a computed ladder line
+  off the row's own anchor (85/90/95/100% of the row's day top) with **fixed reps by
+  difficulty — H8 / M9 / L10** (`GIANTFIT_ROW_REPS`; only the main lift's reps descend);
+  the free `pair_weight` entry is **removed from the form** — pre-revision GiantFit
+  sessions that logged one keep showing it as a muted "(logged)" line, and the column/
+  drafts are untouched (no data loss). **Bodyweight accessories:** rep-only, no load; one
+  per day (`GIANTFIT_GB_ACCESSORY`), default **10** each, rep target editable in Setup's
+  new "Giant Block Accessories" card (capacity-config pattern: new user-scoped
+  `giant_accessory_config` table, migration `0018` applied, defaults merged on read,
+  loaded with the bundle + offline snapshot). typecheck + **150 tests** + build green;
+  **smoke 88/88** (0018 table live, defaults merge).
+
 ## 2026-07-30 (later)
 - `feat(giantfit)`: **GiantFit revision — Phase 2 (build-up for the anchored rows).** OHP-
   and bench-day session views (Today + Calendar modal, shared `SessionForm`) now append a

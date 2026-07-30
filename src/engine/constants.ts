@@ -43,6 +43,25 @@ export const GIANTFIT_PAIRING: Record<Lift, string | null> = {
 // derive from the ROW's anchor, never the day's main lift.
 export const GIANTFIT_ROW: Partial<Record<Lift, AnchorLift>> = { ohp: 'db_row', bench: 'pendlay_row' }
 
+// Giant Block rep count for the anchored row, by day difficulty. FIXED per set —
+// the loads still climb the SET_LADDER, only the main lift's reps descend.
+export const GIANTFIT_ROW_REPS: Record<Difficulty, number> = { hard: 8, medium: 9, light: 10 }
+
+// Giant Block bodyweight accessory per day (2026-07-30 revision): rep-only, no
+// load. `reps` is the app default; the athlete's rep target is configurable in
+// Setup (giant_accessory_config, capacity-config pattern) and merged over it.
+export const GIANTFIT_GB_ACCESSORY: Partial<Record<Lift, { key: string; name: string; reps: number }>> = {
+  deadlift: { key: 'ab_rollout', name: 'Ab Rollout', reps: 10 },
+  ohp: { key: 'toes_to_bar', name: 'Toes-to-Bar', reps: 10 },
+  squat: { key: 'ghd_abs', name: 'GHD Abs', reps: 10 },
+  bench: { key: 'ghd_back_ext', name: 'GHD Back Extension', reps: 10 },
+}
+// The all-defaults rep-target map ({ key: reps }) — what a fresh user sees;
+// stored Setup values are merged over it on read.
+export const GIANTFIT_GB_DEFAULT_REPS: Record<string, number> = Object.fromEntries(
+  Object.values(GIANTFIT_GB_ACCESSORY).map((m) => [m.key, m.reps])
+)
+
 // GiantFit warm-up activation — a fixed list done before the barbell build-up.
 // Replaces the Giant-era GOWOD flows: no GOWOD reference in GiantFit sessions.
 export const GIANTFIT_ACTIVATION: { name: string; dose: string }[] = [

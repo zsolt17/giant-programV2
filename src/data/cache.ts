@@ -1,7 +1,7 @@
 // Last-known app data snapshot, so reopening the app offline shows real data
 // instead of a "couldn't load" screen. Browser-only; best-effort (ignores quota
 // or serialization errors). Not the source of truth — Supabase is.
-import type { Macro, WeightsByCycle, AccessoryByCycle, Session, DeloadMap, BreakDayMap, TestingResult, Run, RunTargetsByCycle, CapacityConfig, CapacityLog } from '../engine/types'
+import type { Macro, WeightsByCycle, AccessoryByCycle, Session, DeloadMap, BreakDayMap, TestingResult, Run, RunTargetsByCycle, CapacityConfig, CapacityLog, GiantAccessoryReps } from '../engine/types'
 
 export interface Snapshot {
   macros: Macro[]
@@ -19,6 +19,8 @@ export interface Snapshot {
   // Optional so a pre-GiantFit cached snapshot still parses.
   capacity?: CapacityConfig
   capacityLogs?: CapacityLog[]
+  // Optional so a pre-revision cached snapshot still parses (2026-07-30).
+  giantAccessory?: GiantAccessoryReps
 }
 
 const KEY = 'giant_bundle_cache_v1'

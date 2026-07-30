@@ -1,7 +1,7 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { round, fmt, schemeFor, dayTop, expandDayTops, giantSets, set1Weight, warmupSets, volumeWeight, deloadTop, testCeiling, liftMode } from './loading'
-import { ANCHOR_LIFTS, ANCHOR_LABEL, GIANTFIT_ROW } from './constants'
+import { ANCHOR_LIFTS, ANCHOR_LABEL, GIANTFIT_ROW, GIANTFIT_ROW_REPS, GIANTFIT_GB_ACCESSORY, GIANTFIT_GB_DEFAULT_REPS } from './constants'
 
 test('round: nearest 2.5 kg', () => {
   assert.equal(round(120), 120)
@@ -106,4 +106,21 @@ test('ANCHOR_LIFTS: six GiantFit anchors incl. the rows (2026-07-30 revision), a
 
 test('GIANTFIT_ROW: OHP day pairs the DB Row anchor, bench day the Pendlay Row; DL/squat train alone', () => {
   assert.deepEqual(GIANTFIT_ROW, { ohp: 'db_row', bench: 'pendlay_row' })
+})
+
+test('GIANTFIT_ROW_REPS: fixed row reps by day — H8 / M9 / L10', () => {
+  assert.deepEqual(GIANTFIT_ROW_REPS, { hard: 8, medium: 9, light: 10 })
+})
+
+test('GIANTFIT_GB_ACCESSORY: one bodyweight accessory per day, default 10 reps each', () => {
+  assert.deepEqual(
+    Object.entries(GIANTFIT_GB_ACCESSORY).map(([d, m]) => [d, m.key, m.reps]),
+    [
+      ['deadlift', 'ab_rollout', 10],
+      ['ohp', 'toes_to_bar', 10],
+      ['squat', 'ghd_abs', 10],
+      ['bench', 'ghd_back_ext', 10],
+    ]
+  )
+  assert.deepEqual(GIANTFIT_GB_DEFAULT_REPS, { ab_rollout: 10, toes_to_bar: 10, ghd_abs: 10, ghd_back_ext: 10 })
 })

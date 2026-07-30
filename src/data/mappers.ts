@@ -29,10 +29,12 @@ import type {
   CapacityConfig,
   CapacityLog,
   CapacityLogDraft,
+  GiantAccessoryReps,
 } from '../engine/types'
 import type { Joint, Phase } from '../engine/recovery-content'
 import { expandDayTops } from '../engine/loading'
 import { mergeCapacityConfig } from '../engine/capacity'
+import { GIANTFIT_GB_DEFAULT_REPS } from '../engine/constants'
 
 const blankToNull = (v: string | null | undefined): string | null => (v === '' || v === undefined ? null : v)
 const toNum = (v: unknown): number | null => (v === '' || v === null || v === undefined ? null : Number(v))
@@ -390,6 +392,27 @@ export function capacityConfigToRows(
     rep_target: toNum(byMovement[movement_key].reps),
     weight: toNum(byMovement[movement_key].weight),
   }))
+}
+
+// ---- GiantFit Giant Block accessories (rep targets, user-scoped) ------------
+export interface GiantAccessoryRow {
+  movement_key: string
+  rep_target: number | null
+}
+// giant_accessory_config rows -> { key: reps } with the app defaults
+// (GIANTFIT_GB_ACCESSORY) merged in; unknown stored keys ignored, null rep
+// targets fall back to the movement's default (capacity-config pattern).
+export function rowsToGiantAccessory(rows: GiantAccessoryRow[]): GiantAccessoryReps {
+  const out: GiantAccessoryReps = { ...GIANTFIT_GB_DEFAULT_REPS }
+  ;(rows || []).forEach((r) => {
+    const reps = toNum(r.rep_target)
+    if (out[r.movement_key] != null && reps != null) out[r.movement_key] = reps
+  })
+  return out
+}
+// { key: reps } -> rows[] (user_id defaults to auth.uid() at the DB).
+export function giantAccessoryToRows(byKey: Record<string, number | string | null>): GiantAccessoryRow[] {
+  return Object.keys(byKey).map((movement_key) => ({ movement_key, rep_target: toNum(byKey[movement_key]) }))
 }
 
 export interface CapacityLogRow {

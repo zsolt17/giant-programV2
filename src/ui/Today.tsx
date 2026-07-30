@@ -34,6 +34,7 @@ import type {
   CapacityConfig,
   CapacityLog,
   CapacityLogDraft,
+  GiantAccessoryReps,
 } from '../engine/types'
 
 // Everything the capacity block needs, bundled for prop threading: the slot's
@@ -102,6 +103,8 @@ interface TodayProps {
   // GiantFit capacity: Setup config + this macro's logs + handlers.
   capacity?: CapacityConfig
   capacityLogs?: CapacityLog[]
+  // Giant Block accessory rep targets (Setup config, defaults merged).
+  giantAccessory?: GiantAccessoryReps
   onSaveSession: (record: SessionDraft) => Promise<Session>
   onDeleteSession: (id: string) => Promise<void>
   onApplyDeload: (weekKey: string, on: boolean) => Promise<void>
@@ -132,6 +135,7 @@ export function Today({
   dateISO,
   capacity,
   capacityLogs = [],
+  giantAccessory,
   onSaveSession,
   onDeleteSession,
   onApplyDeload,
@@ -401,6 +405,7 @@ export function Today({
         secondaryLoad={secondaryDefault}
         pullupCell={pullupCell}
         rowCell={rowCell}
+        giantAccessory={giantAccessory}
         capacityCtx={capacityCtx}
         capacityPoints={capacityPoints}
         currentWeekSessions={currentWeekSessions}
@@ -549,6 +554,7 @@ interface SessionEditorProps {
   secondaryLoad?: number | string | null
   pullupCell?: LiftWeights | null
   rowCell?: LiftWeights | null
+  giantAccessory?: GiantAccessoryReps
   capacityCtx?: CapacityCtx | null
   capacityPoints?: CapacityPoint[]
   currentWeekSessions: Session[]
@@ -563,7 +569,7 @@ interface SessionEditorProps {
   setSaved: (b: boolean) => void
 }
 
-function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, carryLoad, secondaryLoad, pullupCell, rowCell, capacityCtx = null, capacityPoints = [], currentWeekSessions, currentWeekRuns = [], allRuns = [], stamp, onSaveSession, onRunningChange, saving, setSaving, saved, setSaved }: SessionEditorProps) {
+function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, carryLoad, secondaryLoad, pullupCell, rowCell, giantAccessory, capacityCtx = null, capacityPoints = [], currentWeekSessions, currentWeekRuns = [], allRuns = [], stamp, onSaveSession, onRunningChange, saving, setSaving, saved, setSaved }: SessionEditorProps) {
   const [draft, setDraft] = useState<SessionDraft>(() => existing || blank())
   const [err, setErr] = useState('')
   const [nowTs, setNowTs] = useState(() => Date.now())
@@ -701,7 +707,7 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
         />
       )}
 
-      <SessionForm dayType={dayType} difficulty={difficulty} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} locked={notStarted} carryLoad={carryLoad} secondaryLoad={secondaryLoad} pullupCell={pullupCell} rowCell={rowCell} capacity={capacity} />
+      <SessionForm dayType={dayType} difficulty={difficulty} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} locked={notStarted} carryLoad={carryLoad} secondaryLoad={secondaryLoad} pullupCell={pullupCell} rowCell={rowCell} giantAccessory={giantAccessory} capacity={capacity} />
 
       {completed && (
         <button

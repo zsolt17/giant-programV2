@@ -2,11 +2,11 @@ import { C, inp, lbl } from './theme'
 import { Card } from './components'
 import { blockTitle, Row, LogRpe, secondaryDesc } from './controls'
 import { CapacityBlock } from './CapacityBlock'
-import { SCHEMES, WU_PCT, WU_REPS, SET_LADDER, DAY_META, LIFT_LABEL, PULLUP, BLOCK_COMPLETION, GIANTFIT_PAIRING, GIANTFIT_ACTIVATION, GIANTFIT_ROW, ANCHOR_LABEL } from '../engine/constants'
+import { SCHEMES, WU_PCT, WU_REPS, SET_LADDER, DAY_META, LIFT_LABEL, PULLUP, BLOCK_COMPLETION, GIANTFIT_PAIRING, GIANTFIT_ACTIVATION, GIANTFIT_ROW, GIANTFIT_ROW_REPS, GIANTFIT_GB_ACCESSORY, ANCHOR_LABEL } from '../engine/constants'
 import { fmt, giantSets, warmupSets, volumeWeight, deloadTop, liftMode } from '../engine/loading'
 import { isGiantFitDate } from '../engine/date-engine'
 import { clusterTotal, isUnbroken, meetsTarget } from '../engine/pullups'
-import type { Difficulty, Lift, WeekType, SessionDraft, LiftWeights, CapacityVariant, CapacityConfig, CapacityLog, CapacityLogDraft } from '../engine/types'
+import type { Difficulty, Lift, WeekType, SessionDraft, LiftWeights, CapacityVariant, CapacityConfig, CapacityLog, CapacityLogDraft, GiantAccessoryReps } from '../engine/types'
 
 interface BlankSessionArgs {
   date: string
@@ -88,6 +88,8 @@ interface SessionFormProps {
   // DB Row / Pendlay Row) — same shape as the main lift's cell; null when the day
   // has no row or the anchor is unset (loads render "—").
   rowCell?: LiftWeights | null
+  // Giant Block accessory rep targets from Setup ({ key: reps }, defaults merged).
+  giantAccessory?: GiantAccessoryReps
   // GiantFit capacity block (post-cutover training sessions): the slot's variant,
   // the Setup config, this session's existing log, and its own save/delete
   // handlers (the block saves independently of the session form's Save).
@@ -103,7 +105,7 @@ interface SessionFormProps {
 // The prescription + log fields for a training-week session. Reused by Today
 // (inline) and SessionModal (overlay). The parent owns the draft + Save button;
 // it stamps the prescribed top weight/reps on save.
-export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, draft, setField, locked = false, carryLoad, secondaryLoad, pullupCell, rowCell, capacity = null }: SessionFormProps) {
+export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, draft, setField, locked = false, carryLoad, secondaryLoad, pullupCell, rowCell, giantAccessory, capacity = null }: SessionFormProps) {
   const scheme = SCHEMES[difficulty]
   const meta = DAY_META[dayType]
   // GiantFit era (the DATE decides): Warm-Up → Giant → Volume → Capacity → Carry,
@@ -134,6 +136,15 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
   const rowBase = rowKey ? rowCell?.[difficulty] ?? null : null
   const rowTop = rowBase != null ? (isDeload ? deloadTop(rowBase) : rowBase) : null
   const rowWu = rowTop != null ? warmupSets(rowTop) : null
+  // Row inside the Giant Block: ladder loads off the row's day top, FIXED reps
+  // by difficulty (8/9/10) — only the main lift's reps descend.
+  const rowGsets = rowTop != null ? giantSets(rowTop, difficulty) : null
+  const rowReps = GIANTFIT_ROW_REPS[difficulty]
+  // The day's bodyweight Giant Block accessory (rep-only): Setup target over default.
+  const gbAcc = giantfit ? GIANTFIT_GB_ACCESSORY[dayType] : undefined
+  const gbAccReps = gbAcc ? giantAccessory?.[gbAcc.key] ?? gbAcc.reps : null
+  // Legacy free-entry row weight (pre-revision GiantFit sessions): display-only.
+  const pairLogged = draft.pairWeight != null && draft.pairWeight !== ''
   const gsets = hasTop && top != null ? giantSets(top, difficulty) : null
   // Tiny dips build-up loads can round to 0 — that's bodyweight.
   const wuCell = (w: number): string => (w === 0 ? 'BW' : fmt(w))
@@ -208,29 +219,23 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
           })
         )}
         {giantfit ? (
-          // GiantFit: the paired row rides the four rounds — unanchored, free
-          // weight entry, no ladder. Squat trains alone (no pairing row).
-          pairing && (
-            <>
-              <Row a={pairing} b="each round" c="" cls={C.off} />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: 8, alignItems: 'center', marginTop: 6 }}>
-                <label htmlFor="pair-weight" style={{ ...lbl, marginBottom: 0 }}>
-                  {pairing} weight (kg)
-                </label>
-                <input
-                  id="pair-weight"
-                  data-pair-weight="1"
-                  style={{ ...inp, padding: '6px', textAlign: 'center' }}
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  inputMode="decimal"
-                  value={draft.pairWeight ?? ''}
-                  onChange={(e) => setField('pairWeight', e.target.value)}
-                />
-              </div>
-            </>
-          )
+          // GiantFit (2026-07-30 revision): the row is ANCHORED — ladder loads off
+          // the row's own day top, fixed reps by difficulty — plus the day's
+          // bodyweight accessory (rep-only, Setup-configurable target).
+          // DL and squat train alone (no row).
+          <>
+            {rowKey && (
+              <Row
+                a={ANCHOR_LABEL[rowKey]}
+                b={rowGsets ? rowGsets.map((g) => `${rowReps}@${g.weight % 1 === 0 ? g.weight : g.weight.toFixed(1)}`).join(' · ') : `${rowReps} reps/round — set anchor in Setup`}
+                c={rowTop != null ? fmt(rowTop) : '—'}
+                cls={C.off}
+              />
+            )}
+            {gbAcc && <Row a={gbAcc.name} b={`${gbAccReps} reps`} c="BW" cls={C.muted} />}
+            {/* Pre-revision GiantFit sessions logged a free row weight — keep it visible. */}
+            {pairLogged && <Row a={`${pairing ?? 'DB Row'} (logged)`} b="free-entry weight, pre-revision" c={fmt(Number(draft.pairWeight))} cls={C.muted} />}
+          </>
         ) : (
           <>
             {pullupWeighted && pullupSets ? (
