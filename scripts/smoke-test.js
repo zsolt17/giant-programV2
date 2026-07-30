@@ -12,6 +12,7 @@
 //   2) `npm run smoke`
 import { supabase, signIn, signOut } from '../src/data/supabase'
 import * as repo from '../src/data/repository'
+import { SEED_MOVEMENTS } from '../src/engine/movements'
 
 const email = process.env.SMOKE_EMAIL
 const password = process.env.SMOKE_PASSWORD
@@ -95,6 +96,21 @@ async function main() {
     ok('C1 pendlay_row anchor = 60 (0017 CHECK accepts pendlay_row)', w?.[1]?.pendlay_row?.hard === 60, w?.[1]?.pendlay_row)
     ok('pendlay_row light computed = 55 (round 60×0.90)', w?.[1]?.pendlay_row?.light === 55, w?.[1]?.pendlay_row?.light)
 
+    // The two empty secondary LANES (0019) accept anchors — the lane exists in the
+    // grid even while no movement occupies it.
+    await repo.saveWorkingWeights(id, 1, { secondary_deadlift: { hard: 40 }, secondary_squat: { hard: 35 } })
+    w = await repo.getWorkingWeights(id)
+    ok('C1 secondary_deadlift lane = 40 (0019 CHECK accepts it)', w?.[1]?.secondary_deadlift?.hard === 40, w?.[1]?.secondary_deadlift)
+    ok('C1 secondary_squat lane = 35 (0019 CHECK accepts it)', w?.[1]?.secondary_squat?.hard === 35, w?.[1]?.secondary_squat)
+    // ...and the CHECK still rejects a lane key that isn't in the registry.
+    let rejected = false
+    try {
+      await repo.saveWorkingWeights(id, 1, { not_a_lane: { hard: 10 } })
+    } catch {
+      rejected = true
+    }
+    ok('working_weights CHECK still rejects an unknown lane key', rejected)
+
     // LEGACY anchors (dips/pullup) still store/load so old macros' history renders;
     // rounding is now uniform 2.5 kg (0.5 retired) and the anchor itself stays exact.
     await repo.saveWorkingWeights(id, 1, { pullup: { hard: 10 }, dips: { hard: 1 } })
@@ -173,6 +189,23 @@ async function main() {
     const gbCfg = await repo.getGiantAccessoryConfig()
     ok('giant accessory config loads with defaults merged (4 movements)',
       ['ab_rollout', 'toes_to_bar', 'ghd_abs', 'ghd_back_ext'].every((k) => typeof gbCfg[k] === 'number'), gbCfg)
+
+    console.log('Movement library (0019: user-scoped, seeded from code)')
+    // USER-scoped, so there is no throwaway to isolate to — but the seed IS the
+    // product's own bootstrap (additive, idempotent, and only ever written when
+    // the library is empty), so running it here is the real first-boot path, not
+    // test pollution. Nothing existing is ever modified.
+    const lib = await repo.ensureSeedMovements()
+    ok('movement library is seeded (>= the code seed size)', lib.length >= SEED_MOVEMENTS.length, lib.length)
+    const libKeys = lib.map((m) => m.key)
+    ok('no duplicate movement keys (unique(user_id,key) holds)', new Set(libKeys).size === libKeys.length, libKeys.length)
+    ok('every seeded key is present', SEED_MOVEMENTS.every((s) => libKeys.includes(s.key)),
+      SEED_MOVEMENTS.filter((s) => !libKeys.includes(s.key)).map((s) => s.key))
+    // ensureSeedMovements is idempotent: a second call must not duplicate.
+    const again = await repo.ensureSeedMovements()
+    ok('ensureSeedMovements is idempotent (no re-seed)', again.length === lib.length, { before: lib.length, after: again.length })
+    const anchoredCount = lib.filter((m) => m.loadType === 'anchored').length
+    ok('capabilities round-trip (six anchored movements)', anchoredCount === 6, anchoredCount)
 
     // capacity_logs hangs off the throwaway macro's session — safe to write.
     const cl = await repo.saveCapacityLog({

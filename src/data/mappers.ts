@@ -32,6 +32,7 @@ import type {
   GiantAccessoryReps,
 } from '../engine/types'
 import type { Joint, Phase } from '../engine/recovery-content'
+import type { Movement, MovementSeed, LoadType, CountType } from '../engine/movements'
 import { expandDayTops } from '../engine/loading'
 import { mergeCapacityConfig } from '../engine/capacity'
 import { GIANTFIT_GB_DEFAULT_REPS } from '../engine/constants'
@@ -392,6 +393,47 @@ export function capacityConfigToRows(
     rep_target: toNum(byMovement[movement_key].reps),
     weight: toNum(byMovement[movement_key].weight),
   }))
+}
+
+// ---- movement library (user-scoped) ----------------------------------------
+export interface MovementRow {
+  id?: string
+  key: string
+  name: string
+  load_type: string
+  count_type: string
+  default_reps: number | null
+  rep_unit: string | null
+  note: string | null
+  archived?: boolean
+}
+export function rowToMovement(r: MovementRow): Movement {
+  return {
+    id: r.id,
+    key: r.key,
+    name: r.name,
+    loadType: r.load_type as LoadType,
+    countType: r.count_type as CountType,
+    defaultReps: toNum(r.default_reps),
+    repUnit: blankToNull(r.rep_unit),
+    note: blankToNull(r.note),
+    archived: !!r.archived,
+  }
+}
+// user_id defaults to auth.uid() at the DB (break_days pattern). The key is the
+// identity — set once on create, never rewritten here.
+export function movementToRow(m: Movement | MovementSeed): MovementRow {
+  return {
+    ...('id' in m && m.id ? { id: m.id } : {}),
+    key: m.key,
+    name: m.name,
+    load_type: m.loadType,
+    count_type: m.countType,
+    default_reps: toNum(m.defaultReps),
+    rep_unit: blankToNull(m.repUnit),
+    note: blankToNull(m.note),
+    archived: 'archived' in m ? !!m.archived : false,
+  }
 }
 
 // ---- GiantFit Giant Block accessories (rep targets, user-scoped) ------------

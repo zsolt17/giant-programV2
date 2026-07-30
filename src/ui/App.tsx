@@ -55,6 +55,7 @@ import type {
   CapacityLogDraft,
 } from '../engine/types'
 import { defaultCapacityConfig } from '../engine/capacity'
+import type { Movement } from '../engine/movements'
 import { GIANTFIT_GB_DEFAULT_REPS } from '../engine/constants'
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
@@ -130,6 +131,9 @@ export function App() {
   const [capacity, setCapacity] = useState<CapacityConfig>(() => defaultCapacityConfig())
   const [capacityLogs, setCapacityLogs] = useState<CapacityLog[]>([])
   const [giantAccessory, setGiantAccessory] = useState<GiantAccessoryReps>(() => ({ ...GIANTFIT_GB_DEFAULT_REPS }))
+  // The movement library — user-scoped (like breakDays), loaded next to the
+  // macro bundle and seeded on first boot. Nothing prescribes from it yet.
+  const [movements, setMovements] = useState<Movement[]>([])
   const [status, setStatus] = useState<LoadStatus>('idle')
   const [err, setErr] = useState('')
   const [online, setOnline] = useState(typeof navigator === 'undefined' || navigator.onLine !== false)
@@ -160,6 +164,7 @@ export function App() {
     setCapacity(snap.capacity || defaultCapacityConfig())
     setCapacityLogs(snap.capacityLogs || [])
     setGiantAccessory(snap.giantAccessory || { ...GIANTFIT_GB_DEFAULT_REPS })
+    setMovements(snap.movements || [])
   }
 
   const load = useCallback(async () => {
@@ -191,6 +196,18 @@ export function App() {
       setCapacity(b.capacity)
       setCapacityLogs(b.capacityLogs)
       setGiantAccessory(b.giantAccessory)
+      // The movement library is user-scoped (independent of the macro) and seeds
+      // itself on first boot. Best-effort by design: a blocked dev write must
+      // never take down the whole load — degrade to whatever the library holds.
+      try {
+        setMovements(await repo.ensureSeedMovements())
+      } catch {
+        try {
+          setMovements(await repo.listMovements())
+        } catch {
+          setMovements([])
+        }
+      }
       setStatus('ready')
       setBooted(true)
     } catch (e) {
@@ -330,9 +347,9 @@ export function App() {
   // optimistic offline writes, since those flow through state).
   useEffect(() => {
     if (status === 'ready' && user && macro) {
-      saveSnapshot({ macros, viewedMacroId, macro, weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs, giantAccessory })
+      saveSnapshot({ macros, viewedMacroId, macro, weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs, giantAccessory, movements })
     }
-  }, [status, user, macro, macros, viewedMacroId, weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs, giantAccessory])
+  }, [status, user, macro, macros, viewedMacroId, weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs, giantAccessory, movements])
 
   const onSaveSession = useCallback(async (record: SessionDraft): Promise<Session> => {
     const saved = await repo.saveSession(record)
@@ -361,6 +378,23 @@ export function App() {
   const onDeleteCapacityLog = useCallback(async (sessionId: string) => {
     await repo.deleteCapacityLog(sessionId)
     setCapacityLogs((prev) => prev.filter((l) => l.sessionId !== sessionId))
+  }, [])
+
+  // Movement library — create/edit and archive (never delete: an archived
+  // movement must keep resolving for any slot that referenced it).
+  const onSaveMovement = useCallback(async (m: Movement): Promise<Movement> => {
+    const saved = await repo.saveMovement(m)
+    setMovements((prev) => {
+      const next = prev.filter((x) => x.key !== saved.key).concat(saved)
+      next.sort((a, b) => a.name.localeCompare(b.name))
+      return next
+    })
+    return saved
+  }, [])
+
+  const onArchiveMovement = useCallback(async (id: string, archived: boolean) => {
+    await repo.archiveMovement(id, archived)
+    setMovements((prev) => prev.map((m) => (m.id === id ? { ...m, archived } : m)))
   }, [])
 
   const onSaveRun = useCallback(async (record: RunDraft): Promise<Run> => {
@@ -589,9 +623,12 @@ export function App() {
           macro={macro}
           bundle={{ weights, accessory, runTargets, capacity, giantAccessory }}
           macros={macros}
+          movements={movements}
           onReload={load}
           onSelectMacro={onSelectMacro}
           onRollMacro={onRollMacro}
+          onSaveMovement={onSaveMovement}
+          onArchiveMovement={onArchiveMovement}
         />
       )}
 

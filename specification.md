@@ -112,6 +112,38 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-07-31
+- `feat(program)`: **modular program content — Phase 1: the movement library.** Program
+  content (which exercise sits in which slot, and its default reps) has been hardcoded in
+  `engine/constants.ts` + `engine/capacity.ts`; this is the first half of making the
+  **occupants of slots into data** (slots themselves stay code). New **`movements`** table
+  (migration `0019`, applied): user-scoped + RLS from the start, `key` (stable identity,
+  unique per user) · `name` (display, freely editable) · **two capabilities** —
+  `load_type` (anchored/recorded/bodyweight/none) and `count_type`
+  (reps/reps_per_side/time_seconds/calories/distance) — plus `default_reps`, `rep_unit`,
+  `note`, `archived`. New pure `engine/movements.ts`: the capability unions,
+  **`SEED_MOVEMENTS`** (33 movements derived 1:1 from today's content — the six anchors,
+  four carry implements, four Giant Block accessories, both capacity circuits, the
+  activation list and the Bulletproof circuit), `validateOccupant(contract, movement)`
+  (generic over the slot contract that lands in Phase 2), `formatCount` (**the existing**
+  display join rule: `/`-prefixed units tight, word units spaced) and `slugify`. The library
+  **seeds itself per user on first load** from that code list (`ensureSeedMovements`, writes
+  only when the user has none) — so a second account bootstraps with no migration.
+  Movements are **archived, never deleted**. `0019` also widens the `working_weights.lift`
+  CHECK with the two currently-empty secondary lanes (`secondary_deadlift`,
+  `secondary_squat`) — widened, never dropped. New Setup card **Movement Library** (last,
+  grouped by load type, archived collapsed, add/edit with an immutable auto-slugged key and
+  a live count preview; the archive-blocked-while-referenced guard is written and inert
+  until slots exist). Movements are user-scoped: loaded next to `getBreakDays`, **not** in
+  `loadMacroBundle`, and cached in the offline snapshot. **Behavioural parity: nothing
+  consumes the library for prescription yet** — `deload-rule.ts`, `date-engine.ts`,
+  `loading.ts`, `constants.ts` and `capacity.ts` are byte-identical (`git diff` empty), so
+  every session view, summary, CSV and Trends output is unchanged. typecheck + **160 tests**
+  (7 new: `formatCount` parity per capacity movement, the seed-covers-every-constant set
+  diff, contract validation) + build green; **smoke 97/97** (seed lands, is not duplicated
+  on a second call, capabilities round-trip, both new lanes accepted, unknown lane still
+  rejected).
+
 ## 2026-07-30 (docs + summaries)
 - `feat(data)` + `docs`: **GiantFit revision — Phase 6 (copy-summaries, migration audit, docs).**
   **Copy-summaries** now match the revised session: the Giant Block prints the **anchored row's

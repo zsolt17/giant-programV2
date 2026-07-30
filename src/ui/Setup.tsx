@@ -8,6 +8,8 @@ import { SET_LADDER, VOLUME_PCT, PACE_ROUND_S, ANCHOR_LIFTS, ANCHOR_LABEL, ANCHO
 import { expandDayTops, giantSets, volumeWeight } from '../engine/loading'
 import { CAPACITY_MOVEMENTS, CAPACITY_VARIANTS, CAPACITY_ROUNDS_OPTIONS } from '../engine/capacity'
 import { runMode, easyPace, qualityRange, fmtPace, parseClock } from '../engine/runs'
+import { LOAD_TYPES, COUNT_TYPES, LOAD_TYPE_LABEL, COUNT_TYPE_LABEL, formatCount, slugify } from '../engine/movements'
+import type { Movement, LoadType, CountType } from '../engine/movements'
 import { errMsg } from './controls'
 import type { Macro, WeightsByCycle, AccessoryByCycle, RunTargetsByCycle, RunSlotKey, CapacityConfig, CapacityVariant, Difficulty, GiantAccessoryReps, Lift } from '../engine/types'
 
@@ -107,9 +109,14 @@ interface SetupProps {
   macro: Macro | null
   bundle: { weights: WeightsByCycle; accessory: AccessoryByCycle; runTargets: RunTargetsByCycle; capacity: CapacityConfig; giantAccessory: GiantAccessoryReps }
   macros?: Macro[]
+  // The movement library (user-scoped). Nothing prescribes from it yet — this is
+  // the editor for the content the program will draw on.
+  movements?: Movement[]
   onReload: () => Promise<void>
   onSelectMacro: (id: string) => void
   onRollMacro: (newStartISO: string) => Promise<void>
+  onSaveMovement?: (m: Movement) => Promise<Movement>
+  onArchiveMovement?: (id: string, archived: boolean) => Promise<void>
 }
 
 // Read-only live preview of the full cascade from one Hard anchor: the three day
@@ -179,7 +186,7 @@ function PacePreview({ pace }: { pace: string }) {
   )
 }
 
-export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onRollMacro }: SetupProps) {
+export function Setup({ macro, bundle, macros = [], movements = [], onReload, onSelectMacro, onRollMacro, onSaveMovement, onArchiveMovement }: SetupProps) {
   const [startISO, setStartISO] = useState(macro?.startISO || '2026-04-13')
   const [number, setNumber] = useState(macro?.number || 1)
   const [cycle, setCycle] = useState(1)
@@ -668,9 +675,348 @@ export function Setup({ macro, bundle, macros = [], onReload, onSelectMacro, onR
         </Card>
       )}
 
+      {/* Movement library — the content the program draws on. Last card by
+          design: it's reference data, not per-macro setup. */}
+      <MovementLibrary movements={movements} onSave={onSaveMovement} onArchive={onArchiveMovement} />
+
       <div style={{ ...cardStyle, marginTop: 16, fontSize: 11, color: C.muted, lineHeight: 1.6 }}>
         Saved to Supabase and synced across devices.
       </div>
     </div>
+  )
+}
+
+// ---- Movement library --------------------------------------------------------
+// The per-user library of exercises the program can prescribe. A movement
+// declares two capabilities — how it's LOADED and how it's COUNTED — and a slot
+// accepts it on that basis (engine/movements.ts). Nothing prescribes from this
+// yet; editing here is safe.
+//
+// Movements are ARCHIVED, never deleted: a program version that referenced one
+// must keep resolving. `blockArchive` is the guard for that — it is inert while
+// no slots exist and gets wired to the live version's slots in the next phase.
+function blockArchive(m: Movement, referencedKeys: Set<string>): string | null {
+  return referencedKeys.has(m.key) ? `${m.name} is used by the current program — swap it out of its slot first.` : null
+}
+
+type MovementDraft = {
+  id?: string
+  key: string
+  name: string
+  loadType: LoadType
+  countType: CountType
+  defaultReps: number | string
+  repUnit: string
+  note: string
+  archived: boolean
+}
+
+const blankMovement = (): MovementDraft => ({
+  key: '',
+  name: '',
+  loadType: 'bodyweight',
+  countType: 'reps',
+  defaultReps: '',
+  repUnit: '',
+  note: '',
+  archived: false,
+})
+
+const toDraft = (m: Movement): MovementDraft => ({
+  id: m.id,
+  key: m.key,
+  name: m.name,
+  loadType: m.loadType,
+  countType: m.countType,
+  defaultReps: m.defaultReps ?? '',
+  repUnit: m.repUnit ?? '',
+  note: m.note ?? '',
+  archived: m.archived,
+})
+
+function MovementLibrary({
+  movements,
+  onSave,
+  onArchive,
+}: {
+  movements: Movement[]
+  onSave?: (m: Movement) => Promise<Movement>
+  onArchive?: (id: string, archived: boolean) => Promise<void>
+}) {
+  const [editing, setEditing] = useState<MovementDraft | null>(null)
+  const [showArchived, setShowArchived] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  // Slots land in the next phase; until then nothing is referenced, so the
+  // archive guard never fires. Keeping the wiring here makes that switch a
+  // one-line change rather than a new code path.
+  const referencedKeys = new Set<string>()
+
+  const live = movements.filter((m) => !m.archived)
+  const archived = movements.filter((m) => m.archived)
+  const groups = LOAD_TYPES.map((lt) => ({ loadType: lt, items: live.filter((m) => m.loadType === lt) })).filter((g) => g.items.length)
+
+  async function save() {
+    if (!editing || !onSave) return
+    const name = editing.name.trim()
+    if (!name) {
+      setErr('A movement needs a name.')
+      return
+    }
+    // The key is the identity: auto-slugged once on create, immutable after.
+    const key = editing.key || slugify(name)
+    if (!key) {
+      setErr('That name has no letters or digits to build a key from.')
+      return
+    }
+    if (!editing.id && movements.some((m) => m.key === key)) {
+      setErr(`A movement with the key "${key}" already exists.`)
+      return
+    }
+    setBusy(true)
+    setErr('')
+    try {
+      await onSave({
+        id: editing.id,
+        key,
+        name,
+        loadType: editing.loadType,
+        countType: editing.countType,
+        defaultReps: editing.defaultReps === '' ? null : Number(editing.defaultReps),
+        repUnit: editing.repUnit.trim() || null,
+        note: editing.note.trim() || null,
+        archived: editing.archived,
+      })
+      setEditing(null)
+    } catch (e) {
+      setErr(errMsg(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function toggleArchive(m: Movement) {
+    if (!onArchive || !m.id) return
+    const blocked = !m.archived && blockArchive(m, referencedKeys)
+    if (blocked) {
+      setErr(blocked)
+      return
+    }
+    setErr('')
+    try {
+      await onArchive(m.id, !m.archived)
+    } catch (e) {
+      setErr(errMsg(e))
+    }
+  }
+
+  const row = (m: Movement) => (
+    <div
+      key={m.key}
+      data-movement={m.key}
+      style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8, alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+    >
+      <span style={{ fontSize: 13, color: m.archived ? C.muted : C.off }}>
+        {m.name}
+        <span style={{ fontSize: 10, color: C.muted }}>
+          {' · '}
+          {COUNT_TYPE_LABEL[m.countType]}
+          {m.defaultReps != null ? ` ${formatCount(m.defaultReps, m)}` : ''}
+          {m.note ? ` · ${m.note}` : ''}
+        </span>
+      </span>
+      <button
+        onClick={() => {
+          setErr('')
+          setEditing(toDraft(m))
+        }}
+        aria-label={`Edit ${m.name}`}
+        style={{ background: 'transparent', color: C.gold, border: `1px solid ${C.border}`, borderRadius: 2, fontSize: 11, padding: '4px 8px', cursor: 'pointer' }}
+      >
+        Edit
+      </button>
+      <button
+        onClick={() => toggleArchive(m)}
+        aria-label={`${m.archived ? 'Restore' : 'Archive'} ${m.name}`}
+        style={{ background: 'transparent', color: C.muted, border: `1px solid ${C.border}`, borderRadius: 2, fontSize: 11, padding: '4px 8px', cursor: 'pointer' }}
+      >
+        {m.archived ? 'Restore' : 'Archive'}
+      </button>
+    </div>
+  )
+
+  return (
+    <Card>
+      <BlockTitle tag="library">Movement Library</BlockTitle>
+      <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>
+        Every exercise the program can prescribe. Each one declares how it's <strong style={{ color: C.off }}>loaded</strong>{' '}
+        and how it's <strong style={{ color: C.off }}>counted</strong> — that's what decides which slots it can fill.
+        Editing a name here is safe; the key underneath is the identity and never changes.
+      </div>
+
+      {err && <div style={{ fontSize: 12, color: C.red, marginBottom: 10 }}>{err}</div>}
+
+      {groups.map((g) => (
+        <div key={g.loadType} style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+            {LOAD_TYPE_LABEL[g.loadType]}
+          </div>
+          {g.items.map(row)}
+        </div>
+      ))}
+      {!movements.length && (
+        <div style={{ fontSize: 12, color: C.muted, fontStyle: 'italic' }}>
+          The library seeds itself on first load. If this stays empty, the dev write-guard is blocking the seed.
+        </div>
+      )}
+
+      {archived.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <button
+            onClick={() => setShowArchived((s) => !s)}
+            aria-expanded={showArchived}
+            style={{ background: 'transparent', color: C.muted, border: 'none', fontSize: 11, cursor: 'pointer', padding: '4px 0' }}
+          >
+            {showArchived ? '▾' : '▸'} Archived ({archived.length})
+          </button>
+          {showArchived && archived.map(row)}
+        </div>
+      )}
+
+      {editing ? (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+          <label style={lbl} htmlFor="mv-name">
+            Name
+          </label>
+          <input
+            id="mv-name"
+            data-movement-field="name"
+            style={inp}
+            value={editing.name}
+            onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+          />
+          <div style={{ fontSize: 10, color: C.muted, margin: '4px 0 10px' }}>
+            Key: <span style={{ fontVariantNumeric: 'tabular-nums' }}>{editing.key || slugify(editing.name) || '—'}</span>
+            {editing.id ? ' (fixed)' : ' (set on save)'}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div>
+              <label style={lbl} htmlFor="mv-load">
+                Load
+              </label>
+              <select
+                id="mv-load"
+                data-movement-field="load_type"
+                style={inp}
+                value={editing.loadType}
+                onChange={(e) => setEditing({ ...editing, loadType: e.target.value as LoadType })}
+              >
+                {LOAD_TYPES.map((l) => (
+                  <option key={l} value={l}>
+                    {LOAD_TYPE_LABEL[l]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={lbl} htmlFor="mv-count">
+                Counted in
+              </label>
+              <select
+                id="mv-count"
+                data-movement-field="count_type"
+                style={inp}
+                value={editing.countType}
+                onChange={(e) => setEditing({ ...editing, countType: e.target.value as CountType })}
+              >
+                {COUNT_TYPES.map((c) => (
+                  <option key={c} value={c}>
+                    {COUNT_TYPE_LABEL[c]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
+            <div>
+              <label style={lbl} htmlFor="mv-reps">
+                Default count
+              </label>
+              <input
+                id="mv-reps"
+                data-movement-field="default_reps"
+                style={inp}
+                type="number"
+                step="1"
+                inputMode="numeric"
+                value={editing.defaultReps}
+                onChange={(e) => setEditing({ ...editing, defaultReps: e.target.value })}
+              />
+            </div>
+            <div>
+              <label style={lbl} htmlFor="mv-unit">
+                Unit
+              </label>
+              <input
+                id="mv-unit"
+                data-movement-field="rep_unit"
+                placeholder="/side · /leg · sec"
+                style={inp}
+                value={editing.repUnit}
+                onChange={(e) => setEditing({ ...editing, repUnit: e.target.value })}
+              />
+            </div>
+          </div>
+          <div style={{ fontSize: 10, color: C.muted, margin: '4px 0 10px' }}>
+            Preview: {editing.defaultReps === '' ? '—' : formatCount(Number(editing.defaultReps), { repUnit: editing.repUnit })}
+          </div>
+
+          <label style={lbl} htmlFor="mv-note">
+            Note
+          </label>
+          <input
+            id="mv-note"
+            data-movement-field="note"
+            placeholder="e.g. per hand"
+            style={inp}
+            value={editing.note}
+            onChange={(e) => setEditing({ ...editing, note: e.target.value })}
+          />
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button
+              onClick={save}
+              disabled={busy}
+              style={{ background: C.gold, color: C.dark, border: 'none', borderRadius: 2, padding: '9px 16px', fontSize: 12, fontWeight: 600, cursor: busy ? 'wait' : 'pointer' }}
+            >
+              {busy ? 'Saving…' : 'Save movement'}
+            </button>
+            <button
+              onClick={() => {
+                setEditing(null)
+                setErr('')
+              }}
+              style={{ background: 'transparent', color: C.muted, border: `1px solid ${C.muted}`, borderRadius: 2, padding: '9px 16px', fontSize: 12, cursor: 'pointer' }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => {
+            setErr('')
+            setEditing(blankMovement())
+          }}
+          data-movement-add="1"
+          style={{ marginTop: 8, background: 'transparent', color: C.gold, border: `1px solid ${C.gold}`, borderRadius: 2, padding: '9px 16px', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer' }}
+        >
+          Add movement
+        </button>
+      )}
+    </Card>
   )
 }

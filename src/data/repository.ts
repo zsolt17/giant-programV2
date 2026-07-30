@@ -30,6 +30,8 @@ import type {
   GiantAccessoryReps,
 } from '../engine/types'
 import type { Joint, Phase } from '../engine/recovery-content'
+import type { Movement } from '../engine/movements'
+import { SEED_MOVEMENTS } from '../engine/movements'
 import { ANCHOR_LIFTS, GIANTFIT_ACC_ITEMS } from '../engine/constants'
 
 // Browser-only offline handling (Node smoke test has no navigator/window).
@@ -312,6 +314,46 @@ export async function setCapacityRounds(rounds: number): Promise<void> {
   assertWritable()
   const { error } = await supabase.from('capacity_settings').upsert({ rounds }, { onConflict: 'user_id' })
   if (error) throw error
+}
+
+// ---- movement library (USER-scoped, not macro-scoped: loaded alongside
+// ---- getBreakDays, never inside loadMacroBundle) ----------------------------
+export async function listMovements(): Promise<Movement[]> {
+  const { data, error } = await supabase.from('movements').select('*').order('name')
+  if (error) throw error
+  return (data || []).map(M.rowToMovement)
+}
+
+// Insert (no id) or update (id) one movement. The `key` is the stable identity —
+// callers set it once at create time and never change it after.
+export async function saveMovement(m: Movement): Promise<Movement> {
+  assertWritable()
+  const row = M.movementToRow(m)
+  const { data, error } = await supabase.from('movements').upsert(row).select().single()
+  if (error) throw error
+  return M.rowToMovement(data)
+}
+
+// Archive, never delete — a slot that referenced this movement must keep
+// resolving (deprecate-never-delete).
+export async function archiveMovement(id: string, archived = true): Promise<void> {
+  assertWritable()
+  const { error } = await supabase.from('movements').update({ archived }).eq('id', id)
+  if (error) throw error
+}
+
+// Seed the library for a user who has none. Idempotent and safe to call every
+// boot: it only writes when the user's library is EMPTY, so an athlete who has
+// since renamed or archived movements is never overwritten. This is how a second
+// account bootstraps itself with no migration and no code change.
+export async function ensureSeedMovements(): Promise<Movement[]> {
+  const existing = await listMovements()
+  if (existing.length) return existing
+  assertWritable()
+  const rows = SEED_MOVEMENTS.map((m) => M.movementToRow(m))
+  const { data, error } = await supabase.from('movements').insert(rows).select()
+  if (error) throw error
+  return (data || []).map(M.rowToMovement)
 }
 
 // ---- Giant Block accessory rep targets (user-scoped, capacity-config pattern)
