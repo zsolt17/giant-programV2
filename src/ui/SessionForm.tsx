@@ -2,7 +2,7 @@ import { C, inp, lbl } from './theme'
 import { Card } from './components'
 import { blockTitle, Row, LogRpe, secondaryDesc } from './controls'
 import { CapacityBlock } from './CapacityBlock'
-import { SCHEMES, WU_PCT, WU_REPS, SET_LADDER, DAY_META, LIFT_LABEL, PULLUP, BLOCK_COMPLETION, GIANTFIT_PAIRING, GIANTFIT_ACTIVATION } from '../engine/constants'
+import { SCHEMES, WU_PCT, WU_REPS, SET_LADDER, DAY_META, LIFT_LABEL, PULLUP, BLOCK_COMPLETION, GIANTFIT_PAIRING, GIANTFIT_ACTIVATION, GIANTFIT_ROW, ANCHOR_LABEL } from '../engine/constants'
 import { fmt, giantSets, warmupSets, volumeWeight, deloadTop, liftMode } from '../engine/loading'
 import { isGiantFitDate } from '../engine/date-engine'
 import { clusterTotal, isUnbroken, meetsTarget } from '../engine/pullups'
@@ -84,6 +84,10 @@ interface SessionFormProps {
   // The cycle's pull-up day-top cell (dips day only): hard = the anchor (exact).
   // Anchor > 0 → weighted pull-ups (full cascade); 0/absent → bodyweight clusters.
   pullupCell?: LiftWeights | null
+  // The cycle's day-top cell for the day's ANCHORED row (GiantFit OHP/bench days:
+  // DB Row / Pendlay Row) — same shape as the main lift's cell; null when the day
+  // has no row or the anchor is unset (loads render "—").
+  rowCell?: LiftWeights | null
   // GiantFit capacity block (post-cutover training sessions): the slot's variant,
   // the Setup config, this session's existing log, and its own save/delete
   // handlers (the block saves independently of the session form's Save).
@@ -99,7 +103,7 @@ interface SessionFormProps {
 // The prescription + log fields for a training-week session. Reused by Today
 // (inline) and SessionModal (overlay). The parent owns the draft + Save button;
 // it stamps the prescribed top weight/reps on save.
-export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, draft, setField, locked = false, carryLoad, secondaryLoad, pullupCell, capacity = null }: SessionFormProps) {
+export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, draft, setField, locked = false, carryLoad, secondaryLoad, pullupCell, rowCell, capacity = null }: SessionFormProps) {
   const scheme = SCHEMES[difficulty]
   const meta = DAY_META[dayType]
   // GiantFit era (the DATE decides): Warm-Up → Giant → Volume → Capacity → Carry,
@@ -123,6 +127,13 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
   const secondaryDisplay = secondaryWeighted ? (secondaryNum != null && !Number.isNaN(secondaryNum) ? fmt(secondaryNum) : '—') : 'BW'
   const hasTop = hasWeight && top != null && !dipsBW
   const wu = hasTop && top != null ? warmupSets(top) : null
+  // GiantFit anchored row (OHP/bench days): build-up off the ROW's own anchor
+  // for this cycle/difficulty — never the day's main lift. Same deload treatment
+  // as the main top (~70%).
+  const rowKey = giantfit ? GIANTFIT_ROW[dayType] : undefined
+  const rowBase = rowKey ? rowCell?.[difficulty] ?? null : null
+  const rowTop = rowBase != null ? (isDeload ? deloadTop(rowBase) : rowBase) : null
+  const rowWu = rowTop != null ? warmupSets(rowTop) : null
   const gsets = hasTop && top != null ? giantSets(top, difficulty) : null
   // Tiny dips build-up loads can round to 0 — that's bodyweight.
   const wuCell = (w: number): string => (w === 0 ? 'BW' : fmt(w))
@@ -164,6 +175,16 @@ export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, dra
         {WU_PCT.map((p, i) => (
           <Row key={i} a={`WU${i + 1}`} b={`${WU_REPS[i]} reps @ ~${Math.round(p * 100)}%`} c={dipsBW ? 'BW' : wu ? wuCell(wu[i].weight) : '—'} cls={C.muted} />
         ))}
+        {/* Anchored-row build-up (GiantFit OHP/bench days) — same 8-5-3-2 rule,
+            derived from the row's own Set 1 for the day. */}
+        {rowKey && (
+          <>
+            <div style={{ fontSize: 12, color: C.muted, fontStyle: 'italic', margin: '8px 0' }}>Then {ANCHOR_LABEL[rowKey]} build-up:</div>
+            {WU_PCT.map((p, i) => (
+              <Row key={`row-${i}`} a={`WU${i + 1}`} b={`${WU_REPS[i]} reps @ ~${Math.round(p * 100)}%`} c={rowWu ? wuCell(rowWu[i].weight) : '—'} cls={C.muted} />
+            ))}
+          </>
+        )}
       </Card>
 
       {/* Giant Block */}

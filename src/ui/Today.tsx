@@ -7,7 +7,7 @@ import { useWakeLock } from './useWakeLock'
 import { SessionForm, buildBlankSession } from './SessionForm'
 import { TestingSessionView } from './TestingSession'
 import { RunForm, buildBlankRun, SetPaceChip } from './RunForm'
-import { SCHEMES, LIFT_LABEL, SIGNALS, RUN_SIGNALS, SECONDARY_ITEM, RUN_TYPE_LABEL } from '../engine/constants'
+import { SCHEMES, LIFT_LABEL, SIGNALS, RUN_SIGNALS, SECONDARY_ITEM, RUN_TYPE_LABEL, GIANTFIT_ROW } from '../engine/constants'
 import { deloadTop } from '../engine/loading'
 import { runSlotFor } from '../engine/runs'
 import { todayISO, mondayOf, parseLocalDate, isoLocal, rotationLiftFor } from '../engine/date-engine'
@@ -300,6 +300,9 @@ export function Today({
   const secondaryItem = SECONDARY_ITEM[dayType]
   const secondaryDefault = secondaryItem ? accessory?.[cycle]?.[secondaryItem] ?? '' : ''
   const pullupCell = dayType === 'dips' ? weights?.[cycle]?.pullup ?? null : null
+  // The day's anchored row cell (GiantFit OHP/bench days) — same pattern as pullupCell.
+  const rowAnchorKey = GIANTFIT_ROW[dayType]
+  const rowCell = rowAnchorKey ? weights?.[cycle]?.[rowAnchorKey] ?? null : null
   // Use the position's date (honours the dev ?today override) — stamping the
   // REAL date here once made an overridden Today render the wrong era.
   const sessionId = `${today}-${dayType}-${difficulty[0].toUpperCase()}`
@@ -397,6 +400,7 @@ export function Today({
         carryLoad={carryDefault}
         secondaryLoad={secondaryDefault}
         pullupCell={pullupCell}
+        rowCell={rowCell}
         capacityCtx={capacityCtx}
         capacityPoints={capacityPoints}
         currentWeekSessions={currentWeekSessions}
@@ -544,6 +548,7 @@ interface SessionEditorProps {
   carryLoad?: number | string | null
   secondaryLoad?: number | string | null
   pullupCell?: LiftWeights | null
+  rowCell?: LiftWeights | null
   capacityCtx?: CapacityCtx | null
   capacityPoints?: CapacityPoint[]
   currentWeekSessions: Session[]
@@ -558,7 +563,7 @@ interface SessionEditorProps {
   setSaved: (b: boolean) => void
 }
 
-function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, carryLoad, secondaryLoad, pullupCell, capacityCtx = null, capacityPoints = [], currentWeekSessions, currentWeekRuns = [], allRuns = [], stamp, onSaveSession, onRunningChange, saving, setSaving, saved, setSaved }: SessionEditorProps) {
+function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, carryLoad, secondaryLoad, pullupCell, rowCell, capacityCtx = null, capacityPoints = [], currentWeekSessions, currentWeekRuns = [], allRuns = [], stamp, onSaveSession, onRunningChange, saving, setSaving, saved, setSaved }: SessionEditorProps) {
   const [draft, setDraft] = useState<SessionDraft>(() => existing || blank())
   const [err, setErr] = useState('')
   const [nowTs, setNowTs] = useState(() => Date.now())
@@ -696,7 +701,7 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
         />
       )}
 
-      <SessionForm dayType={dayType} difficulty={difficulty} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} locked={notStarted} carryLoad={carryLoad} secondaryLoad={secondaryLoad} pullupCell={pullupCell} capacity={capacity} />
+      <SessionForm dayType={dayType} difficulty={difficulty} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} locked={notStarted} carryLoad={carryLoad} secondaryLoad={secondaryLoad} pullupCell={pullupCell} rowCell={rowCell} capacity={capacity} />
 
       {completed && (
         <button

@@ -5,7 +5,7 @@ import { C, HEADING, lbl, pillColor } from './theme'
 import { SessionForm, buildBlankSession } from './SessionForm'
 import { TestingSessionView } from './TestingSession'
 import { fmtClock, DurationEdit, errMsg } from './controls'
-import { SCHEMES, LIFT_LABEL, SECONDARY_ITEM } from '../engine/constants'
+import { SCHEMES, LIFT_LABEL, SECONDARY_ITEM, GIANTFIT_ROW } from '../engine/constants'
 import { deloadTop } from '../engine/loading'
 import { parseLocalDate } from '../engine/date-engine'
 import type {
@@ -82,6 +82,9 @@ export function SessionModal({
   const secondaryItem = dayType ? SECONDARY_ITEM[dayType] : undefined
   const secondaryDefault = cycle != null && secondaryItem ? accessory?.[cycle]?.[secondaryItem] ?? '' : ''
   const pullupCell = dayType === 'dips' && cycle != null ? weights?.[cycle]?.pullup ?? null : null
+  // The day's anchored row cell (GiantFit OHP/bench days) — same pattern as pullupCell.
+  const rowAnchorKey = dayType ? GIANTFIT_ROW[dayType] : undefined
+  const rowCell = rowAnchorKey && cycle != null ? weights?.[cycle]?.[rowAnchorKey] ?? null : null
 
   const [draft, setDraft] = useState<SessionDraft>(
     () =>
@@ -252,7 +255,7 @@ export function SessionModal({
           </div>
         ) : (
           <>
-            <SessionForm dayType={dayType!} difficulty={difficulty!} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} carryLoad={carryDefault} secondaryLoad={secondaryDefault} pullupCell={pullupCell} capacity={capacityProp} />
+            <SessionForm dayType={dayType!} difficulty={difficulty!} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} carryLoad={carryDefault} secondaryLoad={secondaryDefault} pullupCell={pullupCell} rowCell={rowCell} capacity={capacityProp} />
             {draft.startedAt && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
                 <div>

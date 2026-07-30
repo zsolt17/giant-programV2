@@ -1,7 +1,7 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { round, fmt, schemeFor, dayTop, expandDayTops, giantSets, set1Weight, warmupSets, volumeWeight, deloadTop, testCeiling, liftMode } from './loading'
-import { ANCHOR_LIFTS, ANCHOR_LABEL } from './constants'
+import { ANCHOR_LIFTS, ANCHOR_LABEL, GIANTFIT_ROW } from './constants'
 
 test('round: nearest 2.5 kg', () => {
   assert.equal(round(120), 120)
@@ -102,4 +102,8 @@ test('liftMode (LEGACY, old dips-day rendering only): 0/null/undefined = bodywei
 test('ANCHOR_LIFTS: six GiantFit anchors incl. the rows (2026-07-30 revision), all labelled', () => {
   assert.deepEqual(ANCHOR_LIFTS, ['deadlift', 'ohp', 'squat', 'bench', 'db_row', 'pendlay_row'])
   for (const l of ANCHOR_LIFTS) assert.ok(ANCHOR_LABEL[l], `label missing for ${l}`)
+})
+
+test('GIANTFIT_ROW: OHP day pairs the DB Row anchor, bench day the Pendlay Row; DL/squat train alone', () => {
+  assert.deepEqual(GIANTFIT_ROW, { ohp: 'db_row', bench: 'pendlay_row' })
 })

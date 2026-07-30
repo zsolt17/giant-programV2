@@ -38,6 +38,11 @@ export const GIANTFIT_PAIRING: Record<Lift, string | null> = {
   dips: null, // retired Giant-era lift — never scheduled post-cutover
 }
 
+// The day's ANCHORED row (2026-07-30 revision): the paired rows carry their own
+// per-cycle anchor and cascade like any lift — build-up, ladder, and volume all
+// derive from the ROW's anchor, never the day's main lift.
+export const GIANTFIT_ROW: Partial<Record<Lift, AnchorLift>> = { ohp: 'db_row', bench: 'pendlay_row' }
+
 // GiantFit warm-up activation — a fixed list done before the barbell build-up.
 // Replaces the Giant-era GOWOD flows: no GOWOD reference in GiantFit sessions.
 export const GIANTFIT_ACTIVATION: { name: string; dose: string }[] = [

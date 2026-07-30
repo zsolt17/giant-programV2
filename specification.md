@@ -108,6 +108,18 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-07-30 (later)
+- `feat(giantfit)`: **GiantFit revision — Phase 2 (build-up for the anchored rows).** OHP-
+  and bench-day session views (Today + Calendar modal, shared `SessionForm`) now append a
+  second barbell build-up to the Warm-Up card — "Then DB Row / Pendlay Row build-up:" —
+  using the identical rule as every lift: 8-5-3-2 @ ~40/55/70/85% of the ROW's own Giant
+  Block Set 1 for the day (via the same `warmupSets` engine path; the row's day top comes
+  from the row's anchor, never the day's main lift; ~70% deload treatment matches the main
+  top). New `GIANTFIT_ROW` map (day → row anchor: ohp→`db_row`, bench→`pendlay_row`);
+  parents pass the row's weights cell like `pullupCell` — no engine change, loads render
+  "—" until the row anchor is set in Setup. DL/squat days unchanged (no row). typecheck +
+  **148 tests** + build green.
+
 ## 2026-07-30
 - `feat(giantfit)`: **GiantFit revision — Phase 1 (rows become anchored lifts).** DB Row
   (OHP day, anchor entered as kg **per hand**) and Pendlay Row (bench day) join the anchor
