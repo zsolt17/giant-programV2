@@ -588,7 +588,7 @@ export function App() {
     )
 
   const computed = macro
-    ? computePosition(macro.startISO, macro.number, devNow(), { weeks: macro.weeks, deloadExtended: macro.deloadExtended })
+    ? computePosition(macro.startISO, macro.number, devNow(), { weeks: macro.weeks, deloadExtended: macro.deloadExtended }, giant2Difficulty)
     : null
   if (computed && macro) computed.startISO = macro.startISO
 
@@ -661,6 +661,7 @@ export function App() {
           capacity={capacity}
           capacityLogs={capacityLogs}
           giantAccessory={giantAccessory}
+          giant2Difficulty={giant2Difficulty}
           onToggleBreak={onToggleBreak}
           onSaveSession={onSaveSession}
           onDeleteSession={onDeleteSession}

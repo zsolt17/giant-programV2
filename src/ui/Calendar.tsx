@@ -24,6 +24,7 @@ import type {
   CapacityLog,
   CapacityLogDraft,
   GiantAccessoryReps,
+  Giant2DifficultyConfig,
 } from '../engine/types'
 
 function shortDate(iso: string): string {
@@ -64,11 +65,42 @@ interface CalendarProps {
   giantAccessory?: GiantAccessoryReps
   onSaveCapacityLog?: (log: CapacityLogDraft) => Promise<CapacityLog>
   onDeleteCapacityLog?: (sessionId: string) => Promise<void>
+  // Giant 2.0 weekly Giant-difficulty rotation (Setup config, defaults merged).
+  giant2Difficulty?: Giant2DifficultyConfig
 }
 
-export function Calendar({ startISO, macroNumber, macroId, weights, accessory, sessions, deloads, breakDays, testingResults, runs = [], runTargets = {}, refPaceS = null, macroWeeks, deloadExtended = false, onToggleBreak, onSaveSession, onDeleteSession, onSaveTestingResult, onDeleteTestingResult, onSaveRun, onDeleteRun, onSetRefPace, capacity, capacityLogs = [], giantAccessory, onSaveCapacityLog, onDeleteCapacityLog }: CalendarProps) {
+export function Calendar({
+  startISO,
+  macroNumber,
+  macroId,
+  weights,
+  accessory,
+  sessions,
+  deloads,
+  breakDays,
+  testingResults,
+  runs = [],
+  runTargets = {},
+  refPaceS = null,
+  macroWeeks,
+  deloadExtended = false,
+  onToggleBreak,
+  onSaveSession,
+  onDeleteSession,
+  onSaveTestingResult,
+  onDeleteTestingResult,
+  onSaveRun,
+  onDeleteRun,
+  onSetRefPace,
+  capacity,
+  capacityLogs = [],
+  giantAccessory,
+  onSaveCapacityLog,
+  onDeleteCapacityLog,
+  giant2Difficulty,
+}: CalendarProps) {
   const shape = { weeks: macroWeeks, deloadExtended }
-  const rows = enumerateMacro(startISO, macroNumber, shape)
+  const rows = enumerateMacro(startISO, macroNumber, shape, giant2Difficulty)
   const todayStr = todayISO()
   const [modal, setModal] = useState<{ cell: MacroCell } | { runSlot: RunSlot } | null>(null)
   const currentRowRef = useRef<HTMLDivElement | null>(null)
@@ -161,7 +193,9 @@ export function Calendar({ startISO, macroNumber, macroId, weights, accessory, s
               </span>
               <span style={{ fontSize: 10, color: C.muted }}>wk {row.displayWeek}/{rows.length}</span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+            {/* 3 columns (Mon/Wed/Fri) pre-Giant-2.0, 4 (Mon/Tue/Thu/Fri) from the
+                Giant 2.0 cutover — row.cells.length already reflects which. */}
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${row.cells.length}, 1fr)`, gap: 6 }}>
               {row.cells.map((cell) => {
                 const st = cellState(cell)
                 const logged = loggedOnDate[cell.date]

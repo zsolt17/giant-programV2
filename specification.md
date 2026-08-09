@@ -112,6 +112,58 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-08-09 (Giant 2.0, Phase 2 — date/position engine)
+- `feat`: **Giant 2.0 date/position engine** — `corePosition` (and
+  `computePosition`/`nextSessionFrom`/`enumerateMacro`) now compute Giant 2.0
+  positions directly, gated by a new `isGiant2Date` (mirrors `isGiantFitDate`
+  exactly; UNCHANGED — still true for Giant2 dates too, since they're
+  chronologically later). New `Position.giant2` flag — check it FIRST, it's
+  the more specific era.
+  - **Fixed Mon/Tue/Thu/Fri day→lift** (`GIANT2_DAY_LIFT`), no rotation —
+    `isSessionDay` now reads `GIANT2_SESSION_DAYS` for Giant2 dates instead of
+    the Mon/Wed/Fri set.
+  - **Two independent difficulties resolved per session**: `giant2GiantDifficultyFor`
+    (week 1-3 reads the athlete's Setup override merged over the code default,
+    week 4 always collapses per cycle, ignoring any override) and
+    `giant2VolumeDifficultyFor` (fixed per cycle, null on C3 week 4 — no Volume
+    block that week). Both exposed as pure, date-free lookups for reuse
+    outside the position engine.
+  - **Deload week carries a dayType** for Giant 2.0 (Mon is always Squat, deload
+    or not — confirmed against the 13-week calendar) — a deliberate departure
+    from GiantFit, where deload has never had one. No H/M/L difficulty either
+    way (deload runs a flat ~70%).
+  - `capabilityProgramFor(cycle)` — the cycle→Hypertrophy/Oly/Carries dispatch,
+    exposed as its own pure function (`GIANT2_CAPABILITY_BY_CYCLE`).
+  - `capacityVariant` is now explicitly null for ALL Giant2 dates, including
+    Monday/Friday which overlap GiantFit's own Mon/Wed/Fri capacity-slot
+    weekdays — guarded so the two unrelated mechanisms can never cross-talk.
+  - `Calendar.tsx`'s week-row grid is now `repeat(row.cells.length, 1fr)`
+    instead of a hardcoded 3 columns, so a Giant2 week's 4 cells (and a
+    macro that happens to straddle the cutover) render correctly. The
+    separate Giant Run row stays fixed at 3 columns (unrelated schedule).
+  - `giant2Difficulty` (the athlete's Setup override, loaded in Phase 1) is now
+    threaded into the live `computePosition`/`enumerateMacro` calls in
+    `App.tsx`/`Calendar.tsx` — Setup edits already take effect everywhere a
+    position is computed, ahead of any session view existing to render one.
+  - **Important, confirmed-intentional behavior** (documented in a new test,
+    mirrors exactly how the GiantFit cutover itself always worked): **the
+    DATE decides the era, not the macro.** A macro that started under GiantFit
+    and is still running on 2026-08-10 does NOT keep running GiantFit — its
+    remaining sessions render under Giant 2.0 rules from that date on, using
+    that macro's OWN week/meso clock (e.g. its own C1 W3), not a fresh C1 W1.
+    To get the clean Giant 2.0 C1 W1 the 13-week calendar describes, a **new
+    macro dated 2026-08-10 must be started in Setup** — the engine has no
+    concept of "pause this macro at the cutover," by design (GiantFit is
+    retired outright, not run alongside).
+  - 28 new/updated tests (18 new Giant 2.0 date-engine cases + 3 existing
+    GiantFit tests fixed — their fixture dates fell past the new cutover,
+    since GIANT2_START_DATE is only 14 days after GIANTFIT_START_DATE,
+    narrower than one mesocycle; rotation-table coverage for the
+    now-unreachable slots moved to the existing date-free `rotationLiftFor`
+    helper). 211/211 tests passing, clean typecheck, clean build.
+  - **Still nothing renders a Giant 2.0 session view** — Setup's anchor grid
+    and every session component are next (Phase 3).
+
 ## 2026-08-09 (Giant 2.0, Phase 1 — data model)
 - `feat`: **Giant 2.0 — Phase 1 of the program replacing GiantFit entirely** (cutover
   `GIANT2_START_DATE = 2026-08-10`, a Monday; no program-type selector, GiantFit becomes

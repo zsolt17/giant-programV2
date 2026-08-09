@@ -44,6 +44,9 @@ export interface NextSession {
   date: string
   dayType?: Lift | null
   difficulty?: Difficulty | null
+  // Giant 2.0 only: the Volume block's own difficulty (null on GiantFit/legacy
+  // NextSessions, and on Giant 2.0 weeks with no Volume block — C3 week 4).
+  volumeDifficulty?: Difficulty | null
   meso?: number | null
   week?: number | null
   testing?: boolean
@@ -82,9 +85,21 @@ export interface Position {
   totalWeeks?: number
   // True when the target date is on/after GIANTFIT_START_DATE (the cutover):
   // GiantFit rotation + C1 override + no skill days. False = legacy Giant rules.
+  // UNCHANGED meaning (still true for Giant 2.0 dates too, chronologically) —
+  // check `giant2` FIRST, it's the more specific flag.
   giantfit?: boolean
+  // True when the target date is on/after GIANT2_START_DATE: fixed Mon/Tue/
+  // Thu/Fri day->lift, two independent difficulties (Giant/Volume), no
+  // Capacity block. Implies `giantfit` is also true (Giant 2.0 is chronologically
+  // later), but callers must check `giant2` first — it is NOT the GiantFit era.
+  giant2?: boolean
+  // Giant 2.0 only: the Volume block's own difficulty (fixed per cycle, null
+  // when there's no Volume block that week — C3 week 4 — or on any
+  // non-Giant-2.0 date).
+  volumeDifficulty?: Difficulty | null
   // GiantFit capacity variant for this strength slot (A/B alternating by the
-  // scheduled-slot index since the cutover). Null off-slot / pre-cutover.
+  // scheduled-slot index since the cutover). Null off-slot / pre-cutover /
+  // Giant 2.0 (no Capacity block).
   capacityVariant?: CapacityVariant | null
   nextSession?: NextSession | null
   startISO?: string
@@ -103,6 +118,9 @@ export interface MacroCell {
   difficulty: Difficulty | null
   // GiantFit capacity variant for this slot (null pre-cutover / off-slot).
   capacityVariant: CapacityVariant | null
+  // Giant 2.0 only: the Volume block's own difficulty (null off-era, or on a
+  // Giant 2.0 week with no Volume block — C3 week 4).
+  volumeDifficulty: Difficulty | null
 }
 export interface MacroWeekRow {
   weekIndex: number
