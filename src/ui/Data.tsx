@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { C } from './theme'
 import { Card, BlockTitle } from './components'
-import { sessionsToCsv, testingToCsv, runsToCsv, capacityToCsv } from '../engine/export-csv'
+import { sessionsToCsv, testingToCsv, runsToCsv, capacityToCsv, hypertrophyToCsv, olyToCsv } from '../engine/export-csv'
 import { sessionSummary, testSummary, runSummary } from '../engine/session-summary'
 import { todayISO } from '../engine/date-engine'
 import { daysSinceStart } from '../engine/recovery'
 import { weekKeyFor } from '../engine/deload-rule'
 import { LIFT_SHORT, RUN_TYPE_LABEL } from '../engine/constants'
-import type { Session, Macro, Lift, AccessoryByCycle, WeightsByCycle, TestingResult, DeloadMap, Run, CapacityLog, GiantAccessoryReps } from '../engine/types'
+import type { Session, Macro, Lift, AccessoryByCycle, WeightsByCycle, TestingResult, DeloadMap, Run, CapacityLog, GiantAccessoryReps, HypertrophyLog, OlyLog } from '../engine/types'
+import type { Movement } from '../engine/movements'
 
 const btn = (disabled = false) => ({
   background: disabled ? 'rgba(201,168,76,0.3)' : C.gold,
@@ -93,9 +94,27 @@ interface DataProps {
   capacityLogs?: CapacityLog[]
   // Giant Block accessory rep targets (user-scoped) — the summary's accessory line.
   giantAccessory?: GiantAccessoryReps
+  // Giant 2.0 Capability block: the athlete's movement library (to resolve
+  // log rows' names) + all-macro Hypertrophy/Oly logs.
+  movements?: Movement[]
+  hypertrophyLogs?: HypertrophyLog[]
+  olyLogs?: OlyLog[]
 }
 
-export function Data({ sessions, macros, accessory = {}, weights = {}, testing = [], deloads = {}, runs = [], capacityLogs = [], giantAccessory }: DataProps) {
+export function Data({
+  sessions,
+  macros,
+  accessory = {},
+  weights = {},
+  testing = [],
+  deloads = {},
+  runs = [],
+  capacityLogs = [],
+  giantAccessory,
+  movements = [],
+  hypertrophyLogs = [],
+  olyLogs = [],
+}: DataProps) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [copyErr, setCopyErr] = useState('')
@@ -170,9 +189,9 @@ export function Data({ sessions, macros, accessory = {}, weights = {}, testing =
       <Card>
         <BlockTitle tag="CSV">Download all data</BlockTitle>
         <p style={{ fontSize: 13, color: C.muted, margin: '0 0 14px' }}>
-          Sessions (with pair_weight + deload_week columns), capacity results, runs, and legacy testing results export
-          as four CSV files — each lives in its own table. Exports are a union of both program eras; legacy rows keep
-          their original columns.
+          Sessions (with pair_weight + volume_difficulty + deload_week columns), capacity results, Giant 2.0's
+          Hypertrophy/Oly results, runs, and legacy testing results export as six CSV files — each lives in its own
+          table. Exports are a union of every program era; each era's rows keep their own columns.
         </p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button
@@ -202,6 +221,20 @@ export function Data({ sessions, macros, accessory = {}, weights = {}, testing =
             disabled={runs.length === 0}
           >
             Runs CSV
+          </button>
+          <button
+            onClick={() => downloadCsv(hypertrophyToCsv(hypertrophyLogs, sessions, movements, macros), `giant-program-hypertrophy-${todayISO()}.csv`)}
+            style={btn(hypertrophyLogs.length === 0)}
+            disabled={hypertrophyLogs.length === 0}
+          >
+            Hypertrophy CSV
+          </button>
+          <button
+            onClick={() => downloadCsv(olyToCsv(olyLogs, sessions, movements, macros), `giant-program-oly-${todayISO()}.csv`)}
+            style={btn(olyLogs.length === 0)}
+            disabled={olyLogs.length === 0}
+          >
+            Oly CSV
           </button>
         </div>
         {sessions.length === 0 && (

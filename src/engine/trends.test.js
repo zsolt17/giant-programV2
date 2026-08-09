@@ -152,3 +152,13 @@ test('toCapacityTrend: the per-round series is UNAFFECTED by the S6 replacement'
   const withoutCompletion = toCapacityTrend(logs.map(({ completion, ...l }) => l), sessions, macros)
   assert.deepEqual(withoutCompletion, pts)
 })
+
+test('toTrendSessions: S2 mirrors deload-rule.ts exactly — never fires on a Giant 2.0 C3 week 4 session', () => {
+  const g2macro = [{ id: 'm4', number: 4, startISO: '2026-08-10', weeks: 13, status: 'active' }]
+  const c3w4 = S({ macroId: 'm4', id: '2026-10-26-squat', date: '2026-10-26', dayType: 'squat', volDone: false, volumeDifficulty: null })
+  const rows = toTrendSessions([c3w4], g2macro, {})
+  assert.equal(rows[0].S2, 0)
+  // A normal Giant 2.0 training session (Volume block present) still fires it.
+  const normal = S({ macroId: 'm4', id: '2026-08-10-squat', date: '2026-08-10', dayType: 'squat', volDone: false, volumeDifficulty: 'light' })
+  assert.equal(toTrendSessions([normal], g2macro, {})[0].S2, 1)
+})

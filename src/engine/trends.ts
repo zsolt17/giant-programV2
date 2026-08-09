@@ -3,7 +3,7 @@
 // signal flags mirror deload-rule.ts exactly so Trends never disagrees with Deload.
 import type { Session, Macro, Run, DeloadMap, BreakDayMap, AccessoryByCycle, CapacityLog, TrendSession, TrendDay, TrendCapacity, TrendCarry, TrendRun, CarryType, AttStatus, AttMacro, AttCycle } from './types'
 import { weekKeyFor } from './deload-rule'
-import { enumerateMacro, todayISO } from './date-engine'
+import { enumerateMacro, todayISO, isGiant2Date } from './date-engine'
 import { perRoundSeconds } from './capacity'
 import { derivedPaceS } from './runs'
 
@@ -43,9 +43,12 @@ export function toTrendSessions(sessions: Session[], macros: Macro[], deloads: D
         rpe,
         spd,
         dur: durMs != null ? Math.round(durMs / 60000) : null,
-        // Signal definitions match deload-rule.ts (S4 is notebook-only, omitted).
+        // Signal definitions match deload-rule.ts EXACTLY (S4 is notebook-only,
+        // omitted) — including Giant 2.0's one exception: C3 week 4 has no
+        // Volume block, so S2 never applies there (volDone can't meaningfully
+        // be false for a block that doesn't exist that session).
         S1: rpe != null && rpe >= 9.5 ? 1 : 0,
-        S2: s.volDone === false ? 1 : 0,
+        S2: (!isGiant2Date(s.date) || s.volumeDifficulty != null) && s.volDone === false ? 1 : 0,
         S3: s.carrySkipped && s.carrySkipReason === 'fatigue' ? 1 : 0,
         S5: s.barSpeed === 'down' ? 1 : 0,
         S7: s.blockCompletion && s.blockCompletion !== 'completed' ? 1 : 0,

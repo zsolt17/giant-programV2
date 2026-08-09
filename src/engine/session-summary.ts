@@ -17,9 +17,12 @@ import {
   GIANTFIT_GB_ACCESSORY,
   ANCHOR_LABEL,
   CAPACITY_COMPLETION,
+  GIANT2_SECONDARY,
+  GIANT2_GB_ACCESSORY,
+  PULLUP,
 } from './constants'
 import { giantSets, volumeWeight, liftMode, fmt } from './loading'
-import { isGiantFitDate } from './date-engine'
+import { isGiantFitDate, isGiant2Date, capabilityProgramFor } from './date-engine'
 import { derivedPaceS, fmtPace, fmtRunDuration } from './runs'
 import type { Session, Lift, AccessoryByCycle, WeightsByCycle, TestingResult, Run, CapacityLog, GiantAccessoryReps } from './types'
 import type { DayMeta } from './types'
@@ -86,15 +89,19 @@ export function sessionSummary(
   capacityLog?: CapacityLog | null,
   giantAccessory?: GiantAccessoryReps
 ): string {
-  // Legacy/hypothetical weekType 'deload' rows (W15): minimal format — the app
-  // never writes these today, but the schema allows them.
-  if (s.weekType === 'deload') return w15DeloadSummary(s, macroNumber)
+  // Legacy/hypothetical weekType 'deload' rows (pre-Giant-2.0 W15 macros):
+  // minimal format — those eras never actually wrote a real deload session
+  // row, but the schema allows them. Giant 2.0's deload week IS a real,
+  // richly-logged session (Phase 3) and flows through the main body below.
+  const giant2 = isGiant2Date(s.date)
+  if (s.weekType === 'deload' && !giant2) return w15DeloadSummary(s, macroNumber)
 
   const lines: string[] = []
   const meta = s.dayType ? DAY_META[s.dayType] : null
   const acc = s.cycle != null ? accessory?.[s.cycle] : undefined
   // GiantFit era (per DATE): paired row instead of the legacy secondary, plus a
   // capacity line. Pre-cutover sessions keep the Giant format untouched.
+  // Giant 2.0 dates are ALSO giantfit (chronologically later) — check giant2 first.
   const giantfit = isGiantFitDate(s.date)
   // Bodyweight-mode dips: no load — the session's stamped top is 0/null.
   const dipsBW = s.dayType === 'dips' && liftMode(s.topWeight) === 'bodyweight'
@@ -130,10 +137,38 @@ export function sessionSummary(
       : BLOCK_COMPLETION.find((o) => o.id === s.blockCompletion)?.label || s.blockCompletion
   lines.push(`  Completion: ${completion}`)
 
-  // GiantFit: the paired row with its logged per-session weight (squat trains
-  // alone). Legacy: the weighted secondary with its recorded per-cycle weight;
-  // dips day is bodyweight pull-ups — the cluster line below covers it.
-  if (giantfit) {
+  // Giant 2.0: the secondary reuses the SAME db_row/pendlay_row lanes as
+  // GiantFit (only the occupant changed — BB Row on OHP, Pull-ups on bench,
+  // two-mode). Checked before the giantfit branch below, since giant2 dates
+  // are also giantfit chronologically.
+  if (giant2) {
+    const rowKey = s.dayType ? GIANTFIT_ROW[s.dayType] : undefined
+    const secondary = s.dayType ? GIANT2_SECONDARY[s.dayType] : undefined
+    const rowCell = rowKey && s.cycle != null ? weights?.[s.cycle]?.[rowKey] : undefined
+    if (secondary && rowKey) {
+      const weighted = secondary.key !== 'pullup' || liftMode(rowCell?.hard) === 'weighted'
+      const rowTop = weighted && s.difficulty ? rowCell?.[s.difficulty] ?? null : null
+      if (weighted) {
+        const reps = s.difficulty ? GIANTFIT_ROW_REPS[s.difficulty] : null
+        const ladder =
+          rowTop != null && s.difficulty
+            ? giantSets(rowTop, s.difficulty)
+                .map((g) => `${reps}@${kg(g.weight)}`)
+                .join(' · ')
+            : reps != null
+              ? `${reps} reps/round`
+              : ''
+        lines.push(`  ${secondary.name}: ${ladder}`)
+      } else if (s.pullupCluster) {
+        lines.push(`  ${secondary.name}: ${s.pullupCluster}`)
+      } else {
+        lines.push(`  ${secondary.name}: ${PULLUP[s.difficulty || 'hard']} reps/round (clusters ok)`)
+      }
+    }
+    // The day's bodyweight accessory (rep-only; Setup target over the default).
+    const gbAcc = s.dayType ? GIANT2_GB_ACCESSORY[s.dayType] : undefined
+    if (gbAcc) lines.push(`  ${gbAcc.name}: ${giantAccessory?.[gbAcc.key] ?? gbAcc.reps} reps (BW)`)
+  } else if (giantfit) {
     // The row is an ANCHORED lift (2026-07-30 revision): its ladder computes off
     // its own per-cycle anchor at fixed reps. Falls back to the name alone when
     // the anchor isn't set for that cycle.
@@ -185,22 +220,32 @@ export function sessionSummary(
   if (cardio) lines.push(`  Cardio: ${cardio}`)
 
   // ---- Volume Block -----------------------------------------------------------
-  if (s.difficulty) {
-    const scheme = SCHEMES[s.difficulty]
+  // Giant 2.0: an INDEPENDENT difficulty from the Giant block's (s.volumeDifficulty,
+  // not s.difficulty) — null means no Volume block that session (C3 week 4, or
+  // deload). GiantFit/legacy: the Giant block's own difficulty, as always.
+  const volDiff = giant2 ? s.volumeDifficulty : s.difficulty
+  if (volDiff) {
+    const scheme = SCHEMES[volDiff]
     const rx =
       s.dayType === 'dips'
         ? `Push-ups 2×${scheme.vol} (BW)`
         : `2×${scheme.vol}${s.topWeight != null ? ` @ ${kg(volumeWeight(s.topWeight))}` : ''}`
     lines.push(`Volume Block: ${seg(rx, rpeStr(s.volRpe), arrow(s.volSpeed), s.volDone === false ? 'incomplete' : '')}`)
-    // GiantFit: the anchored row shares the Volume block (80% of ITS day top).
-    const volRowKey = giantfit && s.dayType ? GIANTFIT_ROW[s.dayType] : undefined
-    const volRowTop = volRowKey && s.cycle != null ? weights?.[s.cycle]?.[volRowKey]?.[s.difficulty] ?? null : null
-    if (volRowKey) {
-      lines.push(`  ${ANCHOR_LABEL[volRowKey]}: 2×${scheme.vol}${volRowTop != null ? ` @ ${kg(volumeWeight(volRowTop))}` : ''}`)
+    // The anchored row/secondary shares the Volume block (80% of ITS day top,
+    // off the Volume difficulty — same lane, GiantFit's or Giant 2.0's occupant).
+    const volRowKey = (giantfit || giant2) && s.dayType ? GIANTFIT_ROW[s.dayType] : undefined
+    const volRowTop = volRowKey && s.cycle != null ? weights?.[s.cycle]?.[volRowKey]?.[volDiff] ?? null : null
+    const volRowLabel = giant2 && s.dayType ? GIANT2_SECONDARY[s.dayType]?.name : volRowKey ? ANCHOR_LABEL[volRowKey] : null
+    if (volRowKey && volRowLabel) {
+      lines.push(`  ${volRowLabel}: 2×${scheme.vol}${volRowTop != null ? ` @ ${kg(volumeWeight(volRowTop))}` : ''}`)
     }
   }
+  if (giant2 && s.weekType === 'training' && !volDiff) {
+    lines.push('Volume Block: none this week (C3 week 4)')
+  }
 
-  // ---- Capacity (GiantFit) ----------------------------------------------------
+  // ---- Capacity (GiantFit only — Giant 2.0 has no Capacity block, so
+  // capacityLog is never passed non-null for a Giant2 session) --------------
   // "Capacity B — 3 rds, 11:42, 27 cal, R7" — unlogged segments are dropped.
   if (capacityLog) {
     const parts = [
@@ -229,6 +274,17 @@ export function sessionSummary(
       const rounds = s.carryRounds ?? '—'
       const dist = s.carryDistance != null ? `${s.carryDistance}m` : '—'
       lines.push(`Carry: ${seg(`${meta.carry.name} ${load}`, `${rounds}×${dist}`, rpeStr(s.carryRpe))}`)
+    }
+  }
+
+  // Capability block (Hypertrophy C1 / Oly C2): logged in separate tables
+  // (hypertrophy_logs / oly_logs, one row per movement) this function doesn't
+  // have access to — flagged rather than silently left out. Carries (C3) are
+  // fully covered above (same session-level fields as always), so no note there.
+  if (giant2 && s.weekType === 'training' && s.cycle != null) {
+    const program = capabilityProgramFor(s.cycle)
+    if (program === 'hypertrophy' || program === 'oly') {
+      lines.push(`${program === 'hypertrophy' ? 'Hypertrophy' : 'Oly'}: not included in this summary — see the app`)
     }
   }
 

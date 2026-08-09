@@ -854,6 +854,19 @@ export async function getAllCapacityLogs(): Promise<CapacityLog[]> {
   return (data || []).map(M.rowToCapacityLog)
 }
 
+// All-macro Capability logs (RLS-scoped) — Giant 2.0's equivalent of
+// getAllCapacityLogs, for the Data page's CSV export.
+export async function getAllHypertrophyLogs(): Promise<HypertrophyLog[]> {
+  const { data, error } = await supabase.from('hypertrophy_logs').select('*')
+  if (error) throw error
+  return (data || []).map(M.rowToHypertrophyLog)
+}
+export async function getAllOlyLogs(): Promise<OlyLog[]> {
+  const { data, error } = await supabase.from('oly_logs').select('*')
+  if (error) throw error
+  return (data || []).map(M.rowToOlyLog)
+}
+
 // All testing results across every macro (RLS-scoped) — tests live only in
 // testing_results (no sessions row), so the Data page merges these into its list.
 export async function getAllTestingResults(): Promise<TestingResult[]> {

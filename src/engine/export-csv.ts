@@ -4,7 +4,8 @@
 // the macros list (rows only carry macroId).
 import { derivedPaceS } from './runs'
 import { perRoundSeconds } from './capacity'
-import type { Session, Macro, TestingResult, DeloadMap, Run, CapacityLog } from './types'
+import type { Session, Macro, TestingResult, DeloadMap, Run, CapacityLog, HypertrophyLog, OlyLog } from './types'
+import type { Movement } from './movements'
 
 // Column order = header order. Each entry maps a Session to its cell value.
 const COLUMNS: { header: string; value: (s: Session, macroNumber: number | '') => unknown }[] = [
@@ -15,6 +16,10 @@ const COLUMNS: { header: string; value: (s: Session, macroNumber: number | '') =
   { header: 'week_type', value: (s) => s.weekType },
   { header: 'day_type', value: (s) => s.dayType },
   { header: 'difficulty', value: (s) => s.difficulty },
+  // Giant 2.0 only: the Volume block's OWN difficulty, independent of
+  // `difficulty` above — blank on GiantFit/legacy rows and on any Giant 2.0
+  // session with no Volume block that week (C3 week 4).
+  { header: 'volume_difficulty', value: (s) => s.volumeDifficulty },
   { header: 'top_weight', value: (s) => s.topWeight },
   { header: 'top_reps', value: (s) => s.topReps },
   { header: 'rpe', value: (s) => s.rpe },
@@ -108,6 +113,43 @@ export function capacityToCsv(logs: CapacityLog[], sessions: Session[], macros: 
         .map(csvCell)
         .join(',')
     })
+  return [header, ...rows].join('\n')
+}
+
+// Giant 2.0 Hypertrophy export (C1) — one row per movement per session
+// (unlike capacity_logs' one row per session), positioned via its session,
+// movement name resolved from the athlete's library.
+export function hypertrophyToCsv(logs: HypertrophyLog[], sessions: Session[], movements: Movement[], macros: Macro[]): string {
+  const numberById = new Map(macros.map((m) => [m.id, m.number]))
+  const sessionById = new Map(sessions.map((s) => [s.id, s]))
+  const movementById = new Map(movements.map((m) => [m.id, m]))
+  const header = 'date,macro,cycle,week,day_type,movement,weight,reps_done,notes'
+  const rows = logs
+    .map((l) => ({ l, s: sessionById.get(l.sessionId), m: movementById.get(l.movementId) }))
+    .sort((a, b) => ((a.s?.date || '') < (b.s?.date || '') ? -1 : 1))
+    .map(({ l, s, m }) =>
+      [s?.date, s ? numberById.get(s.macroId) ?? '' : '', s?.cycle, s?.week, s?.dayType, m?.name ?? l.movementId, l.weight, l.repsDone, l.notes]
+        .map(csvCell)
+        .join(',')
+    )
+  return [header, ...rows].join('\n')
+}
+
+// Giant 2.0 Oly export (C2) — same shape as Hypertrophy's, but logs a quality
+// mark (Q1/Q2/Q3) instead of reps.
+export function olyToCsv(logs: OlyLog[], sessions: Session[], movements: Movement[], macros: Macro[]): string {
+  const numberById = new Map(macros.map((m) => [m.id, m.number]))
+  const sessionById = new Map(sessions.map((s) => [s.id, s]))
+  const movementById = new Map(movements.map((m) => [m.id, m]))
+  const header = 'date,macro,cycle,week,day_type,movement,weight,quality,notes'
+  const rows = logs
+    .map((l) => ({ l, s: sessionById.get(l.sessionId), m: movementById.get(l.movementId) }))
+    .sort((a, b) => ((a.s?.date || '') < (b.s?.date || '') ? -1 : 1))
+    .map(({ l, s, m }) =>
+      [s?.date, s ? numberById.get(s.macroId) ?? '' : '', s?.cycle, s?.week, s?.dayType, m?.name ?? l.movementId, l.weight, l.quality, l.notes]
+        .map(csvCell)
+        .join(',')
+    )
   return [header, ...rows].join('\n')
 }
 

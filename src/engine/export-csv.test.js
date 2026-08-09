@@ -45,7 +45,7 @@ test('header row lists all columns in order', () => {
   const csv = sessionsToCsv([], macros)
   assert.equal(
     csv,
-    'date,macro,cycle,week,week_type,day_type,difficulty,top_weight,top_reps,rpe,bar_speed,cardio_cals,block_completion,vol_done,vol_rpe,vol_speed,pair_weight,pullup_cluster,dips_cluster,carry_skipped,carry_skip_reason,carry_rounds,carry_distance,carry_rpe,started_at,ended_at,notes,deload_week'
+    'date,macro,cycle,week,week_type,day_type,difficulty,volume_difficulty,top_weight,top_reps,rpe,bar_speed,cardio_cals,block_completion,vol_done,vol_rpe,vol_speed,pair_weight,pullup_cluster,dips_cluster,carry_skipped,carry_skip_reason,carry_rounds,carry_distance,carry_rpe,started_at,ended_at,notes,deload_week'
   )
 })
 
@@ -55,7 +55,7 @@ test('serializes a row, resolves macro number, collapses cardio, renders nulls a
   // Legacy row: pair_weight (GiantFit-only) stays an empty cell — export is a union.
   assert.equal(
     row,
-    '2026-06-22,2,3,3,training,squat,hard,145,2,R9.5,up,15/14//15,completed,true,R8,normal,,,,false,,3,30,R6,,,felt strong,'
+    '2026-06-22,2,3,3,training,squat,hard,,145,2,R9.5,up,15/14//15,completed,true,R8,normal,,,,false,,3,30,R6,,,felt strong,'
   )
 })
 
@@ -136,4 +136,40 @@ test('capacityToCsv: positioned via the session join, per_round_s derived, sorte
   assert.equal(lines[0], 'date,macro,cycle,week,day_type,difficulty,variant,rounds_completed,total_time_seconds,per_round_s,calories,rpe,completion,notes')
   assert.equal(lines[1], '2026-07-27,2,1,1,deadlift,medium,A,3,300,100,,R8,completed,smooth')
   assert.equal(lines[2], '2026-08-03,2,1,2,bench,hard,B,3,702,234,27,R7,cut_short_fatigue,')
+})
+
+// ---- Giant 2.0 -----------------------------------------------------------
+import { hypertrophyToCsv, olyToCsv } from './export-csv'
+
+const g2Movements = [
+  { id: 'mv-1', key: 'walking_lunge', name: 'Walking Lunge', loadType: 'recorded', countType: 'reps_per_side', defaultReps: 12, repUnit: '/leg', note: null, archived: false },
+  { id: 'mv-2', key: 'oly_muscle_snatch', name: 'Muscle Snatch', loadType: 'recorded', countType: 'reps', defaultReps: 5, repUnit: null, note: '3×5, unloaded', archived: false },
+]
+
+test('sessionsToCsv: volume_difficulty column carries the Volume block\'s own (independent) difficulty', () => {
+  const s = session({ id: '2026-08-14-ohp-H', date: '2026-08-14', cycle: 1, week: 1, dayType: 'ohp', difficulty: 'hard', volumeDifficulty: 'light' })
+  const row = sessionsToCsv([s], macros).split('\n')[1]
+  const cols = row.split(',')
+  assert.equal(cols[6], 'hard') // difficulty
+  assert.equal(cols[7], 'light') // volume_difficulty — independent column
+})
+
+test('hypertrophyToCsv: one row per movement, positioned via its session, movement name resolved from the library', () => {
+  const sessions = [session({ id: '2026-08-10-squat-H', date: '2026-08-10', cycle: 1, week: 1, dayType: 'squat' })]
+  const logs = [{ sessionId: '2026-08-10-squat-H', movementId: 'mv-1', weight: 30, repsDone: 12, notes: 'felt good' }]
+  const lines = hypertrophyToCsv(logs, sessions, g2Movements, macros).split('\n')
+  assert.equal(lines[0], 'date,macro,cycle,week,day_type,movement,weight,reps_done,notes')
+  assert.equal(lines[1], '2026-08-10,2,1,1,squat,Walking Lunge,30,12,felt good')
+})
+
+test('olyToCsv: logs a quality mark, not RPE; unresolved movement falls back to its id', () => {
+  const sessions = [session({ id: '2026-09-07-squat-H', date: '2026-09-07', cycle: 2, week: 1, dayType: 'squat' })]
+  const logs = [
+    { sessionId: '2026-09-07-squat-H', movementId: 'mv-2', weight: 40, quality: 'Q3', notes: '' },
+    { sessionId: '2026-09-07-squat-H', movementId: 'mv-unknown', weight: 20, quality: 'Q1', notes: '' },
+  ]
+  const lines = olyToCsv(logs, sessions, g2Movements, macros).split('\n')
+  assert.equal(lines[0], 'date,macro,cycle,week,day_type,movement,weight,quality,notes')
+  assert.equal(lines[1], '2026-09-07,2,2,1,squat,Muscle Snatch,40,Q3,')
+  assert.equal(lines[2], '2026-09-07,2,2,1,squat,mv-unknown,20,Q1,')
 })

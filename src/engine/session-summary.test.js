@@ -304,3 +304,99 @@ test('capacity completion: a non-completed state is appended to the capacity lin
     /\nCapacity B — 3 rds, 11:42, 27 cal, R7 · Scaled — other\n/
   )
 })
+
+// ---- Giant 2.0 (from GIANT2_START_DATE) -------------------------------------
+test('Giant 2.0 OHP day: BB Row ladder (reuses the db_row lane) + Leg Raises + Volume off its OWN (independent) difficulty', () => {
+  const s = base({
+    id: '2026-08-14-ohp-H',
+    date: '2026-08-14',
+    cycle: 1,
+    week: 1,
+    dayType: 'ohp',
+    difficulty: 'hard',
+    volumeDifficulty: 'light',
+    topWeight: 100,
+    topReps: 2,
+    pairWeight: null,
+    cardioCals: [null, null, null, null],
+  })
+  const W = { 1: { db_row: { hard: 60, medium: 57, light: 54 } } }
+  const out = sessionSummary(s, 4, ACC, W)
+  assert.match(out, /Session — M4C1W1 — OHP Hard — 14.08.2026/)
+  assert.match(out, /\n {2}BB Row: 8@50 · 8@55 · 8@57.5 · 8@60\n/) // fixed reps (hard=8) off the row's own 60 kg anchor
+  assert.match(out, /\n {2}Leg Raises: 12 reps \(BW\)\n/)
+  // Volume reads volumeDifficulty ('light'), NOT the Giant block's difficulty ('hard').
+  assert.match(out, /Volume Block: 2×10 @ 80/)
+  assert.match(out, /\n {2}BB Row: 2×10 @ 42.5\n/) // 80% of the row's OWN light day-top (54)
+  assert.doesNotMatch(out, /Secondary:|DB Row|Pendlay Row/) // no legacy/GiantFit labels leak through
+})
+
+test('Giant 2.0 bench day: Pull-ups two-mode — bodyweight cluster when no anchor is set', () => {
+  const s = base({
+    id: '2026-08-11-bench-M',
+    date: '2026-08-11',
+    cycle: 1,
+    week: 1,
+    dayType: 'bench',
+    difficulty: 'medium',
+    volumeDifficulty: 'light',
+    topWeight: 80,
+    topReps: 3,
+    pullupCluster: '6+4',
+    pairWeight: null,
+    cardioCals: [null, null, null, null],
+  })
+  const out = sessionSummary(s, 4, ACC) // no weights grid -> pendlay_row anchor unset -> bodyweight mode
+  assert.match(out, /\n {2}Pull-ups: 6\+4\n/)
+  assert.match(out, /\n {2}Leg Raises: 12 reps \(BW\)\n/)
+  assert.doesNotMatch(out, /Pull-ups \(wtd\)/)
+})
+
+test('Giant 2.0 squat/deadlift train alone: no secondary line, Ab-Roll accessory', () => {
+  const s = base({ id: '2026-08-10-squat-H', date: '2026-08-10', cycle: 1, week: 1, dayType: 'squat', difficulty: 'hard', volumeDifficulty: 'light', topWeight: 120, pairWeight: null, cardioCals: [null, null, null, null] })
+  const out = sessionSummary(s, 4, ACC)
+  assert.doesNotMatch(out, /Row/)
+  assert.match(out, /\n {2}Ab-Roll: 10 reps \(BW\)\n/)
+})
+
+test('Giant 2.0 C3 week 4: no Volume block at all (flagged, not silently dropped)', () => {
+  const s = base({ id: '2026-10-26-squat-H', date: '2026-10-26', cycle: 3, week: 4, dayType: 'squat', difficulty: 'hard', volumeDifficulty: null, topWeight: 130, pairWeight: null, cardioCals: [null, null, null, null] })
+  const out = sessionSummary(s, 4, ACC)
+  assert.match(out, /Volume Block: none this week \(C3 week 4\)/)
+  assert.doesNotMatch(out, /Volume Block: 2×/)
+})
+
+test('Giant 2.0 Capability note: flags Hypertrophy/Oly (not captured here), stays silent for Carries (already fully rendered above)', () => {
+  const c1 = base({ id: '2026-08-10-squat-H', date: '2026-08-10', cycle: 1, week: 1, dayType: 'squat', difficulty: 'hard', volumeDifficulty: 'light', pairWeight: null, cardioCals: [null, null, null, null] })
+  assert.match(sessionSummary(c1, 4, ACC), /Hypertrophy: not included in this summary/)
+  const c2 = base({ ...c1, id: '2026-09-07-squat-H', date: '2026-09-07', cycle: 2 })
+  assert.match(sessionSummary(c2, 4, ACC), /Oly: not included in this summary/)
+  const c3 = base({ ...c1, id: '2026-10-05-squat-H', date: '2026-10-05', cycle: 3 })
+  const out3 = sessionSummary(c3, 4, ACC)
+  assert.doesNotMatch(out3, /not included in this summary/)
+})
+
+test('Giant 2.0 deload week is a REAL session summary, not the legacy W15 stub', () => {
+  const s = base({
+    id: '2026-11-02-squat',
+    date: '2026-11-02',
+    weekType: 'deload',
+    cycle: null,
+    week: null,
+    dayType: 'squat',
+    difficulty: 'hard',
+    volumeDifficulty: null,
+    topWeight: 84, // caller already applied the ~70% reduction before storing
+    topReps: 2,
+    pairWeight: null,
+    cardioCals: [null, null, null, null],
+  })
+  const out = sessionSummary(s, 4, ACC, undefined, true)
+  assert.doesNotMatch(out, /W15/)
+  assert.doesNotMatch(out, /50–60%/)
+  assert.match(out, /Sets: 8@72.5 · 6@75 · 4@80 · 2@84/) // the real computed ladder off the stored (already-reduced) top
+  // No Volume Block line at all on deload — and no "none this week" note either
+  // (that note is training-week-only; deload's absence needs no explanation).
+  assert.doesNotMatch(out, /Volume Block/)
+  assert.doesNotMatch(out, /not included in this summary/)
+})

@@ -114,6 +114,8 @@ export function App() {
   const [allDeloads, setAllDeloads] = useState<DeloadMap>({}) // all-macro deload week flags (Data labels)
   const [allRuns, setAllRuns] = useState<Run[]>([]) // all-macro runs (Data list + runs CSV)
   const [allCapacityLogs, setAllCapacityLogs] = useState<CapacityLog[]>([]) // all-macro capacity results (Data CSV + summaries)
+  const [allHypertrophyLogs, setAllHypertrophyLogs] = useState<HypertrophyLog[]>([]) // all-macro Giant 2.0 Hypertrophy results (Data CSV)
+  const [allOlyLogs, setAllOlyLogs] = useState<OlyLog[]>([]) // all-macro Giant 2.0 Oly results (Data CSV)
   const [dataErr, setDataErr] = useState('')
   // Recovery (Tendon Health) — independent of macros, loaded on first Recovery open.
   const [recovery, setRecovery] = useState<{ protocol: RecoveryProtocol | null; logs: RecoveryLogMap } | null>(null)
@@ -310,8 +312,18 @@ export function App() {
     if (tab !== 'data' || !user || allSessions) return
     let cancelled = false
     setDataErr('')
-    Promise.all([repo.getAllSessions(), repo.getAllAccessoryWeights(), repo.getAllWorkingWeights(), repo.getAllTestingResults(), repo.getAllDeloads(), repo.getAllRuns(), repo.getAllCapacityLogs()])
-      .then(([s, acc, w, t, d, r, cl]) => {
+    Promise.all([
+      repo.getAllSessions(),
+      repo.getAllAccessoryWeights(),
+      repo.getAllWorkingWeights(),
+      repo.getAllTestingResults(),
+      repo.getAllDeloads(),
+      repo.getAllRuns(),
+      repo.getAllCapacityLogs(),
+      repo.getAllHypertrophyLogs(),
+      repo.getAllOlyLogs(),
+    ])
+      .then(([s, acc, w, t, d, r, cl, hl, ol]) => {
         if (cancelled) return
         setAllAccessory(acc)
         setAllWeights(w)
@@ -319,6 +331,8 @@ export function App() {
         setAllDeloads(d)
         setAllRuns(r)
         setAllCapacityLogs(cl)
+        setAllHypertrophyLogs(hl)
+        setAllOlyLogs(ol)
         setAllSessions(s)
       })
       .catch((e) => !cancelled && setDataErr(errMsg(e)))
@@ -754,7 +768,20 @@ export function App() {
         (dataErr ? (
           <Card style={{ textAlign: 'center', color: C.red }}>Couldn't load data — {dataErr}.</Card>
         ) : allSessions ? (
-          <Data sessions={allSessions} macros={macros} accessory={allAccessory} weights={allWeights} testing={allTesting} deloads={allDeloads} runs={allRuns} capacityLogs={allCapacityLogs} giantAccessory={giantAccessory} />
+          <Data
+            sessions={allSessions}
+            macros={macros}
+            accessory={allAccessory}
+            weights={allWeights}
+            testing={allTesting}
+            deloads={allDeloads}
+            runs={allRuns}
+            capacityLogs={allCapacityLogs}
+            giantAccessory={giantAccessory}
+            movements={movements}
+            hypertrophyLogs={allHypertrophyLogs}
+            olyLogs={allOlyLogs}
+          />
         ) : (
           <Center>
             <Spinner /> Loading data…

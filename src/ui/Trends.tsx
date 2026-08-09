@@ -37,7 +37,11 @@ const LIFT_COLORS: Record<string, string> = { DL: C.amber, OHP: C.slate, Squat: 
 const CARRY_TYPES: CarryType[] = ['Farmer', 'Suitcase', 'Sandbag', 'Overhead']
 const CARRY_COLORS: Record<CarryType, string> = { Farmer: C.amber, Suitcase: C.slate, Sandbag: C.purple, Overhead: C.green }
 const STATUS_COLOR: Record<string, string> = { done: C.green, missed: C.red, deload: C.amber, holiday: C.slate, upcoming: C.muted }
-const SLOTS = ['Mon', 'Wed', 'Fri']
+// Session-day labels by slot count: 3 (Mon/Wed/Fri) pre-Giant-2.0, 4 (Mon/Tue/
+// Thu/Fri) from it — AttMacro's cells carry no weekday of their own (just
+// AttStatus), so the count is what picks the label set (the only two
+// schedules this app has ever had).
+const SLOTS_BY_COUNT: Record<number, string[]> = { 3: ['Mon', 'Wed', 'Fri'], 4: ['Mon', 'Tue', 'Thu', 'Fri'] }
 const ALL_LIFTS: TrendDay[] = ['DL', 'OHP', 'Squat', 'Bench']
 const AUX_VIEWS = ['Lifts', 'Runs', 'Capacity', 'Carries', 'Session'] as const
 type View = (typeof AUX_VIEWS)[number]
@@ -704,14 +708,6 @@ function AttendanceCell({ status }: { status: AttStatus }) {
 
 function AttendanceChart({ macros }: { macros: AttMacro[] }) {
   if (!macros.length) return null
-  const colHeader = (
-    <>
-      <div />
-      {SLOTS.map((d) => (
-        <div key={d} style={{ fontSize: 9, color: C.dim, textAlign: 'center', paddingBottom: 3 }}>{d}</div>
-      ))}
-    </>
-  )
   const legend: [string, string][] = [
     ['done', 'Done'],
     ['deload', 'Deload'],
@@ -729,7 +725,21 @@ function AttendanceChart({ macros }: { macros: AttMacro[] }) {
           </div>
         ))}
       </div>
-      {macros.map((mac, mi) => (
+      {macros.map((mac, mi) => {
+        // Slot count is uniform for a given macro in practice (one era per
+        // macro) — take the max seen so a hypothetical era-straddling macro
+        // still gets enough columns rather than clipping the wider rows.
+        const cols = Math.max(3, ...mac.cycles.flatMap((c) => c.weeks.map((w) => w.cells.length)), ...mac.endRows.map((r) => r.cells.length))
+        const slotLabels = SLOTS_BY_COUNT[cols] || SLOTS_BY_COUNT[3]
+        const colHeader = (
+          <>
+            <div />
+            {slotLabels.map((d) => (
+              <div key={d} style={{ fontSize: 9, color: C.dim, textAlign: 'center', paddingBottom: 3 }}>{d}</div>
+            ))}
+          </>
+        )
+        return (
         <div key={mac.macro}>
           <div style={{ fontSize: 10, color: C.amber, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>{mac.macro}</div>
           {mac.cycles.map((cyc, ci) => (
@@ -743,7 +753,7 @@ function AttendanceChart({ macros }: { macros: AttMacro[] }) {
                   {cyc.holiday > 0 && <span style={{ fontSize: 10, color: STATUS_COLOR.holiday }}>{cyc.holiday}—</span>}
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '28px repeat(3, 1fr)', gap: 4 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: `28px repeat(${cols}, 1fr)`, gap: 4 }}>
                 {ci === 0 && colHeader}
                 {cyc.weeks.map((w) => (
                   <Fragment key={w.week}>
@@ -772,7 +782,7 @@ function AttendanceChart({ macros }: { macros: AttMacro[] }) {
                 <span style={{ fontSize: 9, color: C.dim, letterSpacing: '0.08em' }}>TESTING · DELOAD</span>
                 <div style={{ flex: 1, height: 1, background: C.border }} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '28px repeat(3, 1fr)', gap: 4 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: `28px repeat(${cols}, 1fr)`, gap: 4 }}>
                 {mac.endRows.map((r) => (
                   <Fragment key={r.row}>
                     <div style={{ fontSize: 9, color: C.amber, display: 'flex', alignItems: 'center', fontWeight: 600 }}>{r.row}</div>
@@ -795,7 +805,8 @@ function AttendanceChart({ macros }: { macros: AttMacro[] }) {
           )}
           {mi < macros.length - 1 && <div style={{ height: 1, background: C.border, margin: '16px 0' }} />}
         </div>
-      ))}
+        )
+      })}
     </Card>
   )
 }
