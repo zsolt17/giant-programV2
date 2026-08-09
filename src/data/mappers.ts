@@ -30,13 +30,14 @@ import type {
   CapacityLog,
   CapacityLogDraft,
   GiantAccessoryReps,
+  Giant2DifficultyConfig,
 } from '../engine/types'
 import type { Joint, Phase } from '../engine/recovery-content'
 import type { Movement, MovementSeed, LoadType, CountType } from '../engine/movements'
 import type { ProgramVersion, ProgramSlot } from '../engine/program'
 import { expandDayTops } from '../engine/loading'
 import { mergeCapacityConfig } from '../engine/capacity'
-import { GIANTFIT_GB_DEFAULT_REPS } from '../engine/constants'
+import { GIANTFIT_GB_DEFAULT_REPS, GIANT2_GIANT_DEFAULT_ROTATION } from '../engine/constants'
 
 const blankToNull = (v: string | null | undefined): string | null => (v === '' || v === undefined ? null : v)
 const toNum = (v: unknown): number | null => (v === '' || v === null || v === undefined ? null : Number(v))
@@ -74,6 +75,7 @@ export interface SessionRow {
   week_type: WeekType
   day_type: string | null
   difficulty: string | null
+  volume_difficulty: string | null
   top_reps: number | null
   top_weight: number | null
   rpe: string | null
@@ -188,6 +190,7 @@ export function rowToSession(r: SessionRow): Session {
     weekType: r.week_type,
     dayType: r.day_type as Lift | null,
     difficulty: r.difficulty as Difficulty | null,
+    volumeDifficulty: r.volume_difficulty as Difficulty | null,
     topReps: r.top_reps,
     topWeight: toNum(r.top_weight),
     rpe: r.rpe || '',
@@ -221,6 +224,7 @@ export function sessionToRow(s: SessionDraft): SessionRow {
     week_type: s.weekType,
     day_type: blankToNull(s.dayType),
     difficulty: blankToNull(s.difficulty),
+    volume_difficulty: blankToNull(s.volumeDifficulty),
     top_reps: s.topReps ?? null,
     top_weight: toNum(s.topWeight),
     rpe: blankToNull(s.rpe),
@@ -502,6 +506,36 @@ export function rowsToGiantAccessory(rows: GiantAccessoryRow[]): GiantAccessoryR
 // { key: reps } -> rows[] (user_id defaults to auth.uid() at the DB).
 export function giantAccessoryToRows(byKey: Record<string, number | string | null>): GiantAccessoryRow[] {
   return Object.keys(byKey).map((movement_key) => ({ movement_key, rep_target: toNum(byKey[movement_key]) }))
+}
+
+// ---- Giant 2.0 weekly Giant-difficulty rotation (user-scoped, capacity-config
+// ---- pattern — the app default merges under whatever's stored here) --------
+export interface Giant2DifficultyRow {
+  week_in_cycle: number
+  lift: string
+  difficulty: string
+}
+export function rowsToGiant2Difficulty(rows: Giant2DifficultyRow[]): Giant2DifficultyConfig {
+  const out: Giant2DifficultyConfig = {}
+  for (const [week, byLift] of Object.entries(GIANT2_GIANT_DEFAULT_ROTATION)) {
+    out[Number(week)] = { ...byLift }
+  }
+  ;(rows || []).forEach((r) => {
+    out[r.week_in_cycle] = out[r.week_in_cycle] || {}
+    ;(out[r.week_in_cycle] as Record<string, Difficulty>)[r.lift] = r.difficulty as Difficulty
+  })
+  return out
+}
+// { [weekInCycle]: { [lift]: difficulty } } -> rows[] (user_id defaults to
+// auth.uid() at the DB, break_days pattern).
+export function giant2DifficultyToRows(config: Giant2DifficultyConfig): Giant2DifficultyRow[] {
+  const rows: Giant2DifficultyRow[] = []
+  Object.entries(config).forEach(([week, byLift]) => {
+    Object.entries(byLift || {}).forEach(([lift, difficulty]) => {
+      if (difficulty) rows.push({ week_in_cycle: Number(week), lift, difficulty })
+    })
+  })
+  return rows
 }
 
 export interface CapacityLogRow {

@@ -1,6 +1,6 @@
 // Program constants — ported verbatim from the working index.html. These encode
 // the fixed structure of The Giant Program and must not drift.
-import type { Difficulty, Lift, AnchorLift, Scheme, DayMeta, RunType, RunSlotKey, Terrain } from './types'
+import type { Difficulty, Lift, AnchorLift, Scheme, DayMeta, RunType, RunSlotKey, Terrain, CapabilityProgram } from './types'
 
 // LEGACY Giant rotation (pre-cutover dates only — read-only history rendering).
 // 4 lifts across 3 weekly slots (Mon=hard, Wed=medium, Fri=light), repeating
@@ -328,3 +328,98 @@ export const RUN_SIGNALS: { id: string; label: string }[] = [
   { id: 'R2', label: 'Felt heavy / talk test failed' },
   { id: 'R3', label: 'Pace at HR degraded on 2+ runs' },
 ]
+
+// ---- Giant 2.0 (successor to GiantFit, from the second cutover) ------------
+// Cutover date — a MONDAY, mirroring GIANTFIT_START_DATE's own role: dates
+// BEFORE it keep rendering under whichever rules already applied to them
+// (GiantFit, or legacy Giant); dates ON/AFTER it are Giant 2.0. GiantFit is
+// RETIRED, not run alongside Giant 2.0 — there is no program-type selector,
+// the date alone decides the era, exactly like the GiantFit cutover before it.
+export const GIANT2_START_DATE = '2026-08-10'
+
+// Fixed weekday -> lift, no rotation (unlike every era before it). JS
+// Date#getDay(): 1 Mon, 2 Tue, 4 Thu, 5 Fri. Wed/Sat/Sun are rest.
+export const GIANT2_DAY_LIFT: Record<number, Lift> = { 1: 'squat', 2: 'bench', 4: 'deadlift', 5: 'ohp' }
+export const GIANT2_SESSION_DAYS: number[] = [1, 2, 4, 5]
+
+// Upper/lower day-typing — drives the Primer block's band-activation choice
+// (Crossover Symmetry / Hip Halo) and bodyweight-ramp movement list.
+export const GIANT2_DAY_TYPE: Partial<Record<Lift, 'upper' | 'lower'>> = { squat: 'lower', deadlift: 'lower', bench: 'upper', ohp: 'upper' }
+
+// Giant-difficulty weekly rotation for weeks 1-3 of EVERY cycle (repeats
+// identically C1/C2/C3 — confirmed against the athlete's 13-week calendar,
+// 2026-08-09). The athlete's own Setup edits (giant2_giant_difficulty) merge
+// OVER this on read, capacity-config pattern — this is only the default.
+// Each lift touches Hard/Medium/Light exactly once across the 3 weeks; one
+// tier doubles up each week (4 lifts, 3 tiers).
+export const GIANT2_GIANT_DEFAULT_ROTATION: Record<number, Partial<Record<Lift, Difficulty>>> = {
+  1: { squat: 'hard', bench: 'medium', deadlift: 'light', ohp: 'hard' },
+  2: { squat: 'medium', bench: 'light', deadlift: 'hard', ohp: 'medium' },
+  3: { squat: 'light', bench: 'hard', deadlift: 'medium', ohp: 'light' },
+}
+// Week 4 of every cycle collapses to ONE difficulty for all 4 sessions that
+// week — a pure function of the cycle, never stored, never per-lift.
+export const GIANT2_WEEK4_DIFFICULTY: Record<number, Difficulty> = { 1: 'light', 2: 'medium', 3: 'hard' }
+
+// Volume block difficulty is fixed for an entire cycle (independent of the
+// Giant block's difficulty, and independent of week) — Light throughout C1,
+// Medium throughout C2, Hard throughout C3, EXCEPT C3 week 4 where the Volume
+// block is dropped entirely (semi-peak week); callers must check that
+// exception separately (see volumeDifficultyFor in date-engine.ts).
+export const GIANT2_VOLUME_DIFFICULTY_BY_CYCLE: Record<number, Difficulty> = { 1: 'light', 2: 'medium', 3: 'hard' }
+
+// The Capability block's content is a property of the CYCLE, not the week or
+// session — this is the "one level further" than GiantFit's Move 1 modularity
+// (which only made exercises WITHIN a fixed block into data): here the BLOCK
+// ITSELF changes shape by cycle. The slot inventory for all three programs is
+// registered in engine/program.ts; this map only says which one a cycle reads.
+export const GIANT2_CAPABILITY_BY_CYCLE: Record<number, CapabilityProgram> = { 1: 'hypertrophy', 2: 'oly', 3: 'carries' }
+
+// Giant/Volume block secondary occupant per day (the anchored lane's Giant
+// 2.0 content — reuses the 'db_row'/'pendlay_row' LANES from working_weights
+// unchanged; only the occupant swaps, per ANCHORED_LANES discipline).
+// Squat/Deadlift train alone, same as GiantFit.
+export const GIANT2_SECONDARY_KEY: Partial<Record<Lift, string>> = { ohp: 'bb_row', bench: 'pullup' }
+// Giant block bodyweight accessory per day — Ab-Roll reuses the existing
+// ab_rollout movement (same exercise as GiantFit's), Leg Raises is new.
+export const GIANT2_GB_ACCESSORY_KEY: Partial<Record<Lift, string>> = { squat: 'ab_rollout', deadlift: 'ab_rollout', bench: 'leg_raises', ohp: 'leg_raises' }
+
+// Primer bodyweight ramp — 1-2-3 ascending rep scheme (round i = i reps of
+// every movement in the group), 3 rounds, tempo not tracked (2026-08-09
+// clarification). Round counts only; the movement list itself is DATA
+// (program_slots primer.upper / primer.lower groups, engine/program.ts).
+export const GIANT2_PRIMER_RAMP_ROUNDS: number[] = [1, 2, 3]
+
+// Hypertrophy (C1) accessory sets — fixed at 3 sets regardless of week; only
+// the per-movement rep target (movement.defaultReps) varies.
+export const GIANT2_HYPERTROPHY_SETS = 3
+
+// Oly (C2) position wave: weeks 1-2 of the cycle hang from the power position
+// (above the knee), weeks 3-4 from the knee. Applies to the hang-based lanes
+// (oly_hang_full_snatch, oly_snatch_high_pull_hang_power_snatch). Guidance
+// copy only — not a stored value.
+export const GIANT2_OLY_POSITION_WAVE: Record<number, string> = {
+  1: 'Hang from the power position (above the knee).',
+  2: 'Hang from the power position (above the knee).',
+  3: 'Hang from the knee.',
+  4: 'Hang from the knee.',
+}
+// Oly quality mark — Q3 (every rep identical) / Q2 (minor faults, self-
+// corrected) / Q1 (position broke). Two consecutive Q3 sessions in a lane
+// steps the load up (2.5 kg snatch family, 5 kg clean/jerk family); two
+// consecutive Q1 steps it down. A logging concept, not a movement capability
+// — lives on oly_logs (Phase 4), never on the movements table.
+export const OLY_QUALITY: { id: string; label: string }[] = [
+  { id: 'Q3', label: 'Q3 — every rep identical' },
+  { id: 'Q2', label: 'Q2 — minor faults, self-corrected' },
+  { id: 'Q1', label: 'Q1 — position broke' },
+]
+export const OLY_STEP_SNATCH_KG = 2.5
+export const OLY_STEP_CLEAN_JERK_KG = 5
+
+// Carries (C3) reuse the exact GiantFit day->implement mapping unchanged
+// (DL Farmer's / OHP Overhead / Squat Bear Hug / Bench Suitcase) — see
+// SEED_CARRY_KEYS in engine/program.ts. Always logged, guidance-only flat
+// RPE 6 (the athlete's own carry_rpe input is unchanged — 2026-08-09: no new
+// enforced field, "flat RPE 6" is copy, not a locked value).
+export const GIANT2_CARRY_RPE_GUIDANCE = 'RPE 6'

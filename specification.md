@@ -112,6 +112,53 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-08-09 (Giant 2.0, Phase 1 — data model)
+- `feat`: **Giant 2.0 — Phase 1 of the program replacing GiantFit entirely** (cutover
+  `GIANT2_START_DATE = 2026-08-10`, a Monday; no program-type selector, GiantFit becomes
+  read-only history below the cutover exactly like Giant v7 did before it). This phase is
+  data-model-only — nothing renders Giant 2.0 sessions yet (Phase 2/3).
+  - **Two independent difficulties per session.** `sessions.volume_difficulty` (new,
+    nullable) — the Volume block's OWN difficulty, fixed per cycle (Light C1 / Medium C2 /
+    Hard C3), independent of the Giant block's; null = no Volume block that session (C3
+    week 4, a semi-peak week). Migration `0022_giant2_phase1.sql`.
+  - **Weekly Giant-difficulty rotation is athlete-editable, not hardcoded** — new table
+    `giant2_giant_difficulty` (week-in-cycle × lift → difficulty, RLS), capacity-config
+    merge pattern against a code default (`GIANT2_GIANT_DEFAULT_ROTATION`, confirmed against
+    the athlete's 13-week calendar, same rotation repeats every cycle). Week 4 always
+    collapses to one difficulty for all four lifts and is never stored
+    (`GIANT2_WEEK4_DIFFICULTY`, a pure function of the cycle). New Setup card ("Giant
+    Difficulty Rotation") to review/edit it ahead of the cutover.
+  - **The Capability block's content changes by CYCLE** (Hypertrophy C1 / Oly C2 / Carries
+    C3, `GIANT2_CAPABILITY_BY_CYCLE`) — the "one level further" than GiantFit's Move 1
+    modularity, which only made exercises *within* a fixed block into data. Extended
+    `engine/program.ts` with new always-seeded slot groups (`primer.upper`/`primer.lower`,
+    `capability.hypertrophy.<day>`, `capability.oly.<day>`; Carries reuses `carry.<day>`
+    unchanged) — the registry doesn't need to know about cycles, only the reader does.
+  - **The modular program-slots system (dormant since the GiantFit Phase 1/2 prep) is now
+    a real consumer**: Giant 2.0 is seeded as **program version 2**
+    (`ensureSeedGiant2ProgramVersion`, `buildGiant2SeedSlots`), effective from
+    `GIANT2_START_DATE` — `versionForDate` already resolves multi-era history correctly
+    with no changes (GiantFit-era dates → version 1, Giant2-era dates → version 2,
+    pre-GiantFit → neither). OHP's BB Row and Bench's Pull-ups **reuse the existing
+    `db_row`/`pendlay_row` anchor LANES** (only the occupant changes, per the
+    carry-key/lane discipline) — no anchor `CHECK` migration needed. Pull-ups stays
+    two-mode (`liftMode`, reactivated for real use, not just legacy rendering).
+  - New movement-library content (`engine/movements.ts`): `bb_row`, `pullup` (anchored);
+    `leg_raises` (Ab-Roll reuses the existing `ab_rollout`); Primer content (rope flow, band
+    activation, 8 day-typed bodyweight-ramp movements, 1-2-3 ascending scheme,
+    `GIANT2_PRIMER_RAMP_ROUNDS`, tempo not tracked); 16 Hypertrophy accessories; 10 Oly
+    technical-work movements (cluster notation in `note`, e.g. "4-5×2+1"). Carries reuse
+    the GiantFit day→implement mapping unchanged.
+  - **Oly quality mark** (`OLY_QUALITY`: Q3/Q2/Q1) is a new logging concept — deliberately
+    NOT modeled as a movement capability or reused RPE field; lands on a dedicated
+    `oly_logs` table in Phase 4.
+  - 13 new tests (`engine/giant2.test.js`): rotation-table internal consistency (the exact
+    contradiction almost shipped during planning is now a permanent regression guard),
+    seed-slot parity, multi-era `versionForDate` coexistence. 196/196 tests passing,
+    clean typecheck, clean build.
+  - **Open for Phase 2+**: no session view reads any of this yet. Deload signal S6 is
+    retired (no Capacity block in Giant 2.0), not replaced.
+
 ## 2026-07-31 (S6 replacement)
 - `feat(deload)`: **S6 stops measuring the clock — capacity time → capacity completion.**
   The capacity TIME trend (per-round time vs a rolling same-variant average ×1.15, 3-session

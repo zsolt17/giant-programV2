@@ -28,15 +28,32 @@ import type {
   CapacityLog,
   CapacityLogDraft,
   GiantAccessoryReps,
+  Giant2DifficultyConfig,
   Lift,
 } from '../engine/types'
 import type { Joint, Phase } from '../engine/recovery-content'
 import type { Movement } from '../engine/movements'
-import { SEED_MOVEMENTS, SEED_CAPACITY_KEYS, SEED_ACTIVATION_KEYS, SEED_BULLETPROOF_KEYS, SEED_BULLETPROOF_OPTIONAL } from '../engine/movements'
+import {
+  SEED_MOVEMENTS,
+  SEED_CAPACITY_KEYS,
+  SEED_ACTIVATION_KEYS,
+  SEED_BULLETPROOF_KEYS,
+  SEED_BULLETPROOF_OPTIONAL,
+  SEED_GIANT2_PRIMER_KEYS,
+  SEED_GIANT2_HYPERTROPHY_KEYS,
+  SEED_GIANT2_OLY_KEYS,
+} from '../engine/movements'
 import type { ProgramVersion, ProgramSlot } from '../engine/program'
-import { buildSeedSlots } from '../engine/program'
+import { buildSeedSlots, buildGiant2SeedSlots, SEED_CARRY_KEYS } from '../engine/program'
 import { CAPACITY_VARIANTS } from '../engine/capacity'
-import { ANCHOR_LIFTS, GIANTFIT_ACC_ITEMS, GIANTFIT_START_DATE, GIANTFIT_GB_ACCESSORY } from '../engine/constants'
+import {
+  ANCHOR_LIFTS,
+  GIANTFIT_ACC_ITEMS,
+  GIANTFIT_START_DATE,
+  GIANTFIT_GB_ACCESSORY,
+  GIANT2_START_DATE,
+  GIANT2_GB_ACCESSORY_KEY,
+} from '../engine/constants'
 
 // Browser-only offline handling (Node smoke test has no navigator/window).
 const isBrowser = typeof navigator !== 'undefined' && typeof window !== 'undefined'
@@ -420,6 +437,40 @@ export async function ensureSeedProgramVersion(): Promise<{ versions: ProgramVer
   return { versions: [version], slots: await listProgramSlots() }
 }
 
+// Seed version 2 for a user who has none yet: Giant 2.0, effective from
+// GIANT2_START_DATE. versionForDate picks the greatest effective_from <= the
+// target date, so once this exists, Giant2-era dates resolve here and
+// GiantFit-era dates keep resolving to version 1 — no other change needed to
+// make the two eras coexist in history. Idempotent: only writes when the user
+// has exactly the version-1 seed (or none) — never runs twice.
+export async function ensureSeedGiant2ProgramVersion(): Promise<{ versions: ProgramVersion[]; slots: ProgramSlot[] }> {
+  const existing = await listProgramVersions()
+  if (existing.some((v) => v.number === 2)) return { versions: existing, slots: await listProgramSlots() }
+
+  assertWritable()
+  const movements = await ensureSeedMovements()
+
+  const { data: vRow, error: vErr } = await supabase
+    .from('program_versions')
+    .insert({ number: 2, effective_from: GIANT2_START_DATE, note: 'Giant 2.0 — replaces GiantFit' })
+    .select()
+    .single()
+  if (vErr) throw vErr
+  const version = M.rowToProgramVersion(vRow)
+
+  const slots = buildGiant2SeedSlots(version.id, movements, {
+    gbAccessoryKeys: GIANT2_GB_ACCESSORY_KEY,
+    primerKeys: SEED_GIANT2_PRIMER_KEYS,
+    hypertrophyKeys: SEED_GIANT2_HYPERTROPHY_KEYS,
+    olyKeys: SEED_GIANT2_OLY_KEYS,
+    carryKeys: SEED_CARRY_KEYS,
+  })
+
+  const { error: sErr } = await supabase.from('program_slots').insert(slots.map(M.programSlotToRow))
+  if (sErr) throw sErr
+  return { versions: await listProgramVersions(), slots: await listProgramSlots() }
+}
+
 // ---- Giant Block accessory rep targets (user-scoped, capacity-config pattern)
 export async function getGiantAccessoryConfig(): Promise<GiantAccessoryReps> {
   const { data, error } = await supabase.from('giant_accessory_config').select('*')
@@ -432,6 +483,21 @@ export async function saveGiantAccessoryConfig(byKey: Record<string, number | st
   assertWritable()
   const rows = M.giantAccessoryToRows(byKey)
   const { error } = await supabase.from('giant_accessory_config').upsert(rows, { onConflict: 'user_id,movement_key' })
+  if (error) throw error
+}
+
+// ---- Giant 2.0 weekly Giant-difficulty rotation (user-scoped, capacity-config pattern)
+export async function getGiant2DifficultyConfig(): Promise<Giant2DifficultyConfig> {
+  const { data, error } = await supabase.from('giant2_giant_difficulty').select('*')
+  if (error) throw error
+  return M.rowsToGiant2Difficulty(data || [])
+}
+
+// config = { 1: { squat: 'hard', ... }, 2: { ... }, 3: { ... } } (week_in_cycle -> lift -> difficulty)
+export async function saveGiant2DifficultyConfig(config: Giant2DifficultyConfig): Promise<void> {
+  assertWritable()
+  const rows = M.giant2DifficultyToRows(config)
+  const { error } = await supabase.from('giant2_giant_difficulty').upsert(rows, { onConflict: 'user_id,week_in_cycle,lift' })
   if (error) throw error
 }
 
@@ -785,18 +851,20 @@ export async function setTendonLog(protocolId: string, tendonKey: string, dateIS
 
 // ---- bundle (one round-trip for app boot) ---------------------------------
 export async function loadMacroBundle(macroId: string): Promise<MacroBundle> {
-  const [weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs, giantAccessory] = await Promise.all([
-    getWorkingWeights(macroId),
-    getAccessoryWeights(macroId),
-    getSessions(macroId),
-    getDeloads(macroId),
-    getBreakDays(),
-    getTestingResults(macroId),
-    getRuns(macroId),
-    getRunTargets(macroId),
-    getCapacityConfig(),
-    getCapacityLogs(macroId),
-    getGiantAccessoryConfig(),
-  ])
-  return { weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs, giantAccessory }
+  const [weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs, giantAccessory, giant2Difficulty] =
+    await Promise.all([
+      getWorkingWeights(macroId),
+      getAccessoryWeights(macroId),
+      getSessions(macroId),
+      getDeloads(macroId),
+      getBreakDays(),
+      getTestingResults(macroId),
+      getRuns(macroId),
+      getRunTargets(macroId),
+      getCapacityConfig(),
+      getCapacityLogs(macroId),
+      getGiantAccessoryConfig(),
+      getGiant2DifficultyConfig(),
+    ])
+  return { weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs, giantAccessory, giant2Difficulty }
 }

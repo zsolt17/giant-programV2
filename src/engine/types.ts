@@ -5,12 +5,17 @@ export type Difficulty = 'hard' | 'medium' | 'light'
 // Day lifts across both eras: GiantFit rotates DL/OHP/Squat/Bench; 'dips' is
 // the DEPRECATED Giant-era day lift — kept so pre-cutover history renders.
 export type Lift = 'deadlift' | 'ohp' | 'squat' | 'bench' | 'dips'
-// Lifts that can hold a per-cycle Hard-top anchor in working_weights. GiantFit
-// anchors are DL/OHP/Squat/Bench plus the two anchored rows — DB Row (OHP day,
-// per-hand load) and Pendlay Row (bench day) — see ANCHOR_LIFTS in constants.ts.
-// The rows are anchors, not day lifts: they never appear in the rotation.
-// 'dips' and 'pullup' are DEPRECATED Giant-era anchors — stored rows keep
-// loading so old sessions render, but Setup no longer shows or writes them.
+// Lifts that can hold a per-cycle Hard-top anchor in working_weights. Anchors
+// are DL/OHP/Squat/Bench plus two anchored secondary lanes — the LANE keys
+// 'db_row' and 'pendlay_row' (never renamed once created, ANCHORED_LANES
+// discipline in engine/program.ts) — see ANCHOR_LIFTS in constants.ts.
+// The lanes are anchors, not day lifts: they never appear in the rotation.
+// Era history: GiantFit's 'db_row'/'pendlay_row' lanes carried DB Row (OHP)
+// and Pendlay Row (bench); Giant 2.0 (from GIANT2_START_DATE) reassigns the
+// SAME lanes to BB Row (OHP) and Pull-ups (bench, two-mode — see liftMode in
+// engine/loading.ts) — the lane persists, only the occupant changes. 'dips'
+// is a DEPRECATED Giant-era anchor — stored rows keep loading so old sessions
+// render, but Setup no longer shows or writes it.
 export type AnchorLift = Lift | 'pullup' | 'db_row' | 'pendlay_row'
 export type WeekType = 'training' | 'testing' | 'deload'
 export type TestRole = 'test' | 'light'
@@ -131,6 +136,11 @@ export interface Session {
   weekType: WeekType
   dayType: Lift | null
   difficulty: Difficulty | null
+  // Giant 2.0: the Volume block's OWN difficulty (fixed per cycle — see
+  // GIANT2_VOLUME_DIFFICULTY_BY_CYCLE). Null = no Volume block that session
+  // (C3 week 4, deload, or any pre-Giant2 row — `difficulty` above is never
+  // reused for this; the two are independent).
+  volumeDifficulty: Difficulty | null
   topReps: number | null
   topWeight: number | null
   rpe: string
@@ -288,6 +298,20 @@ export interface CapacityLogDraft extends Omit<CapacityLog, 'roundsCompleted' | 
   calories: number | string | null
 }
 
+// ---- Giant 2.0 ---------------------------------------------------------------
+// Which sub-program occupies the Capability block — a property of the CYCLE
+// (GIANT2_CAPABILITY_BY_CYCLE), never the week or session. The slot inventory
+// itself stays code (engine/program.ts); this only says which of the three
+// slot groups a given cycle's sessions should read.
+export type CapabilityProgram = 'hypertrophy' | 'oly' | 'carries'
+
+// The athlete's per-cycle-week Giant-difficulty rotation override (Setup-
+// editable — capacity-config pattern). week_in_cycle (1-3) -> lift ->
+// difficulty; week 4 is never stored here (GIANT2_WEEK4_DIFFICULTY, a pure
+// function of the cycle, always wins on week 4). Unset cells fall back to
+// GIANT2_GIANT_DEFAULT_ROTATION on read.
+export type Giant2DifficultyConfig = Record<number, Partial<Record<Lift, Difficulty>>>
+
 // ---- data-layer domain types ----------------------------------------------
 export type MacroStatus = 'active' | 'completed'
 export interface Macro {
@@ -352,6 +376,9 @@ export interface MacroBundle {
   // User-scoped Giant Block accessory rep targets (movement key → reps),
   // app defaults already merged in (GIANTFIT_GB_ACCESSORY).
   giantAccessory: GiantAccessoryReps
+  // User-scoped Giant 2.0 weekly Giant-difficulty rotation override, app
+  // default (GIANT2_GIANT_DEFAULT_ROTATION) already merged in.
+  giant2Difficulty: Giant2DifficultyConfig
 }
 
 // GiantFit Giant Block bodyweight-accessory rep targets, keyed by movement key

@@ -4,14 +4,14 @@ import { C, cardStyle, inp, lbl, pillColor } from './theme'
 import { Card, BlockTitle } from './components'
 import * as repo from '../data/repository'
 import { computePosition, totalWeeksOf, parseLocalDate, mondayOf, isoLocal } from '../engine/date-engine'
-import { SET_LADDER, VOLUME_PCT, PACE_ROUND_S, ANCHOR_LIFTS, ANCHOR_LABEL, ANCHOR_NOTE, GIANTFIT_ACC_ITEMS, GIANTFIT_CARRY_DEFAULTS, GIANTFIT_GB_ACCESSORY, GIANTFIT_GB_DEFAULT_REPS, LIFT_SHORT } from '../engine/constants'
+import { SET_LADDER, VOLUME_PCT, PACE_ROUND_S, ANCHOR_LIFTS, ANCHOR_LABEL, ANCHOR_NOTE, GIANTFIT_ACC_ITEMS, GIANTFIT_CARRY_DEFAULTS, GIANTFIT_GB_ACCESSORY, GIANTFIT_GB_DEFAULT_REPS, LIFT_SHORT, GIANT2_GIANT_DEFAULT_ROTATION } from '../engine/constants'
 import { expandDayTops, giantSets, volumeWeight } from '../engine/loading'
 import { CAPACITY_MOVEMENTS, CAPACITY_VARIANTS, CAPACITY_ROUNDS_OPTIONS } from '../engine/capacity'
 import { runMode, easyPace, qualityRange, fmtPace, parseClock } from '../engine/runs'
 import { LOAD_TYPES, COUNT_TYPES, LOAD_TYPE_LABEL, COUNT_TYPE_LABEL, formatCount, slugify } from '../engine/movements'
 import type { Movement, LoadType, CountType } from '../engine/movements'
 import { errMsg } from './controls'
-import type { Macro, WeightsByCycle, AccessoryByCycle, RunTargetsByCycle, RunSlotKey, CapacityConfig, CapacityVariant, Difficulty, GiantAccessoryReps, Lift } from '../engine/types'
+import type { Macro, WeightsByCycle, AccessoryByCycle, RunTargetsByCycle, RunSlotKey, CapacityConfig, CapacityVariant, Difficulty, GiantAccessoryReps, Lift, Giant2DifficultyConfig } from '../engine/types'
 
 // Anchor rows in the weights card: the GiantFit anchors (DL/OHP/Squat/Bench +
 // DB Row / Pendlay Row — the rows cascade identically off their own anchor).
@@ -34,6 +34,10 @@ const ACC_ITEMS = GIANTFIT_ACC_ITEMS
 
 // Giant Block accessory rows render in day order (DL/OHP/Squat/Bench).
 const GB_ACC_DAYS: Lift[] = ['deadlift', 'ohp', 'squat', 'bench']
+
+// Giant 2.0 weekly Giant-difficulty rotation grid — Mon/Tue/Thu/Fri day order.
+const GIANT2_ROTATION_DAYS: Lift[] = ['squat', 'bench', 'deadlift', 'ohp']
+const GIANT2_ROTATION_WEEKS: number[] = [1, 2, 3]
 
 // Giant Run distance-target slots (guidance only, per cycle, seeded like SEED_ITEMS).
 const RUN_SLOTS: RunSlotKey[] = ['easy', 'quality', 'long']
@@ -107,7 +111,14 @@ function initCapacity(loaded?: CapacityConfig): EditCapacity {
 
 interface SetupProps {
   macro: Macro | null
-  bundle: { weights: WeightsByCycle; accessory: AccessoryByCycle; runTargets: RunTargetsByCycle; capacity: CapacityConfig; giantAccessory: GiantAccessoryReps }
+  bundle: {
+    weights: WeightsByCycle
+    accessory: AccessoryByCycle
+    runTargets: RunTargetsByCycle
+    capacity: CapacityConfig
+    giantAccessory: GiantAccessoryReps
+    giant2Difficulty?: Giant2DifficultyConfig
+  }
   macros?: Macro[]
   // The movement library (user-scoped). Nothing prescribes from it yet — this is
   // the editor for the content the program will draw on.
@@ -199,6 +210,9 @@ export function Setup({ macro, bundle, macros = [], movements = [], onReload, on
   const [capRounds, setCapRounds] = useState<number>(bundle?.capacity?.rounds ?? 3)
   // Giant Block accessory rep targets (rep-only; defaults merged on load).
   const [gbAcc, setGbAcc] = useState<Record<string, number | string>>(() => ({ ...GIANTFIT_GB_DEFAULT_REPS, ...(bundle?.giantAccessory || {}) }))
+  // Giant 2.0 weekly Giant-difficulty rotation (weeks 1-3; week 4 collapses in
+  // code, never edited here). Defaults already merged in by the mapper.
+  const [giant2Diff, setGiant2Diff] = useState<Giant2DifficultyConfig>(() => bundle?.giant2Difficulty || { ...GIANT2_GIANT_DEFAULT_ROTATION })
   // Reference pace P held as min:sec text; parsed (never rounded) on save.
   const [pace, setPace] = useState(() => (macro?.refPaceS != null ? fmtPace(macro.refPaceS) : ''))
   const [saving, setSaving] = useState(false)
@@ -263,6 +277,7 @@ export function Setup({ macro, bundle, macros = [], movements = [], onReload, on
       for (const v of CAPACITY_VARIANTS) await repo.saveCapacityConfig(v, cap[v])
       await repo.setCapacityRounds(capRounds)
       await repo.saveGiantAccessoryConfig(gbAcc)
+      await repo.saveGiant2DifficultyConfig(giant2Diff)
       setSaved(true)
       setTimeout(() => setSaved(false), 1600)
       await onReload()
@@ -406,6 +421,49 @@ export function Setup({ macro, bundle, macros = [], movements = [], onReload, on
             </div>
           )
         })}
+      </Card>
+
+      {/* Giant 2.0 — weekly Giant-difficulty rotation (weeks 1-3 of every cycle;
+          week 4 collapses to one difficulty for the whole cycle, computed in
+          code, not edited here). Not yet read by any session view (Phase 1). */}
+      <Card>
+        <BlockTitle tag="giant 2.0">Giant Difficulty Rotation</BlockTitle>
+        <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>
+          Which difficulty each lift runs on weeks 1-3 of every cycle (repeats identically C1/C2/C3). Week 4 always
+          collapses to one difficulty for all four lifts — Light in C1, Medium in C2, Hard in C3 — and isn't edited
+          here.
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '48px repeat(4, 1fr)', gap: 8, alignItems: 'center' }}>
+          <span />
+          {GIANT2_ROTATION_DAYS.map((day) => (
+            <span key={day} style={{ fontSize: 10, color: C.muted, textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              {LIFT_SHORT[day]}
+            </span>
+          ))}
+          {GIANT2_ROTATION_WEEKS.map((week) => (
+            <Fragment key={week}>
+              <span style={{ fontSize: 12, color: C.off, fontWeight: 600 }}>W{week}</span>
+              {GIANT2_ROTATION_DAYS.map((day) => (
+                <select
+                  key={day}
+                  data-giant2-diff={`${week}-${day}`}
+                  aria-label={`${LIFT_SHORT[day]} difficulty, week ${week}`}
+                  style={{ ...inp, padding: '6px', textAlign: 'center', color: pillColor((giant2Diff[week]?.[day] as Difficulty) || 'medium') }}
+                  value={giant2Diff[week]?.[day] || GIANT2_GIANT_DEFAULT_ROTATION[week][day]}
+                  onChange={(e) =>
+                    setGiant2Diff((p) => ({ ...p, [week]: { ...p[week], [day]: e.target.value as Difficulty } }))
+                  }
+                >
+                  {DIFFS.map((d) => (
+                    <option key={d} value={d}>
+                      {d === 'medium' ? 'Med' : d[0].toUpperCase() + d.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              ))}
+            </Fragment>
+          ))}
+        </div>
       </Card>
 
       {/* GiantFit capacity block — two circuit variants, editable targets */}

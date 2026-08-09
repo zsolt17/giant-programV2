@@ -53,10 +53,11 @@ import type {
   CapacityLog,
   GiantAccessoryReps,
   CapacityLogDraft,
+  Giant2DifficultyConfig,
 } from '../engine/types'
 import { defaultCapacityConfig } from '../engine/capacity'
 import type { Movement } from '../engine/movements'
-import { GIANTFIT_GB_DEFAULT_REPS } from '../engine/constants'
+import { GIANTFIT_GB_DEFAULT_REPS, GIANT2_GIANT_DEFAULT_ROTATION } from '../engine/constants'
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -131,6 +132,7 @@ export function App() {
   const [capacity, setCapacity] = useState<CapacityConfig>(() => defaultCapacityConfig())
   const [capacityLogs, setCapacityLogs] = useState<CapacityLog[]>([])
   const [giantAccessory, setGiantAccessory] = useState<GiantAccessoryReps>(() => ({ ...GIANTFIT_GB_DEFAULT_REPS }))
+  const [giant2Difficulty, setGiant2Difficulty] = useState<Giant2DifficultyConfig>(() => ({ ...GIANT2_GIANT_DEFAULT_ROTATION }))
   // The movement library — user-scoped (like breakDays), loaded next to the
   // macro bundle and seeded on first boot. Nothing prescribes from it yet.
   const [movements, setMovements] = useState<Movement[]>([])
@@ -164,6 +166,7 @@ export function App() {
     setCapacity(snap.capacity || defaultCapacityConfig())
     setCapacityLogs(snap.capacityLogs || [])
     setGiantAccessory(snap.giantAccessory || { ...GIANTFIT_GB_DEFAULT_REPS })
+    setGiant2Difficulty(snap.giant2Difficulty || { ...GIANT2_GIANT_DEFAULT_ROTATION })
     setMovements(snap.movements || [])
   }
 
@@ -181,7 +184,20 @@ export function App() {
         null
       const b: MacroBundle = target
         ? await repo.loadMacroBundle(target.id)
-        : { weights: {}, accessory: {}, sessions: [], deloads: {}, breakDays: {}, testing: [], runs: [], runTargets: {}, capacity: defaultCapacityConfig(), capacityLogs: [], giantAccessory: { ...GIANTFIT_GB_DEFAULT_REPS } }
+        : {
+            weights: {},
+            accessory: {},
+            sessions: [],
+            deloads: {},
+            breakDays: {},
+            testing: [],
+            runs: [],
+            runTargets: {},
+            capacity: defaultCapacityConfig(),
+            capacityLogs: [],
+            giantAccessory: { ...GIANTFIT_GB_DEFAULT_REPS },
+            giant2Difficulty: { ...GIANT2_GIANT_DEFAULT_ROTATION },
+          }
       setMacros(all)
       setMacro(target)
       setViewedMacroId(target?.id ?? null)
@@ -196,11 +212,16 @@ export function App() {
       setCapacity(b.capacity)
       setCapacityLogs(b.capacityLogs)
       setGiantAccessory(b.giantAccessory)
+      setGiant2Difficulty(b.giant2Difficulty)
       // The movement library is user-scoped (independent of the macro) and seeds
       // itself on first boot. Best-effort by design: a blocked dev write must
       // never take down the whole load — degrade to whatever the library holds.
       try {
         setMovements(await repo.ensureSeedMovements())
+        // The Giant 2.0 program version — seeded once, alongside the movement
+        // library. Nothing renders off it yet (Phase 1); best-effort so a
+        // blocked dev write can never take down boot.
+        await repo.ensureSeedGiant2ProgramVersion()
       } catch {
         try {
           setMovements(await repo.listMovements())
@@ -347,9 +368,45 @@ export function App() {
   // optimistic offline writes, since those flow through state).
   useEffect(() => {
     if (status === 'ready' && user && macro) {
-      saveSnapshot({ macros, viewedMacroId, macro, weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs, giantAccessory, movements })
+      saveSnapshot({
+        macros,
+        viewedMacroId,
+        macro,
+        weights,
+        accessory,
+        sessions,
+        deloads,
+        breakDays,
+        testing,
+        runs,
+        runTargets,
+        capacity,
+        capacityLogs,
+        giantAccessory,
+        giant2Difficulty,
+        movements,
+      })
     }
-  }, [status, user, macro, macros, viewedMacroId, weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs, giantAccessory, movements])
+  }, [
+    status,
+    user,
+    macro,
+    macros,
+    viewedMacroId,
+    weights,
+    accessory,
+    sessions,
+    deloads,
+    breakDays,
+    testing,
+    runs,
+    runTargets,
+    capacity,
+    capacityLogs,
+    giantAccessory,
+    giant2Difficulty,
+    movements,
+  ])
 
   const onSaveSession = useCallback(async (record: SessionDraft): Promise<Session> => {
     const saved = await repo.saveSession(record)
@@ -621,7 +678,7 @@ export function App() {
         <Setup
           key={macro?.id || 'new'}
           macro={macro}
-          bundle={{ weights, accessory, runTargets, capacity, giantAccessory }}
+          bundle={{ weights, accessory, runTargets, capacity, giantAccessory, giant2Difficulty }}
           macros={macros}
           movements={movements}
           onReload={load}

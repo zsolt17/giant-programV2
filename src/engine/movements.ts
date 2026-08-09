@@ -11,7 +11,7 @@
 // needing a NAME reads it off the movement; anything needing IDENTITY reads the key.
 //
 // Pure module: no imports from data/ or ui/.
-import type { CapacityVariant } from './types'
+import type { CapacityVariant, Lift } from './types'
 
 export const LOAD_TYPES = ['anchored', 'recorded', 'bodyweight', 'none'] as const
 export type LoadType = (typeof LOAD_TYPES)[number]
@@ -175,8 +175,98 @@ const BULLETPROOF: MovementSeed[] = [
   { key: 'plantar_rolling', name: 'Plantar rolling', loadType: 'none', countType: 'time_seconds', defaultReps: null, repUnit: null, note: '30s per foot' },
 ]
 
+// ---- Giant 2.0 content (from GIANT2_START_DATE) -------------------------------
+// Same seeded-per-user, code-side-list discipline as everything above. Ab-Roll
+// reuses the existing `ab_rollout` GB_ACCESSORIES entry (same exercise) — no
+// duplicate movement for it.
+
+// Anchored: BB Row and Pull-ups occupy the existing db_row/pendlay_row LANES
+// (see ANCHORED_LANES in engine/program.ts) — the lane persists, only the
+// occupant changes. Pull-ups stays two-mode (engine/loading.ts liftMode):
+// a zero/unset anchor renders as bodyweight cluster, any weight as the full
+// weighted cascade — reactivated for real use, not just legacy rendering.
+const GIANT2_ANCHORED: MovementSeed[] = [
+  { key: 'bb_row', name: 'BB Row', loadType: 'anchored', countType: 'reps', defaultReps: null, repUnit: null, note: null },
+  { key: 'pullup', name: 'Pull-ups', loadType: 'anchored', countType: 'reps', defaultReps: null, repUnit: null, note: null },
+]
+
+// Giant Block bodyweight accessory — Leg Raises (Bench/OHP days). Ab-Roll
+// (Squat/Deadlift days) reuses `ab_rollout` above.
+const GIANT2_GB_ACCESSORY: MovementSeed[] = [
+  { key: 'leg_raises', name: 'Leg Raises', loadType: 'bodyweight', countType: 'reps', defaultReps: 12, repUnit: null, note: null },
+]
+
+// Primer block: Rope flow (shared, both day types) + band activation (day-typed)
+// + the bodyweight ramp (day-typed, 1-2-3 ascending scheme across 3 rounds —
+// GIANT2_PRIMER_RAMP_ROUNDS in constants.ts; tempo not tracked). All unloaded,
+// completion-only (no RPE), matching the existing ACTIVATION group's treatment.
+const GIANT2_PRIMER: MovementSeed[] = [
+  { key: 'rope_flow', name: 'Rope flow', loadType: 'none', countType: 'time_seconds', defaultReps: null, repUnit: null, note: 'flow sequence' },
+  { key: 'crossover_symmetry', name: 'Crossover Symmetry', loadType: 'none', countType: 'reps', defaultReps: null, repUnit: null, note: 'band activation sequence' },
+  { key: 'hip_halo', name: 'Hip Halo', loadType: 'none', countType: 'reps', defaultReps: null, repUnit: null, note: 'band activation sequence' },
+  { key: 'primer_inverted_row', name: 'Inverted Row', loadType: 'none', countType: 'reps', defaultReps: null, repUnit: null, note: '1-2-3 ascending, 3 rounds' },
+  { key: 'primer_pushups', name: 'Push-ups', loadType: 'none', countType: 'reps', defaultReps: null, repUnit: null, note: '1-2-3 ascending, 3 rounds' },
+  { key: 'primer_dead_bug', name: 'Dead Bug', loadType: 'none', countType: 'reps_per_side', defaultReps: null, repUnit: '/side', note: '1-2-3 ascending, 3 rounds' },
+  { key: 'primer_scap_dip', name: 'Support Scap-Dip', loadType: 'none', countType: 'reps', defaultReps: null, repUnit: null, note: '1-2-3 ascending, 3 rounds' },
+  { key: 'primer_good_morning', name: 'Good Morning', loadType: 'none', countType: 'reps', defaultReps: null, repUnit: null, note: '1-2-3 ascending, 3 rounds' },
+  { key: 'primer_reverse_lunges', name: 'Reverse Lunges', loadType: 'none', countType: 'reps_per_side', defaultReps: null, repUnit: '/side', note: '1-2-3 ascending, 3 rounds' },
+  { key: 'primer_bird_dogs', name: 'Bird Dogs', loadType: 'none', countType: 'reps_per_side', defaultReps: null, repUnit: '/side', note: '1-2-3 ascending, 3 rounds' },
+  { key: 'primer_lateral_lunge', name: 'Shallow Lateral Lunge', loadType: 'none', countType: 'reps_per_side', defaultReps: null, repUnit: '/side', note: '1-2-3 ascending, 3 rounds' },
+]
+
+// Capability block, C1 — Hypertrophy accessories. Sets are fixed at 3
+// (GIANT2_HYPERTROPHY_SETS); defaultReps is the per-set target, 12 unless the
+// spec calls for 15 (note left blank — the rep count carries it).
+const GIANT2_HYPERTROPHY: MovementSeed[] = [
+  { key: 'walking_lunge', name: 'Walking Lunge', loadType: 'recorded', countType: 'reps_per_side', defaultReps: 12, repUnit: '/leg', note: null },
+  { key: 'lying_hamstring_curl', name: 'Lying Hamstring Curl', loadType: 'recorded', countType: 'reps', defaultReps: 12, repUnit: null, note: null },
+  { key: 'hip_back_extension', name: 'Hip/Back Extension', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: 'weight optional' },
+  { key: 'standing_calf_raise', name: 'Standing Calf Raise', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: null },
+  { key: 'seated_db_press', name: 'Seated DB Press', loadType: 'recorded', countType: 'reps', defaultReps: 12, repUnit: null, note: null },
+  { key: 'one_arm_row', name: 'One-Arm Row', loadType: 'recorded', countType: 'reps_per_side', defaultReps: 12, repUnit: '/side', note: null },
+  { key: 'bicep_curl', name: 'Bicep Curl', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: null },
+  { key: 'skull_crusher', name: 'Skull Crusher', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: null },
+  { key: 'serratus_raise', name: 'Serratus Anterior Raise', loadType: 'recorded', countType: 'reps', defaultReps: 12, repUnit: null, note: null },
+  { key: 'ffe_split_squat', name: 'Front-Foot-Elevated Split Squat', loadType: 'recorded', countType: 'reps_per_side', defaultReps: 12, repUnit: '/leg', note: null },
+  { key: 'hip_thrust', name: 'Hip Thrust', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: null },
+  { key: 'leg_extension', name: 'Leg Extension', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: null },
+  { key: 'flat_db_bench', name: 'Flat DB Bench', loadType: 'recorded', countType: 'reps', defaultReps: 12, repUnit: null, note: null },
+  { key: 'lat_pulldown_sup', name: 'Lat Pulldown (supinated)', loadType: 'recorded', countType: 'reps', defaultReps: 12, repUnit: null, note: null },
+  { key: 'lateral_raise', name: 'Lateral Raise', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: null },
+  { key: 'rope_face_pull', name: 'Rope Face Pull', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: 'seated, to top of head' },
+]
+
+// Capability block, C2 — Oly technical work. `note` carries the cluster
+// notation (e.g. "2+1") since it can't reduce to one rep number; load is a
+// per-lane technical ceiling "found by feel" (recorded), never a percentage
+// of a tested max, and never RPE-logged (see OLY_QUALITY, constants.ts).
+const GIANT2_OLY: MovementSeed[] = [
+  { key: 'oly_snatch_balance_ohs', name: 'Snatch Balance + OHS', loadType: 'recorded', countType: 'reps', defaultReps: 5, repUnit: null, note: '3×5, unloaded' },
+  { key: 'oly_hang_full_snatch', name: 'Hang Snatch + Full Snatch', loadType: 'recorded', countType: 'reps', defaultReps: null, repUnit: null, note: '4-5×2+1' },
+  { key: 'oly_tall_clean', name: 'Tall Clean', loadType: 'recorded', countType: 'reps', defaultReps: 5, repUnit: null, note: '3×5, unloaded' },
+  { key: 'oly_hang_power_clean_power_clean', name: 'Hang Power Clean + Power Clean', loadType: 'recorded', countType: 'reps', defaultReps: null, repUnit: null, note: '4-5×2+1' },
+  { key: 'oly_clean_front_squat', name: 'Clean + Front Squat', loadType: 'recorded', countType: 'reps', defaultReps: null, repUnit: null, note: '4-5×3 (1+2), upper days only' },
+  { key: 'oly_muscle_snatch', name: 'Muscle Snatch', loadType: 'recorded', countType: 'reps', defaultReps: 5, repUnit: null, note: '3×5, unloaded' },
+  { key: 'oly_snatch_high_pull_hang_power_snatch', name: 'Snatch High Pull + Hang Power Snatch', loadType: 'recorded', countType: 'reps', defaultReps: null, repUnit: null, note: '4-5×2+1' },
+  { key: 'oly_tall_jerk', name: 'Tall Jerk', loadType: 'recorded', countType: 'reps', defaultReps: 5, repUnit: null, note: '3×5, unloaded' },
+  { key: 'oly_push_press_jerk', name: 'Push Press + Jerk', loadType: 'recorded', countType: 'reps', defaultReps: null, repUnit: null, note: '4-5×2+1' },
+  { key: 'oly_split_jerk', name: 'Split Jerk', loadType: 'recorded', countType: 'reps', defaultReps: null, repUnit: null, note: '4-5×3, upper days only' },
+]
+
 // The complete library a fresh user is seeded with.
-export const SEED_MOVEMENTS: MovementSeed[] = [...ANCHORED, ...CARRIES, ...GB_ACCESSORIES, ...CAPACITY, ...ACTIVATION, ...BULLETPROOF]
+export const SEED_MOVEMENTS: MovementSeed[] = [
+  ...ANCHORED,
+  ...CARRIES,
+  ...GB_ACCESSORIES,
+  ...CAPACITY,
+  ...ACTIVATION,
+  ...BULLETPROOF,
+  ...GIANT2_ANCHORED,
+  ...GIANT2_GB_ACCESSORY,
+  ...GIANT2_PRIMER,
+  ...GIANT2_HYPERTROPHY,
+  ...GIANT2_OLY,
+]
 
 // Which seeded movement occupies each capacity variant's circuit, in order —
 // consumed by the Phase 2 slot seed (kept here so the seed's shape lives with
@@ -189,6 +279,28 @@ export const SEED_ACTIVATION_KEYS: string[] = ACTIVATION.map((m) => m.key)
 export const SEED_BULLETPROOF_KEYS: string[] = BULLETPROOF.map((m) => m.key)
 // Bulletproof's optional tail (plantar rolling) — the only per-slot flag today.
 export const SEED_BULLETPROOF_OPTIONAL: string[] = ['plantar_rolling']
+
+// ---- Giant 2.0 seed key lists (day-type/day ordering — consumed by the
+// ---- version-2 slot seed, engine/program.ts) ---------------------------------
+export const SEED_GIANT2_PRIMER_KEYS: Record<'upper' | 'lower', string[]> = {
+  upper: ['rope_flow', 'crossover_symmetry', 'primer_inverted_row', 'primer_pushups', 'primer_dead_bug', 'primer_scap_dip'],
+  lower: ['rope_flow', 'hip_halo', 'primer_good_morning', 'primer_reverse_lunges', 'primer_bird_dogs', 'primer_lateral_lunge'],
+}
+export const SEED_GIANT2_HYPERTROPHY_KEYS: Record<Lift, string[]> = {
+  squat: ['walking_lunge', 'lying_hamstring_curl', 'hip_back_extension', 'standing_calf_raise'],
+  bench: ['seated_db_press', 'one_arm_row', 'bicep_curl', 'skull_crusher', 'serratus_raise'],
+  deadlift: ['ffe_split_squat', 'hip_thrust', 'leg_extension'],
+  ohp: ['flat_db_bench', 'lat_pulldown_sup', 'lateral_raise', 'rope_face_pull'],
+  dips: [],
+}
+// Ordered: technical primer, complex, third item (upper days only).
+export const SEED_GIANT2_OLY_KEYS: Record<Lift, string[]> = {
+  squat: ['oly_snatch_balance_ohs', 'oly_hang_full_snatch'],
+  bench: ['oly_tall_clean', 'oly_hang_power_clean_power_clean', 'oly_clean_front_squat'],
+  deadlift: ['oly_muscle_snatch', 'oly_snatch_high_pull_hang_power_snatch'],
+  ohp: ['oly_tall_jerk', 'oly_push_press_jerk', 'oly_split_jerk'],
+  dips: [],
+}
 
 export function seedByKey(key: string): MovementSeed | undefined {
   return SEED_MOVEMENTS.find((m) => m.key === key)

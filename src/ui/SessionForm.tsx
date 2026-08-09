@@ -43,6 +43,7 @@ export function buildBlankSession({
     weekType,
     dayType: dayType ?? null,
     difficulty: difficulty ?? null,
+    volumeDifficulty: null, // Giant 2.0 only (Phase 3 wires this up); GiantFit sessions never set it
     topReps: scheme ? scheme.sets[3] : null,
     topWeight: top,
     rpe: '',

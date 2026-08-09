@@ -70,6 +70,19 @@ export const carrySlot = (day: Lift): string => `carry.${day}`
 export const ACTIVATION_GROUP = 'activation'
 export const BULLETPROOF_GROUP = 'bulletproof'
 
+// ---- Giant 2.0 slot groups ----------------------------------------------------
+// The Capability block's slot inventory changes by CYCLE, not by week or
+// session — this is the "one level further" than the gb_accessory/capacity
+// groups above (which only made exercises WITHIN one fixed block into data).
+// All three programs' slots are registered here, always; a cycle only reads
+// the one it's in (GIANT2_CAPABILITY_BY_CYCLE, constants.ts) — the slot
+// registry itself doesn't need to know about cycles at all.
+export type DayType = 'upper' | 'lower'
+export const primerGroup = (dayType: DayType): string => `primer.${dayType}`
+export const hypertrophyGroup = (day: Lift): string => `capability.hypertrophy.${day}`
+export const olyGroup = (day: Lift): string => `capability.oly.${day}`
+// Carries (C3) reuse carrySlot(day) above unchanged — same lane, same implement.
+
 // ---- contracts ---------------------------------------------------------------
 // What each slot will accept. A version is publishable only when every occupant
 // satisfies its slot's contract.
@@ -105,6 +118,27 @@ function buildContracts(): Record<string, SlotContract> {
   // Warm-up activation and the post-run Bulletproof circuit: unloaded, variable.
   c[ACTIVATION_GROUP] = { label: 'Warm-up activation', loadTypes: ['none'], variable: true }
   c[BULLETPROOF_GROUP] = { label: 'Bulletproof circuit', loadTypes: ['none'], variable: true }
+
+  // Giant 2.0 Primer: rope flow + band activation + bodyweight ramp, day-typed
+  // (upper/lower), unloaded, variable.
+  for (const t of ['upper', 'lower'] as DayType[]) {
+    c[primerGroup(t)] = { label: `Primer — ${t}`, loadTypes: ['none'], variable: true }
+  }
+  // Capability block, C1 Hypertrophy: per-exercise weight×reps, variable.
+  for (const day of PROGRAM_DAYS) {
+    c[hypertrophyGroup(day)] = {
+      label: `${day} — Hypertrophy`,
+      loadTypes: ['recorded', 'bodyweight'],
+      countTypes: ['reps', 'reps_per_side'],
+      variable: true,
+    }
+  }
+  // Capability block, C2 Oly: per-lane technical-ceiling weight, variable
+  // (2-3 items per day). Logged with a quality mark, not RPE (oly_logs).
+  for (const day of PROGRAM_DAYS) {
+    c[olyGroup(day)] = { label: `${day} — Oly`, loadTypes: ['recorded'], countTypes: ['reps'], variable: true }
+  }
+  // Capability block, C3 Carries: reuses carrySlot(day) above, no new contract.
   return c
 }
 
@@ -188,6 +222,10 @@ export interface ResolvedProgram {
   carryFor: (day: Lift) => ResolvedItem | null
   activation: () => ResolvedItem[]
   bulletproof: () => ResolvedItem[]
+  // Giant 2.0 (version 2+ only — empty on version 1, nothing seeds these slots there).
+  primerFor: (dayType: DayType) => ResolvedItem[]
+  hypertrophyFor: (day: Lift) => ResolvedItem[]
+  olyFor: (day: Lift) => ResolvedItem[]
 }
 
 // The version live on a date: the greatest effective_from that is <= the date,
@@ -245,6 +283,9 @@ export function resolveProgram(version: ProgramVersion, slots: ProgramSlot[], mo
     carryFor: (day) => one(carrySlot(day)),
     activation: () => many(ACTIVATION_GROUP),
     bulletproof: () => many(BULLETPROOF_GROUP),
+    primerFor: (dayType) => many(primerGroup(dayType)),
+    hypertrophyFor: (day) => many(hypertrophyGroup(day)),
+    olyFor: (day) => many(olyGroup(day)),
   }
 }
 
@@ -327,6 +368,65 @@ export function buildSeedSlots(versionId: string, movements: Movement[], n: Seed
   // back to each movement's default.
   ;(n.activationKeys || []).forEach((key, i) => push(ACTIVATION_GROUP, i, key, null))
   ;(n.bulletproofKeys || []).forEach((key, i) => push(BULLETPROOF_GROUP, i, key, null, null, (n.optionalKeys || []).includes(key)))
+
+  return slots
+}
+
+// ---- seeding Giant 2.0 (version 2) -------------------------------------------
+// Same discipline as buildSeedSlots above: pure, DB-free, every occupant comes
+// in as a parameter — this file stays decoupled from engine/constants.ts, the
+// caller (repository.ts) wires the real content in. All THREE Capability
+// programs are seeded unconditionally; which one a session reads is a
+// cycle-level dispatch (GIANT2_CAPABILITY_BY_CYCLE), not a seeding decision.
+
+// Which seeded movement fills each anchored lane for Giant 2.0. The db_row and
+// pendlay_row LANES are UNCHANGED from version 1 (ANCHORED_LANES) — only their
+// occupants swap, to BB Row and Pull-ups respectively.
+export const GIANT2_SEED_LANE_KEYS: Record<string, string | null> = {
+  deadlift: 'deadlift',
+  ohp: 'ohp',
+  squat: 'squat',
+  bench: 'bench',
+  db_row: 'bb_row',
+  pendlay_row: 'pullup',
+  secondary_deadlift: null,
+  secondary_squat: null,
+}
+
+export interface Giant2SeedNumbers {
+  gbAccessoryKeys: Partial<Record<Lift, string>> // day -> GB accessory movement key
+  primerKeys: Record<DayType, string[]> // upper/lower -> ordered movement keys
+  hypertrophyKeys: Partial<Record<Lift, string[]>> // day -> ordered movement keys
+  olyKeys: Partial<Record<Lift, string[]>> // day -> ordered movement keys
+  carryKeys: Partial<Record<Lift, string>> // day -> carry movement key (SEED_CARRY_KEYS shape)
+}
+
+export function buildGiant2SeedSlots(versionId: string, movements: Movement[], n: Giant2SeedNumbers): ProgramSlot[] {
+  const idOf = (key: string): string | null => movements.find((m) => m.key === key)?.id ?? null
+  const slots: ProgramSlot[] = []
+  const push = (slotKey: string, orderIndex: number, movementKey: string | null, reps: number | null = null) => {
+    const movementId = movementKey ? idOf(movementKey) : null
+    if (movementKey && !movementId) return // unknown key: skip, never invent
+    slots.push({ versionId, slotKey, orderIndex, movementId, reps, rounds: null, optional: false })
+  }
+
+  for (const lane of ANCHORED_LANES) push(lane, 0, GIANT2_SEED_LANE_KEYS[lane] ?? null)
+
+  for (const day of PROGRAM_DAYS) {
+    const key = n.gbAccessoryKeys[day]
+    if (key) push(gbAccessoryGroup(day), 0, key)
+  }
+
+  for (const t of ['upper', 'lower'] as DayType[]) {
+    ;(n.primerKeys[t] || []).forEach((key, i) => push(primerGroup(t), i, key))
+  }
+
+  for (const day of PROGRAM_DAYS) {
+    ;(n.hypertrophyKeys[day] || []).forEach((key, i) => push(hypertrophyGroup(day), i, key))
+    ;(n.olyKeys[day] || []).forEach((key, i) => push(olyGroup(day), i, key))
+    const carryKey = n.carryKeys[day]
+    if (carryKey) push(carrySlot(day), 0, carryKey)
+  }
 
   return slots
 }
