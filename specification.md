@@ -112,6 +112,47 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-08-09 (Giant 2.0, Phase 5 — deload signals)
+- `feat`: **deload signals correct for Giant 2.0** — mostly confirming what
+  was already true by construction, plus one real bug found while checking.
+  - S1/S3/S5/S7 needed no code change at all: they already go quiet
+    structurally for Giant 2.0 where they don't apply (S3 only ever gets set
+    where the Carry UI renders — C3; S6 never has a `capacity_logs` row to
+    find, since no Capacity block exists to write one).
+  - S2 (Volume incomplete) got one explicit gate: C3 week 4 has no Volume
+    block at all, so `volDone` can never meaningfully be "incomplete" that
+    session. `volDone` already defaults `true` and the checkbox structurally
+    can't render that week, so this was already unreachable — the gate was
+    added anyway as an explicit domain rule in `deload-rule.ts`
+    (`isGiant2Date(s.date) && s.volumeDifficulty == null`) rather than an
+    implicit consequence of which checkbox happens to render, since deload
+    recommendations directly affect real training decisions.
+  - **A real gap caught while verifying this**: GiantFit's Volume and
+    Capacity blocks have always gated on `!isDeload` (suppressed during ANY
+    deload — reactive/mid-cycle or scheduled). Giant 2.0's Phase 3/4 Volume
+    and Capability blocks were gated only on the SCHEDULE (`volumeDifficulty`/
+    `cycle`), which happens to already be null during the scheduled
+    end-of-macro deload but does NOT go null during a REACTIVE mid-cycle
+    deload — so a reactive deload applied to, say, a C2 (Oly) week would have
+    left the Volume and Oly blocks rendering at full, un-reduced content.
+    Fixed: both now also gate on `!isDeload`, matching GiantFit's own
+    precedent exactly ("Deload: Giant block only... Capability
+    light-or-skipped" applies to any deload, not just the scheduled one).
+  - The 3-occurrences/2-sessions trigger threshold is unchanged for Giant 2.0
+    despite its 4th weekly session (Mon/Tue/Thu/Fri vs GiantFit's Mon/Wed/Fri)
+    — reused verbatim, not rescaled; nothing asked for a new threshold and
+    inventing one wasn't in scope.
+  - `SIGNALS` (constants.ts) is unchanged — S6 stays fully defined since it's
+    still live for GiantFit; only a doc comment notes it has no Giant 2.0
+    equivalent and isn't replaced.
+  - 4 new deload-rule tests (S2's C3W4 exception + a GiantFit regression guard
+    proving the gate doesn't leak into the era it shouldn't touch, + one
+    proving S3/S6 need no code change at all). Also caught and fixed a crash
+    the new S2 gate introduced in the existing test suite (`isGiant2Date`
+    called on the test factory's unset `date` field) before it reached anyone
+    — guarded with `!!s.date` first. 215/215 tests passing, clean typecheck,
+    clean build.
+
 ## 2026-08-09 (Giant 2.0, Phase 4 — Capability block: Hypertrophy/Oly/Carries)
 - `feat`: **the Capability block now renders — Giant 2.0 sessions are
   complete, Primer through Capability, in Today and the Calendar modal.**

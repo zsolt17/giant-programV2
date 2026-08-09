@@ -3,7 +3,11 @@
 //   S1 any-day top set R9.5+         S2 volume block incomplete
 //   S3 carry skipped due to fatigue  S5 bar speed ↓ on top set in 2+ sessions
 //   S6 capacity not completed as prescribed (fatigue) — one occurrence per
-//      fatigue-attributed capacity log in the week
+//      fatigue-attributed capacity log in the week. GIANTFIT-ERA ONLY: Giant
+//      2.0 has no Capacity block, so no capacity_logs row ever exists for a
+//      Giant2 session — S6 simply never has anything to find there. Retired
+//      for Giant 2.0 (2026-08-09), not replaced with a new signal — no code
+//      change needed to make it go quiet, but it stays live for GiantFit.
 //   S7 giant block not completed as prescribed
 //   (S4 Set1>R7 retired. S7 was numbered S6 in the Giant era. S6 itself was the
 //   capacity TIME trend until 2026-07-31 — retired because per-round time in an
@@ -15,9 +19,12 @@
 //   R3 pace-at-HR degraded on 2+ runs (only when HR is logged)
 // TRIGGER: 3+ total occurrences spanning at least 2 different sessions —
 // lifts and runs counted together. (3 occurrences = severity; 2 sessions =
-// a pattern, not one bad day.)
+// a pattern, not one bad day.) UNCHANGED for Giant 2.0 despite its 4th weekly
+// session (Mon/Tue/Thu/Fri vs GiantFit's Mon/Wed/Fri) — reused verbatim, not
+// rescaled; the spec never asked for a new threshold.
 import { computeRunSignalHits } from './runs'
 import { isCapacityFatigue } from './constants'
+import { isGiant2Date } from './date-engine'
 import type { Run, Session, WeekSignals, CapacityLog } from './types'
 
 export function rpeNum(r: string | null | undefined): number {
@@ -52,7 +59,12 @@ export function computeWeekSignals(
       occurrences++
       hit = true
     }
-    if (s.volDone === false) {
+    // Giant 2.0's C3 week 4 has no Volume block at all (volumeDifficulty
+    // null that session) — nothing to be "incomplete", so S2 never evaluates
+    // it. GiantFit sessions (volumeDifficulty always null, but NOT Giant2-era)
+    // are unaffected — this only suppresses the Giant-2.0-specific no-block case.
+    const noVolumeBlock = !!s.date && isGiant2Date(s.date) && s.volumeDifficulty == null
+    if (!noVolumeBlock && s.volDone === false) {
       types.add('S2')
       occurrences++
       hit = true

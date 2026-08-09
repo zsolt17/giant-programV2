@@ -253,3 +253,42 @@ test('shouldRecommendDeload pools capacity logs through the unchanged trigger', 
   assert.equal(shouldRecommendDeload({ prevWeekSessions, capacityLogs, usedThisMeso: true }), false)
   assert.equal(shouldRecommendDeload({ prevWeekSessions, capacityLogs, breakComing: true }), false)
 })
+
+// ---- Giant 2.0 (S2's one exception; S3/S6 confirmed to need no code change) -
+const G2 = '2026-08-10' // GIANT2_START_DATE, a Monday
+
+test('S2: does NOT fire on a Giant 2.0 C3 week 4 session (no Volume block that week)', () => {
+  const s = CS('a', G2, 4, { cycle: 3, volDone: false, volumeDifficulty: null })
+  const r = computeWeekSignals([s])
+  assert.equal(r.types.has('S2'), false)
+  assert.equal(r.occurrences, 0)
+})
+
+test('S2: still fires on a Giant 2.0 session that DOES have a Volume block', () => {
+  const s = CS('a', G2, 1, { cycle: 1, volDone: false, volumeDifficulty: 'light' })
+  const r = computeWeekSignals([s])
+  assert.equal(r.types.has('S2'), true)
+  assert.equal(r.occurrences, 1)
+})
+
+test('S2: unaffected on GiantFit/legacy sessions — volumeDifficulty is always null there too, but the era gate only suppresses Giant 2.0', () => {
+  const s = CS('a', '2026-07-27', 1, { volDone: false }) // volumeDifficulty left unset (undefined), like every real GiantFit row
+  const r = computeWeekSignals([s])
+  assert.equal(r.types.has('S2'), true)
+  assert.equal(r.occurrences, 1)
+})
+
+test('S3/S6: no Giant-2.0-specific code needed — both already go quiet structurally (carrySkipped only set where the Carry UI renders; capacity_logs never exist for a Giant2 session), pooled correctly alongside a firing S2', () => {
+  const week = [
+    CS('a', G2, 4, { cycle: 3, volDone: false, volumeDifficulty: null }), // S2 suppressed (C3 W4)
+    CS('b', G2, 1, { cycle: 3, carrySkipped: true, carrySkipReason: 'fatigue' }), // S3 — a real C3 carry day
+    CS('c', G2, 1, { cycle: 1, blockCompletion: 'stopped_fatigue' }), // S7
+  ]
+  const r = computeWeekSignals(week, [], [], []) // no capacity logs — none could exist for these session ids
+  assert.deepEqual([...r.types].sort(), ['S3', 'S7'])
+  assert.equal(r.types.has('S2'), false)
+  assert.equal(r.types.has('S6'), false)
+  assert.equal(r.occurrences, 2)
+  assert.equal(r.sessionCount, 2)
+  assert.equal(r.fired, false) // 2 occurrences, needs 3
+})

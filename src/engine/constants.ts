@@ -199,6 +199,12 @@ export const GIANTFIT_ACC_ITEMS = ['carry_deadlift', 'carry_ohp', 'carry_squat',
 // (giant-block completion — numbered S6 in the Giant era) keeps firing off its
 // own completion control. Signals are computed, never stored, so history simply
 // re-renders under the new definitions.
+//
+// GIANT 2.0 (2026-08-09): S1/S2/S3/S5/S7 are reused verbatim — see
+// deload-rule.ts for the one Giant-2.0-specific exception (S2 on C3 week 4).
+// S6 has no Giant 2.0 equivalent (no Capacity block) and is retired for it,
+// deliberately NOT replaced with a new signal — the array below is unchanged
+// because S6 stays fully live for GiantFit history/current use.
 export const SIGNALS: { id: string; label: string }[] = [
   { id: 'S1', label: 'Any day, top set R9.5+' },
   { id: 'S2', label: 'Volume block incomplete' },

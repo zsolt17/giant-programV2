@@ -203,8 +203,12 @@ export function Giant2SessionForm({
       </Card>
 
       {/* III. Volume Block — independent difficulty from the Giant block's;
-          null (C3 week 4) means it doesn't run at all that week. */}
-      {volumeDifficulty && volScheme && (
+          null (C3 week 4) means it doesn't run at all that week. Also off on
+          ANY deload — scheduled (volumeDifficulty is already null then) or
+          reactive mid-cycle (volumeDifficulty would otherwise still be set,
+          so isDeload has to gate it explicitly) — same !isDeload discipline
+          GiantFit's own Volume block has always used. */}
+      {!isDeload && volumeDifficulty && volScheme && (
         <Card>
           {blockTitle('C. Volume Block', `2 sets · 80% · ${volumeDifficulty}`)}
           <Row a={LIFT_LABEL[dayType]} b={`2 × ${volScheme.vol} @ 80%`} c={volumeTop != null ? fmt(volumeWeight(volumeTop)) : '—'} cls={C.blue} />
@@ -226,8 +230,11 @@ export function Giant2SessionForm({
       )}
 
       {/* IV. Capability — content dispatched by CYCLE, not week or session
-          (GIANT2_CAPABILITY_BY_CYCLE). Absent entirely on deload (cycle null). */}
-      {capabilityProgram === 'hypertrophy' && capability && (
+          (GIANT2_CAPABILITY_BY_CYCLE). Absent on the scheduled deload (cycle
+          is already null there) AND on a reactive mid-cycle deload (cycle
+          would otherwise still resolve a program, so isDeload has to gate it
+          explicitly — "Capability light-or-skipped" applies to any deload). */}
+      {!isDeload && capabilityProgram === 'hypertrophy' && capability && (
         <HypertrophyBlock
           letter="D"
           dayType={dayType}
@@ -237,7 +244,7 @@ export function Giant2SessionForm({
           onSave={capability.onSaveHypertrophyLog}
         />
       )}
-      {capabilityProgram === 'oly' && capability && (
+      {!isDeload && capabilityProgram === 'oly' && capability && (
         <OlyBlock
           letter="D"
           dayType={dayType}
@@ -248,7 +255,7 @@ export function Giant2SessionForm({
           onSave={capability.onSaveOlyLog}
         />
       )}
-      {capabilityProgram === 'carries' && (
+      {!isDeload && capabilityProgram === 'carries' && (
         <Card>
           {blockTitle('D. Carry', '10 min')}
           <Row a={meta.carry.name} b={`${meta.carry.sets} sets · ${meta.carry.dist}`} c={carryDisplay} cls={C.off} />
