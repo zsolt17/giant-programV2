@@ -31,6 +31,10 @@ import type {
   CapacityLogDraft,
   GiantAccessoryReps,
   Giant2DifficultyConfig,
+  HypertrophyLog,
+  HypertrophyLogDraft,
+  OlyLog,
+  OlyLogDraft,
 } from '../engine/types'
 import type { Joint, Phase } from '../engine/recovery-content'
 import type { Movement, MovementSeed, LoadType, CountType } from '../engine/movements'
@@ -576,6 +580,71 @@ export function capacityLogToRow(l: CapacityLogDraft): CapacityLogRow {
     calories: toNum(l.calories),
     rpe: blankToNull(l.rpe),
     completion: blankToNull(l.completion),
+    notes: blankToNull(l.notes),
+  }
+  if (l.id) row.id = l.id
+  return row
+}
+
+// ---- Giant 2.0 Capability block logs (C1 Hypertrophy, C2 Oly) --------------
+export interface HypertrophyLogRow {
+  id?: string
+  session_id: string
+  movement_id: string
+  weight: number | null
+  reps_done: number | null
+  notes: string | null
+  updated_at?: string
+}
+export function rowToHypertrophyLog(r: HypertrophyLogRow): HypertrophyLog {
+  return {
+    id: r.id,
+    sessionId: r.session_id,
+    movementId: r.movement_id,
+    weight: toNum(r.weight),
+    repsDone: toNum(r.reps_done),
+    notes: r.notes || '',
+    updatedAt: r.updated_at,
+  }
+}
+export function hypertrophyLogToRow(l: HypertrophyLogDraft): HypertrophyLogRow {
+  const row: HypertrophyLogRow = {
+    session_id: l.sessionId,
+    movement_id: l.movementId,
+    weight: toNum(l.weight),
+    reps_done: toNum(l.repsDone),
+    notes: blankToNull(l.notes),
+  }
+  if (l.id) row.id = l.id
+  return row
+}
+
+export interface OlyLogRow {
+  id?: string
+  session_id: string
+  movement_id: string
+  weight: number | null
+  quality: string | null
+  notes: string | null
+  updated_at?: string
+}
+export function rowToOlyLog(r: OlyLogRow): OlyLog {
+  return {
+    id: r.id,
+    sessionId: r.session_id,
+    movementId: r.movement_id,
+    weight: toNum(r.weight),
+    quality: r.quality || '',
+    notes: r.notes || '',
+    updatedAt: r.updated_at,
+  }
+}
+export function olyLogToRow(l: OlyLogDraft): OlyLogRow {
+  const row: OlyLogRow = {
+    session_id: l.sessionId,
+    movement_id: l.movementId,
+    weight: toNum(l.weight),
+    quality: blankToNull(l.quality),
     notes: blankToNull(l.notes),
   }
   if (l.id) row.id = l.id

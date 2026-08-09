@@ -29,6 +29,10 @@ import type {
   CapacityLogDraft,
   GiantAccessoryReps,
   Giant2DifficultyConfig,
+  HypertrophyLog,
+  HypertrophyLogDraft,
+  OlyLog,
+  OlyLogDraft,
   Lift,
 } from '../engine/types'
 import type { Joint, Phase } from '../engine/recovery-content'
@@ -377,6 +381,25 @@ export async function ensureSeedMovements(): Promise<Movement[]> {
   return (data || []).map(M.rowToMovement)
 }
 
+// Insert any code-side SEED_MOVEMENTS entries the user doesn't have yet, by
+// key — unlike ensureSeedMovements (which only fires for a completely EMPTY
+// library), this reaches an athlete who already had a movement library before
+// new content was added (e.g. Giant 2.0's Hypertrophy/Oly/Primer movements,
+// 2026-08-09 — an existing GiantFit user's library predates them). Safe to
+// call every boot: existing rows (renamed, archived, whatever) are never
+// touched, only missing keys are inserted.
+export async function syncSeedMovements(): Promise<Movement[]> {
+  const existing = await listMovements()
+  const existingKeys = new Set(existing.map((m) => m.key))
+  const missing = SEED_MOVEMENTS.filter((m) => !existingKeys.has(m.key))
+  if (!missing.length) return existing
+  assertWritable()
+  const rows = missing.map((m) => M.movementToRow(m))
+  const { data, error } = await supabase.from('movements').insert(rows).select()
+  if (error) throw error
+  return [...existing, ...(data || []).map(M.rowToMovement)]
+}
+
 // ---- program versions + slots (user-scoped; nothing reads these for
 // ---- prescription yet — the data path is proven against the constants first)
 export async function listProgramVersions(): Promise<ProgramVersion[]> {
@@ -448,7 +471,7 @@ export async function ensureSeedGiant2ProgramVersion(): Promise<{ versions: Prog
   if (existing.some((v) => v.number === 2)) return { versions: existing, slots: await listProgramSlots() }
 
   assertWritable()
-  const movements = await ensureSeedMovements()
+  const movements = await syncSeedMovements()
 
   const { data: vRow, error: vErr } = await supabase
     .from('program_versions')
@@ -561,6 +584,71 @@ export async function deleteCapacityLog(sessionId: string): Promise<void> {
   }
 }
 
+// ---- Giant 2.0 Capability block logs (C1 Hypertrophy, C2 Oly) ---------------
+// One row per (session, movement) — the dedupe key is composite, unlike
+// capacity_logs' session-only key. No delete: a blanked weight/reps/quality
+// on the next save is how an entry is cleared (matches the trim already made
+// for the Volume block's bodyweight pull-ups — no separate delete UI either).
+export async function getHypertrophyLogs(macroId: string): Promise<HypertrophyLog[]> {
+  const { data, error } = await supabase
+    .from('hypertrophy_logs')
+    .select('*, sessions!inner(macro_id)')
+    .eq('sessions.macro_id', macroId)
+  if (error) throw error
+  return (data || []).map(M.rowToHypertrophyLog)
+}
+
+export async function saveHypertrophyLog(log: HypertrophyLogDraft): Promise<HypertrophyLog> {
+  assertWritable()
+  const row = M.hypertrophyLogToRow(log)
+  const dedupeId = `hyp-${row.session_id}-${row.movement_id}`
+  if (isOffline()) {
+    queue.enqueue({ kind: 'saveHypertrophyLog', payload: { id: dedupeId, row } })
+    return M.rowToHypertrophyLog(row)
+  }
+  try {
+    const { data, error } = await supabase.from('hypertrophy_logs').upsert(row, { onConflict: 'session_id,movement_id' }).select().single()
+    if (error) throw error
+    return M.rowToHypertrophyLog(data)
+  } catch (e) {
+    if (isNetworkError(e)) {
+      queue.enqueue({ kind: 'saveHypertrophyLog', payload: { id: dedupeId, row } })
+      return M.rowToHypertrophyLog(row)
+    }
+    throw e
+  }
+}
+
+export async function getOlyLogs(macroId: string): Promise<OlyLog[]> {
+  const { data, error } = await supabase
+    .from('oly_logs')
+    .select('*, sessions!inner(macro_id)')
+    .eq('sessions.macro_id', macroId)
+  if (error) throw error
+  return (data || []).map(M.rowToOlyLog)
+}
+
+export async function saveOlyLog(log: OlyLogDraft): Promise<OlyLog> {
+  assertWritable()
+  const row = M.olyLogToRow(log)
+  const dedupeId = `oly-${row.session_id}-${row.movement_id}`
+  if (isOffline()) {
+    queue.enqueue({ kind: 'saveOlyLog', payload: { id: dedupeId, row } })
+    return M.rowToOlyLog(row)
+  }
+  try {
+    const { data, error } = await supabase.from('oly_logs').upsert(row, { onConflict: 'session_id,movement_id' }).select().single()
+    if (error) throw error
+    return M.rowToOlyLog(data)
+  } catch (e) {
+    if (isNetworkError(e)) {
+      queue.enqueue({ kind: 'saveOlyLog', payload: { id: dedupeId, row } })
+      return M.rowToOlyLog(row)
+    }
+    throw e
+  }
+}
+
 // Replay queued offline writes. Call on reconnect and at startup.
 const QUEUE_EXECUTORS: QueueExecutors = {
   async saveSession(row) {
@@ -585,6 +673,14 @@ const QUEUE_EXECUTORS: QueueExecutors = {
   },
   async deleteCapacityLog({ sessionId }) {
     const { error } = await supabase.from('capacity_logs').delete().eq('session_id', sessionId)
+    if (error) throw error
+  },
+  async saveHypertrophyLog({ row }) {
+    const { error } = await supabase.from('hypertrophy_logs').upsert(row, { onConflict: 'session_id,movement_id' })
+    if (error) throw error
+  },
+  async saveOlyLog({ row }) {
+    const { error } = await supabase.from('oly_logs').upsert(row, { onConflict: 'session_id,movement_id' })
     if (error) throw error
   },
 }
@@ -852,20 +948,51 @@ export async function setTendonLog(protocolId: string, tendonKey: string, dateIS
 
 // ---- bundle (one round-trip for app boot) ---------------------------------
 export async function loadMacroBundle(macroId: string): Promise<MacroBundle> {
-  const [weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs, giantAccessory, giant2Difficulty] =
-    await Promise.all([
-      getWorkingWeights(macroId),
-      getAccessoryWeights(macroId),
-      getSessions(macroId),
-      getDeloads(macroId),
-      getBreakDays(),
-      getTestingResults(macroId),
-      getRuns(macroId),
-      getRunTargets(macroId),
-      getCapacityConfig(),
-      getCapacityLogs(macroId),
-      getGiantAccessoryConfig(),
-      getGiant2DifficultyConfig(),
-    ])
-  return { weights, accessory, sessions, deloads, breakDays, testing, runs, runTargets, capacity, capacityLogs, giantAccessory, giant2Difficulty }
+  const [
+    weights,
+    accessory,
+    sessions,
+    deloads,
+    breakDays,
+    testing,
+    runs,
+    runTargets,
+    capacity,
+    capacityLogs,
+    giantAccessory,
+    giant2Difficulty,
+    hypertrophyLogs,
+    olyLogs,
+  ] = await Promise.all([
+    getWorkingWeights(macroId),
+    getAccessoryWeights(macroId),
+    getSessions(macroId),
+    getDeloads(macroId),
+    getBreakDays(),
+    getTestingResults(macroId),
+    getRuns(macroId),
+    getRunTargets(macroId),
+    getCapacityConfig(),
+    getCapacityLogs(macroId),
+    getGiantAccessoryConfig(),
+    getGiant2DifficultyConfig(),
+    getHypertrophyLogs(macroId),
+    getOlyLogs(macroId),
+  ])
+  return {
+    weights,
+    accessory,
+    sessions,
+    deloads,
+    breakDays,
+    testing,
+    runs,
+    runTargets,
+    capacity,
+    capacityLogs,
+    giantAccessory,
+    giant2Difficulty,
+    hypertrophyLogs,
+    olyLogs,
+  }
 }

@@ -34,7 +34,12 @@ import type {
   CapacityLog,
   CapacityLogDraft,
   GiantAccessoryReps,
+  HypertrophyLog,
+  HypertrophyLogDraft,
+  OlyLog,
+  OlyLogDraft,
 } from '../engine/types'
+import type { Movement } from '../engine/movements'
 
 // Everything the capacity block needs, bundled for prop threading: the slot's
 // variant, the Setup config, this session's log, and the App-level handlers.
@@ -44,6 +49,17 @@ interface CapacityCtx {
   log: CapacityLog | null
   onSaveCapacityLog: (log: CapacityLogDraft) => Promise<CapacityLog>
   onDeleteCapacityLog: (sessionId: string) => Promise<void>
+}
+
+// Giant 2.0 Capability block context — same "FK needs the session row first"
+// shape as CapacityCtx, but movements + BOTH log arrays (only one program is
+// ever active for a given cycle, but the context doesn't need to know which).
+interface CapabilityCtx {
+  movements: Movement[]
+  hypertrophyLogs: HypertrophyLog[]
+  olyLogs: OlyLog[]
+  onSaveHypertrophyLog: (log: HypertrophyLogDraft) => Promise<HypertrophyLog>
+  onSaveOlyLog: (log: OlyLogDraft) => Promise<OlyLog>
 }
 
 // Is any break day inside the program week containing weekIndex?
@@ -107,6 +123,13 @@ interface TodayProps {
   capacityLogs?: CapacityLog[]
   // Giant Block accessory rep targets (Setup config, defaults merged).
   giantAccessory?: GiantAccessoryReps
+  // Giant 2.0 Capability block: the athlete's movement library + this macro's
+  // Hypertrophy/Oly logs + save handlers.
+  movements?: Movement[]
+  hypertrophyLogs?: HypertrophyLog[]
+  olyLogs?: OlyLog[]
+  onSaveHypertrophyLog?: (log: HypertrophyLogDraft) => Promise<HypertrophyLog>
+  onSaveOlyLog?: (log: OlyLogDraft) => Promise<OlyLog>
   onSaveSession: (record: SessionDraft) => Promise<Session>
   onDeleteSession: (id: string) => Promise<void>
   onApplyDeload: (weekKey: string, on: boolean) => Promise<void>
@@ -138,6 +161,9 @@ export function Today({
   capacity,
   capacityLogs = [],
   giantAccessory,
+  movements = [],
+  hypertrophyLogs = [],
+  olyLogs = [],
   onSaveSession,
   onDeleteSession,
   onApplyDeload,
@@ -146,6 +172,8 @@ export function Today({
   onSaveRun,
   onSaveCapacityLog,
   onDeleteCapacityLog,
+  onSaveHypertrophyLog,
+  onSaveOlyLog,
   onSetRefPace,
   onExtendDeload,
   onRunningChange,
@@ -395,6 +423,21 @@ export function Today({
         }
       : null
 
+  // Giant 2.0 Capability block context — only when the cycle actually has one
+  // (never on deload, cycle is null there). The block itself decides
+  // Hypertrophy/Oly/Carries by cycle; this context just supplies the data
+  // both per-movement log types might need.
+  const capabilityCtx: CapabilityCtx | null =
+    computed.giant2 && cycle != null && onSaveHypertrophyLog && onSaveOlyLog
+      ? {
+          movements,
+          hypertrophyLogs: hypertrophyLogs.filter((l) => l.sessionId === sessionId),
+          olyLogs: olyLogs.filter((l) => l.sessionId === sessionId),
+          onSaveHypertrophyLog,
+          onSaveOlyLog,
+        }
+      : null
+
   const prevWeekSessions = week > 1 ? sessions.filter((s) => s.cycle === cycle && s.week === week - 1) : []
   const prevWeekRuns = week > 1 ? runs.filter((r) => r.cycle === cycle && r.week === week - 1) : []
   const recommend = shouldRecommendDeload({
@@ -477,6 +520,9 @@ export function Today({
         giantAccessory={giantAccessory}
         capacityCtx={capacityCtx}
         capacityLogs={capacityLogs}
+        cycle={cycle}
+        weekInCycle={week}
+        capabilityCtx={capabilityCtx}
         currentWeekSessions={currentWeekSessions}
         currentWeekRuns={currentWeekRuns}
         allRuns={runs}
@@ -641,6 +687,11 @@ interface SessionEditorProps {
   giantAccessory?: GiantAccessoryReps
   capacityCtx?: CapacityCtx | null
   capacityLogs?: CapacityLog[]
+  // Giant 2.0 Capability block: the cycle (null on deload — nothing renders),
+  // the week within it (Oly's position-wave text), and the log context.
+  cycle?: number | null
+  weekInCycle?: number | null
+  capabilityCtx?: CapabilityCtx | null
   currentWeekSessions: Session[]
   currentWeekRuns?: Run[]
   allRuns?: Run[]
@@ -672,6 +723,9 @@ function SessionEditor({
   giantAccessory,
   capacityCtx = null,
   capacityLogs = [],
+  cycle,
+  weekInCycle,
+  capabilityCtx = null,
   currentWeekSessions,
   currentWeekRuns = [],
   allRuns = [],
@@ -802,6 +856,23 @@ function SessionEditor({
       }
     : null
 
+  // Capability block: same FK-needs-the-session-row-first pattern as capacity.
+  const capability = capabilityCtx
+    ? {
+        movements: capabilityCtx.movements,
+        hypertrophyLogs: capabilityCtx.hypertrophyLogs,
+        olyLogs: capabilityCtx.olyLogs,
+        onSaveHypertrophyLog: async (l: HypertrophyLogDraft) => {
+          await onSaveSession({ ...draft, ...stamp })
+          return capabilityCtx.onSaveHypertrophyLog(l)
+        },
+        onSaveOlyLog: async (l: OlyLogDraft) => {
+          await onSaveSession({ ...draft, ...stamp })
+          return capabilityCtx.onSaveOlyLog(l)
+        },
+      }
+    : null
+
   return (
     <div>
       {headerSlot}
@@ -837,6 +908,9 @@ function SessionEditor({
         rowCell={rowCell}
         giantAccessory={giantAccessory}
         capacity={capacity}
+        cycle={cycle}
+        weekInCycle={weekInCycle}
+        capability={capability}
       />
 
       {completed && (

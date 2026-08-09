@@ -54,6 +54,10 @@ import type {
   GiantAccessoryReps,
   CapacityLogDraft,
   Giant2DifficultyConfig,
+  HypertrophyLog,
+  HypertrophyLogDraft,
+  OlyLog,
+  OlyLogDraft,
 } from '../engine/types'
 import { defaultCapacityConfig } from '../engine/capacity'
 import type { Movement } from '../engine/movements'
@@ -133,6 +137,8 @@ export function App() {
   const [capacityLogs, setCapacityLogs] = useState<CapacityLog[]>([])
   const [giantAccessory, setGiantAccessory] = useState<GiantAccessoryReps>(() => ({ ...GIANTFIT_GB_DEFAULT_REPS }))
   const [giant2Difficulty, setGiant2Difficulty] = useState<Giant2DifficultyConfig>(() => ({ ...GIANT2_GIANT_DEFAULT_ROTATION }))
+  const [hypertrophyLogs, setHypertrophyLogs] = useState<HypertrophyLog[]>([])
+  const [olyLogs, setOlyLogs] = useState<OlyLog[]>([])
   // The movement library — user-scoped (like breakDays), loaded next to the
   // macro bundle and seeded on first boot. Nothing prescribes from it yet.
   const [movements, setMovements] = useState<Movement[]>([])
@@ -167,6 +173,8 @@ export function App() {
     setCapacityLogs(snap.capacityLogs || [])
     setGiantAccessory(snap.giantAccessory || { ...GIANTFIT_GB_DEFAULT_REPS })
     setGiant2Difficulty(snap.giant2Difficulty || { ...GIANT2_GIANT_DEFAULT_ROTATION })
+    setHypertrophyLogs(snap.hypertrophyLogs || [])
+    setOlyLogs(snap.olyLogs || [])
     setMovements(snap.movements || [])
   }
 
@@ -197,6 +205,8 @@ export function App() {
             capacityLogs: [],
             giantAccessory: { ...GIANTFIT_GB_DEFAULT_REPS },
             giant2Difficulty: { ...GIANT2_GIANT_DEFAULT_ROTATION },
+            hypertrophyLogs: [],
+            olyLogs: [],
           }
       setMacros(all)
       setMacro(target)
@@ -213,13 +223,18 @@ export function App() {
       setCapacityLogs(b.capacityLogs)
       setGiantAccessory(b.giantAccessory)
       setGiant2Difficulty(b.giant2Difficulty)
-      // The movement library is user-scoped (independent of the macro) and seeds
-      // itself on first boot. Best-effort by design: a blocked dev write must
-      // never take down the whole load — degrade to whatever the library holds.
+      setHypertrophyLogs(b.hypertrophyLogs)
+      setOlyLogs(b.olyLogs)
+      // The movement library is user-scoped (independent of the macro).
+      // syncSeedMovements seeds a fresh library AND backfills any new
+      // content added since (Giant 2.0's Hypertrophy/Oly/Primer movements
+      // reach an existing GiantFit library this way). Best-effort by design:
+      // a blocked dev write must never take down the whole load — degrade to
+      // whatever the library holds.
       try {
-        setMovements(await repo.ensureSeedMovements())
+        setMovements(await repo.syncSeedMovements())
         // The Giant 2.0 program version — seeded once, alongside the movement
-        // library. Nothing renders off it yet (Phase 1); best-effort so a
+        // library. The Capability block (Phase 4) reads it; best-effort so a
         // blocked dev write can never take down boot.
         await repo.ensureSeedGiant2ProgramVersion()
       } catch {
@@ -384,6 +399,8 @@ export function App() {
         capacityLogs,
         giantAccessory,
         giant2Difficulty,
+        hypertrophyLogs,
+        olyLogs,
         movements,
       })
     }
@@ -405,6 +422,8 @@ export function App() {
     capacityLogs,
     giantAccessory,
     giant2Difficulty,
+    hypertrophyLogs,
+    olyLogs,
     movements,
   ])
 
@@ -435,6 +454,20 @@ export function App() {
   const onDeleteCapacityLog = useCallback(async (sessionId: string) => {
     await repo.deleteCapacityLog(sessionId)
     setCapacityLogs((prev) => prev.filter((l) => l.sessionId !== sessionId))
+  }, [])
+
+  // Giant 2.0 Capability block — one row PER MOVEMENT per session, upsert on
+  // (sessionId, movementId), unlike capacity's session-only key.
+  const onSaveHypertrophyLog = useCallback(async (log: HypertrophyLogDraft): Promise<HypertrophyLog> => {
+    const saved = await repo.saveHypertrophyLog(log)
+    setHypertrophyLogs((prev) => prev.filter((l) => !(l.sessionId === saved.sessionId && l.movementId === saved.movementId)).concat(saved))
+    return saved
+  }, [])
+
+  const onSaveOlyLog = useCallback(async (log: OlyLogDraft): Promise<OlyLog> => {
+    const saved = await repo.saveOlyLog(log)
+    setOlyLogs((prev) => prev.filter((l) => !(l.sessionId === saved.sessionId && l.movementId === saved.movementId)).concat(saved))
+    return saved
   }, [])
 
   // Movement library — create/edit and archive (never delete: an archived
@@ -628,6 +661,9 @@ export function App() {
           capacity={capacity}
           capacityLogs={capacityLogs}
           giantAccessory={giantAccessory}
+          movements={movements}
+          hypertrophyLogs={hypertrophyLogs}
+          olyLogs={olyLogs}
           onSaveSession={onSaveSession}
           onDeleteSession={onDeleteSession}
           onApplyDeload={onApplyDeload}
@@ -636,6 +672,8 @@ export function App() {
           onSaveRun={onSaveRun}
           onSaveCapacityLog={onSaveCapacityLog}
           onDeleteCapacityLog={onDeleteCapacityLog}
+          onSaveHypertrophyLog={onSaveHypertrophyLog}
+          onSaveOlyLog={onSaveOlyLog}
           onSetRefPace={onSetRefPace}
           onExtendDeload={onExtendDeload}
           onRunningChange={setSessionRunning}
@@ -662,6 +700,9 @@ export function App() {
           capacityLogs={capacityLogs}
           giantAccessory={giantAccessory}
           giant2Difficulty={giant2Difficulty}
+          movements={movements}
+          hypertrophyLogs={hypertrophyLogs}
+          olyLogs={olyLogs}
           onToggleBreak={onToggleBreak}
           onSaveSession={onSaveSession}
           onDeleteSession={onDeleteSession}
@@ -671,6 +712,8 @@ export function App() {
           onDeleteRun={onDeleteRun}
           onSaveCapacityLog={onSaveCapacityLog}
           onDeleteCapacityLog={onDeleteCapacityLog}
+          onSaveHypertrophyLog={onSaveHypertrophyLog}
+          onSaveOlyLog={onSaveOlyLog}
           onSetRefPace={onSetRefPace}
         />
       )}

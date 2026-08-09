@@ -25,7 +25,12 @@ import type {
   CapacityLogDraft,
   GiantAccessoryReps,
   Giant2DifficultyConfig,
+  HypertrophyLog,
+  HypertrophyLogDraft,
+  OlyLog,
+  OlyLogDraft,
 } from '../engine/types'
+import type { Movement } from '../engine/movements'
 
 function shortDate(iso: string): string {
   return parseLocalDate(iso).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })
@@ -67,6 +72,13 @@ interface CalendarProps {
   onDeleteCapacityLog?: (sessionId: string) => Promise<void>
   // Giant 2.0 weekly Giant-difficulty rotation (Setup config, defaults merged).
   giant2Difficulty?: Giant2DifficultyConfig
+  // Giant 2.0 Capability block: the athlete's movement library + this macro's
+  // Hypertrophy/Oly logs + save handlers.
+  movements?: Movement[]
+  hypertrophyLogs?: HypertrophyLog[]
+  olyLogs?: OlyLog[]
+  onSaveHypertrophyLog?: (log: HypertrophyLogDraft) => Promise<HypertrophyLog>
+  onSaveOlyLog?: (log: OlyLogDraft) => Promise<OlyLog>
 }
 
 export function Calendar({
@@ -98,6 +110,11 @@ export function Calendar({
   onSaveCapacityLog,
   onDeleteCapacityLog,
   giant2Difficulty,
+  movements = [],
+  hypertrophyLogs = [],
+  olyLogs = [],
+  onSaveHypertrophyLog,
+  onSaveOlyLog,
 }: CalendarProps) {
   const shape = { weeks: macroWeeks, deloadExtended }
   const rows = enumerateMacro(startISO, macroNumber, shape, giant2Difficulty)
@@ -319,6 +336,11 @@ export function Calendar({
           giantAccessory={giantAccessory}
           onSaveCapacityLog={onSaveCapacityLog}
           onDeleteCapacityLog={onDeleteCapacityLog}
+          movements={movements}
+          hypertrophyLogs={hypertrophyLogs}
+          olyLogs={olyLogs}
+          onSaveHypertrophyLog={onSaveHypertrophyLog}
+          onSaveOlyLog={onSaveOlyLog}
           onClose={() => setModal(null)}
         />
       )}

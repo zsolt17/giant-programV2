@@ -330,6 +330,38 @@ export type CapabilityProgram = 'hypertrophy' | 'oly' | 'carries'
 // GIANT2_GIANT_DEFAULT_ROTATION on read.
 export type Giant2DifficultyConfig = Record<number, Partial<Record<Lift, Difficulty>>>
 
+// ---- Giant 2.0 Capability block logs (C1 Hypertrophy, C2 Oly) --------------
+// One row PER MOVEMENT per session — unlike CapacityLog's one row per session.
+// Carries (C3) need no equivalent: they reuse Session's own carry_* fields.
+export interface HypertrophyLog {
+  id?: string
+  sessionId: string
+  movementId: string
+  weight: number | null
+  repsDone: number | null
+  notes: string
+  updatedAt?: string
+}
+export interface HypertrophyLogDraft extends Omit<HypertrophyLog, 'weight' | 'repsDone'> {
+  weight: number | string | null
+  repsDone: number | string | null
+}
+
+// Oly logs a QUALITY MARK (Q1/Q2/Q3), never RPE — see OLY_QUALITY,
+// constants.ts. Weight is the per-lane technical ceiling, found by feel.
+export interface OlyLog {
+  id?: string
+  sessionId: string
+  movementId: string
+  weight: number | null
+  quality: string // 'Q1' | 'Q2' | 'Q3' | '' (unset)
+  notes: string
+  updatedAt?: string
+}
+export interface OlyLogDraft extends Omit<OlyLog, 'weight'> {
+  weight: number | string | null
+}
+
 // ---- data-layer domain types ----------------------------------------------
 export type MacroStatus = 'active' | 'completed'
 export interface Macro {
@@ -397,6 +429,10 @@ export interface MacroBundle {
   // User-scoped Giant 2.0 weekly Giant-difficulty rotation override, app
   // default (GIANT2_GIANT_DEFAULT_ROTATION) already merged in.
   giant2Difficulty: Giant2DifficultyConfig
+  // Capability block logs for this macro's sessions (C1 Hypertrophy / C2 Oly
+  // — one row per movement per session, unlike capacityLogs).
+  hypertrophyLogs: HypertrophyLog[]
+  olyLogs: OlyLog[]
 }
 
 // GiantFit Giant Block bodyweight-accessory rep targets, keyed by movement key

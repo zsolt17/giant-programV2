@@ -1,13 +1,15 @@
-// Giant 2.0 session view (from GIANT2_START_DATE) — Primer -> Giant -> Volume.
-// The Capability block (Hypertrophy/Oly/Carries, cycle-dispatched) is Phase 4;
-// nothing renders it yet. Mirrors SessionForm.tsx's structure and reuses its
-// shared helpers (Row/LogRpe/BlockCompletion/ClusterInput) but is a SEPARATE
-// component — GiantFit's live rendering must stay untouched while an actual
-// macro is still running under it.
+// Giant 2.0 session view (from GIANT2_START_DATE) — Primer -> Giant -> Volume
+// -> Capability. Capability content is dispatched by CYCLE (Hypertrophy C1 /
+// Oly C2 / Carries C3, capabilityProgramFor) — null on deload (cycle unset).
+// Mirrors SessionForm.tsx's structure and reuses its shared helpers
+// (Row/LogRpe/BlockCompletion/ClusterInput) but is a SEPARATE component —
+// GiantFit's live rendering must stay untouched while an actual macro is
+// still running under it.
 import { C, inp, lbl } from './theme'
 import { Card } from './components'
 import { blockTitle, Row, LogRpe } from './controls'
 import { BlockCompletion } from './SessionForm'
+import { HypertrophyBlock, OlyBlock } from './CapabilityBlock'
 import {
   SCHEMES,
   WU_PCT,
@@ -23,10 +25,24 @@ import {
   GIANT2_SECONDARY,
   GIANT2_GB_ACCESSORY,
   GIANT2_DAY_TYPE,
+  GIANT2_CARRY_RPE_GUIDANCE,
+  DAY_META,
 } from '../engine/constants'
 import { fmt, giantSets, warmupSets, volumeWeight, deloadTop, liftMode } from '../engine/loading'
 import { clusterTotal, isUnbroken, meetsTarget } from '../engine/pullups'
-import type { Difficulty, Lift, SessionDraft, LiftWeights, GiantAccessoryReps } from '../engine/types'
+import { capabilityProgramFor } from '../engine/date-engine'
+import type { Movement } from '../engine/movements'
+import type {
+  Difficulty,
+  Lift,
+  SessionDraft,
+  LiftWeights,
+  GiantAccessoryReps,
+  HypertrophyLog,
+  HypertrophyLogDraft,
+  OlyLog,
+  OlyLogDraft,
+} from '../engine/types'
 
 interface Giant2SessionFormProps {
   dayType: Lift
@@ -45,6 +61,17 @@ interface Giant2SessionFormProps {
   // Giant Block accessory rep targets from Setup (shared table with GiantFit's,
   // GIANT2_GB_DEFAULT_REPS merged in — mappers.ts).
   giantAccessory?: GiantAccessoryReps
+  // Capability block (null cycle — deload — renders nothing here).
+  cycle?: number | null
+  weekInCycle?: number | null // Oly's position-wave guidance text
+  carryLoad?: number | string | null
+  capability?: {
+    movements: Movement[]
+    hypertrophyLogs: HypertrophyLog[] // this session's only (parent filters)
+    olyLogs: OlyLog[] // this session's only (parent filters)
+    onSaveHypertrophyLog: (log: HypertrophyLogDraft) => Promise<HypertrophyLog>
+    onSaveOlyLog: (log: OlyLogDraft) => Promise<OlyLog>
+  } | null
 }
 
 const wuCell = (w: number): string => (w === 0 ? 'BW' : fmt(w))
@@ -62,11 +89,19 @@ export function Giant2SessionForm({
   locked = false,
   secondaryCell,
   giantAccessory,
+  cycle,
+  weekInCycle,
+  carryLoad,
+  capability = null,
 }: Giant2SessionFormProps) {
   const scheme = SCHEMES[difficulty]
   const dayTypeGroup = GIANT2_DAY_TYPE[dayType] ?? 'lower'
   const band = GIANT2_PRIMER_BAND[dayTypeGroup]
   const ramp = GIANT2_PRIMER_RAMP[dayTypeGroup]
+  const capabilityProgram = cycle ? capabilityProgramFor(cycle) : null
+  const meta = DAY_META[dayType]
+  const carryNum = carryLoad === '' || carryLoad == null ? null : Number(carryLoad)
+  const carryDisplay = carryNum != null && !Number.isNaN(carryNum) ? `${fmt(carryNum)}${meta.carry.perHand ? ' / hand' : ''}` : meta.carry.load
 
   const hasTop = hasWeight && top != null
   const wu = hasTop && top != null ? warmupSets(top) : null
@@ -187,6 +222,81 @@ export function Giant2SessionForm({
             completed
           </label>
           <LogRpe label="Volume" rpe={draft.volRpe} speed={draft.volSpeed} onRpe={(v) => setField('volRpe', v)} onSpeed={(v) => setField('volSpeed', v)} />
+        </Card>
+      )}
+
+      {/* IV. Capability — content dispatched by CYCLE, not week or session
+          (GIANT2_CAPABILITY_BY_CYCLE). Absent entirely on deload (cycle null). */}
+      {capabilityProgram === 'hypertrophy' && capability && (
+        <HypertrophyBlock
+          letter="D"
+          dayType={dayType}
+          sessionId={draft.id}
+          movements={capability.movements}
+          logs={capability.hypertrophyLogs}
+          onSave={capability.onSaveHypertrophyLog}
+        />
+      )}
+      {capabilityProgram === 'oly' && capability && (
+        <OlyBlock
+          letter="D"
+          dayType={dayType}
+          weekInCycle={weekInCycle ?? 1}
+          sessionId={draft.id}
+          movements={capability.movements}
+          logs={capability.olyLogs}
+          onSave={capability.onSaveOlyLog}
+        />
+      )}
+      {capabilityProgram === 'carries' && (
+        <Card>
+          {blockTitle('D. Carry', '10 min')}
+          <Row a={meta.carry.name} b={`${meta.carry.sets} sets · ${meta.carry.dist}`} c={carryDisplay} cls={C.off} />
+          <div style={{ fontSize: 11, color: C.muted, fontStyle: 'italic', margin: '6px 0' }}>Flat {GIANT2_CARRY_RPE_GUIDANCE} — position before load, distance before weight.</div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.off, marginTop: 8 }}>
+            <input type="checkbox" checked={draft.carrySkipped} onChange={(e) => setField('carrySkipped', e.target.checked)} /> Skipped
+            today
+          </label>
+          {draft.carrySkipped && (
+            <div style={{ marginTop: 8 }}>
+              <label style={lbl}>Reason</label>
+              <select style={inp} value={draft.carrySkipReason} onChange={(e) => setField('carrySkipReason', e.target.value)}>
+                <option value="">—</option>
+                <option value="fatigue">Fatigue</option>
+                <option value="schedule">Schedule / time</option>
+              </select>
+            </div>
+          )}
+          {!draft.carrySkipped && (
+            <>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
+                <div style={{ flex: 1, minWidth: 70 }}>
+                  <label style={lbl}>Rounds</label>
+                  <input
+                    style={inp}
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={draft.carryRounds ?? ''}
+                    onChange={(e) => setField('carryRounds', e.target.value)}
+                  />
+                </div>
+                <div style={{ flex: 1, minWidth: 120 }}>
+                  <label style={lbl}>Distance / round (m)</label>
+                  <input
+                    style={inp}
+                    type="number"
+                    min="0"
+                    step="1"
+                    inputMode="decimal"
+                    value={draft.carryDistance ?? ''}
+                    onChange={(e) => setField('carryDistance', e.target.value)}
+                  />
+                </div>
+              </div>
+              <LogRpe label="Carry" rpe={draft.carryRpe} speed={null} onRpe={(v) => setField('carryRpe', v)} />
+            </>
+          )}
         </Card>
       )}
 

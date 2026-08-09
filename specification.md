@@ -112,6 +112,55 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-08-09 (Giant 2.0, Phase 4 — Capability block: Hypertrophy/Oly/Carries)
+- `feat`: **the Capability block now renders — Giant 2.0 sessions are
+  complete, Primer through Capability, in Today and the Calendar modal.**
+  Content is dispatched purely by cycle (`capabilityProgramFor`: Hypertrophy
+  C1 / Oly C2 / Carries C3) — never by week or session, and absent entirely on
+  deload (no cycle that week).
+  - Migration `0023_giant2_phase4.sql`: `hypertrophy_logs` and `oly_logs` —
+    one row PER MOVEMENT per session (unlike `capacity_logs`' one row per
+    session), keyed `(session_id, movement_id)`. RLS transitive via
+    `session_id -> sessions -> macros`, same pattern as `capacity_logs`
+    (0014). `oly_logs.quality` is a genuinely new field type (`Q1`/`Q2`/`Q3`),
+    not RPE.
+  - **Bug found and fixed before it could bite, again**: the athlete's
+    existing movement library predates Phase 1's ~35 new Giant 2.0 movements
+    — `ensureSeedMovements` only seeds a completely EMPTY library, so those
+    new movements (including every Hypertrophy/Oly movement this phase needs
+    a real `id` for) would never have reached a real account. New
+    `syncSeedMovements` inserts any missing-by-key seed movements into an
+    existing library instead of skipping outright, and now runs at boot in
+    place of the old call.
+  - New `CapabilityBlock.tsx` — `HypertrophyBlock` (per-exercise weight ×
+    reps, 3 sets, defaults prefilled from the movement's target) and
+    `OlyBlock` (per-exercise weight × quality mark, plus the position-wave
+    guidance text for the week). Both self-contained like `CapacityBlock`:
+    own their fields, one batched Save across all the day's exercises, and
+    the parent wraps `onSave` to ensure the session row exists first (FK) —
+    identical shape to capacity's own wrapping in Today.tsx/SessionModal.tsx.
+  - Carries (C3) needed no new component or table — inlined directly in
+    `Giant2SessionForm.tsx`, reusing the session's own existing
+    `carry_rounds`/`carry_distance`/`carry_rpe`/`carry_skipped` fields exactly
+    as GiantFit's carry block always has.
+  - Full prop-threading chain for the new per-movement log data: App.tsx state
+    → Today.tsx (`CapabilityCtx`, mirrors `CapacityCtx`) → SessionForm.tsx →
+    Giant2SessionForm.tsx, and the parallel chain through Calendar.tsx →
+    SessionModal.tsx for editing any day, not just today.
+  - **Known, deliberately deferred gap**: no delete for a Hypertrophy/Oly
+    entry — clearing a value and re-saving is how one is unset (same trim
+    already made for the Volume block's bodyweight pull-ups in Phase 3).
+  - 211/211 tests passing (no new engine logic to test — this phase is
+    data-model + UI wiring; the underlying `capabilityProgramFor` dispatch was
+    already covered in Phase 2), clean typecheck, clean build. Main bundle
+    crossed the 500kB warning threshold (Today.tsx is intentionally eager, not
+    lazy-loaded) — noted, not addressed; a future code-splitting pass is
+    optional cleanup, not correctness.
+  - Same verification caveat as Phases 1-3: no UI/component test infrastructure
+    exists in this repo for any session view, and login for a real visual
+    check isn't available to me (the only credential is the athlete's real
+    account password).
+
 ## 2026-08-09 (Giant 2.0, Phase 3 — Primer/Giant/Volume session views)
 - `feat`: **Giant 2.0 sessions are now loggable** — Primer → Giant → Volume,
   end to end (Today, the Calendar's per-day modal, and Setup's anchor labels).

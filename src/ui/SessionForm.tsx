@@ -7,7 +7,23 @@ import { SCHEMES, WU_PCT, WU_REPS, SET_LADDER, DAY_META, LIFT_LABEL, PULLUP, BLO
 import { fmt, giantSets, warmupSets, volumeWeight, deloadTop, liftMode } from '../engine/loading'
 import { isGiantFitDate, isGiant2Date } from '../engine/date-engine'
 import { clusterTotal, isUnbroken, meetsTarget } from '../engine/pullups'
-import type { Difficulty, Lift, WeekType, SessionDraft, LiftWeights, CapacityVariant, CapacityConfig, CapacityLog, CapacityLogDraft, GiantAccessoryReps } from '../engine/types'
+import type { Movement } from '../engine/movements'
+import type {
+  Difficulty,
+  Lift,
+  WeekType,
+  SessionDraft,
+  LiftWeights,
+  CapacityVariant,
+  CapacityConfig,
+  CapacityLog,
+  CapacityLogDraft,
+  GiantAccessoryReps,
+  HypertrophyLog,
+  HypertrophyLogDraft,
+  OlyLog,
+  OlyLogDraft,
+} from '../engine/types'
 
 interface BlankSessionArgs {
   date: string
@@ -114,6 +130,17 @@ interface SessionFormProps {
     onSave: (log: CapacityLogDraft) => Promise<CapacityLog>
     onDelete: (sessionId: string) => Promise<void>
   } | null
+  // Giant 2.0 only: the Capability block (Hypertrophy/Oly/Carries, cycle-
+  // dispatched — null on deload, where cycle is unset).
+  cycle?: number | null
+  weekInCycle?: number | null
+  capability?: {
+    movements: Movement[]
+    hypertrophyLogs: HypertrophyLog[]
+    olyLogs: OlyLog[]
+    onSaveHypertrophyLog: (log: HypertrophyLogDraft) => Promise<HypertrophyLog>
+    onSaveOlyLog: (log: OlyLogDraft) => Promise<OlyLog>
+  } | null
 }
 
 // The prescription + log fields for a training-week session. Reused by Today
@@ -136,11 +163,15 @@ export function SessionForm({
   rowCell,
   giantAccessory,
   capacity = null,
+  cycle,
+  weekInCycle,
+  capability = null,
 }: SessionFormProps) {
   // Giant 2.0 (the DATE decides, same discipline as the GiantFit cutover
-  // below): a completely different session shape — Primer/Giant/Volume with
-  // two independent difficulties, no Capacity block. Dispatches to its own
-  // component so GiantFit's live rendering here stays untouched.
+  // below): a completely different session shape — Primer/Giant/Volume/
+  // Capability with two independent difficulties, no Capacity block.
+  // Dispatches to its own component so GiantFit's live rendering here stays
+  // untouched.
   if (isGiant2Date(draft.date)) {
     return (
       <Giant2SessionForm
@@ -156,6 +187,10 @@ export function SessionForm({
         locked={locked}
         secondaryCell={rowCell}
         giantAccessory={giantAccessory}
+        cycle={cycle}
+        weekInCycle={weekInCycle}
+        carryLoad={carryLoad}
+        capability={capability}
       />
     )
   }

@@ -6,7 +6,15 @@ const KEY = 'giant_pending_writes'
 const isBrowser = typeof window !== 'undefined' && typeof localStorage !== 'undefined'
 const MAX_ATTEMPTS = 5
 
-export type QueueKind = 'saveSession' | 'deleteSession' | 'saveRun' | 'deleteRun' | 'saveCapacityLog' | 'deleteCapacityLog'
+export type QueueKind =
+  | 'saveSession'
+  | 'deleteSession'
+  | 'saveRun'
+  | 'deleteRun'
+  | 'saveCapacityLog'
+  | 'deleteCapacityLog'
+  | 'saveHypertrophyLog'
+  | 'saveOlyLog'
 export interface QueueOp {
   kind: QueueKind
   // Serialized write payload (a session row, or { id } for a delete). Dynamic JSON

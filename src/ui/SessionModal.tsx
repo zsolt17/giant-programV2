@@ -21,7 +21,12 @@ import type {
   CapacityLogDraft,
   GiantAccessoryReps,
   Difficulty,
+  HypertrophyLog,
+  HypertrophyLogDraft,
+  OlyLog,
+  OlyLogDraft,
 } from '../engine/types'
+import type { Movement } from '../engine/movements'
 
 function shortDate(iso: string): string {
   return parseLocalDate(iso).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })
@@ -49,6 +54,13 @@ interface SessionModalProps {
   giantAccessory?: GiantAccessoryReps
   onSaveCapacityLog?: (log: CapacityLogDraft) => Promise<CapacityLog>
   onDeleteCapacityLog?: (sessionId: string) => Promise<void>
+  // Giant 2.0 Capability block: the athlete's movement library + this macro's
+  // Hypertrophy/Oly logs + save handlers.
+  movements?: Movement[]
+  hypertrophyLogs?: HypertrophyLog[]
+  olyLogs?: OlyLog[]
+  onSaveHypertrophyLog?: (log: HypertrophyLogDraft) => Promise<HypertrophyLog>
+  onSaveOlyLog?: (log: OlyLogDraft) => Promise<OlyLog>
   onClose: () => void
 }
 
@@ -72,6 +84,11 @@ export function SessionModal({
   giantAccessory,
   onSaveCapacityLog,
   onDeleteCapacityLog,
+  movements = [],
+  hypertrophyLogs = [],
+  olyLogs = [],
+  onSaveHypertrophyLog,
+  onSaveOlyLog,
   onClose,
 }: SessionModalProps) {
   // Giant 2.0's deload week is a real, loggable session (fixed day->lift, no
@@ -174,6 +191,25 @@ export function SessionModal({
             return onSaveCapacityLog(l)
           },
           onDelete: onDeleteCapacityLog,
+        }
+      : null
+
+  // Giant 2.0 Capability block: same FK-needs-the-session-row-first pattern.
+  // Absent on deload (cycle null — nothing renders for it there).
+  const capabilityProp =
+    !isSpecial && sessionId && cycle != null && onSaveHypertrophyLog && onSaveOlyLog
+      ? {
+          movements,
+          hypertrophyLogs: hypertrophyLogs.filter((l) => l.sessionId === sessionId),
+          olyLogs: olyLogs.filter((l) => l.sessionId === sessionId),
+          onSaveHypertrophyLog: async (l: HypertrophyLogDraft) => {
+            await onSaveSession(buildRecord())
+            return onSaveHypertrophyLog(l)
+          },
+          onSaveOlyLog: async (l: OlyLogDraft) => {
+            await onSaveSession(buildRecord())
+            return onSaveOlyLog(l)
+          },
         }
       : null
 
@@ -298,6 +334,9 @@ export function SessionModal({
               rowCell={rowCell}
               giantAccessory={giantAccessory}
               capacity={capacityProp}
+              cycle={cycle}
+              weekInCycle={cell.week}
+              capability={capabilityProp}
             />
             {draft.startedAt && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
