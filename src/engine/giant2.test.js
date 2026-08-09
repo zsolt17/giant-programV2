@@ -37,8 +37,8 @@ import {
   GIANT2_WEEK4_DIFFICULTY,
   GIANT2_VOLUME_DIFFICULTY_BY_CYCLE,
   GIANT2_CAPABILITY_BY_CYCLE,
-  GIANT2_SECONDARY_KEY,
-  GIANT2_GB_ACCESSORY_KEY,
+  GIANT2_SECONDARY,
+  GIANT2_GB_ACCESSORY,
 } from './constants'
 import { parseLocalDate } from './date-engine'
 
@@ -46,9 +46,11 @@ const MOVEMENTS = SEED_MOVEMENTS.map((m, i) => ({ ...m, id: `mv-${i}-${m.key}`, 
 const V1 = { id: 'v1', number: 1, effectiveFrom: GIANTFIT_START_DATE, note: 'seed' }
 const V2 = { id: 'v2', number: 2, effectiveFrom: GIANT2_START_DATE, note: 'seed' }
 
+const GIANT2_GB_ACCESSORY_KEYS = Object.fromEntries(Object.entries(GIANT2_GB_ACCESSORY).map(([day, m]) => [day, m.key]))
+
 function giant2Slots() {
   return buildGiant2SeedSlots(V2.id, MOVEMENTS, {
-    gbAccessoryKeys: GIANT2_GB_ACCESSORY_KEY,
+    gbAccessoryKeys: GIANT2_GB_ACCESSORY_KEYS,
     primerKeys: SEED_GIANT2_PRIMER_KEYS,
     hypertrophyKeys: SEED_GIANT2_HYPERTROPHY_KEYS,
     olyKeys: SEED_GIANT2_OLY_KEYS,
@@ -184,6 +186,6 @@ test('every Giant 2.0 slot key has a registered contract, distinct from GiantFit
   assert.deepEqual(Object.keys(GIANT2_SEED_LANE_KEYS).sort(), [...ANCHORED_LANES].sort())
 })
 
-test('GIANT2_SECONDARY_KEY documents the lane->occupant reassignment used by the seed', () => {
-  assert.deepEqual(GIANT2_SECONDARY_KEY, { ohp: 'bb_row', bench: 'pullup' })
+test('GIANT2_SECONDARY documents the lane->occupant reassignment used by the seed', () => {
+  assert.deepEqual(GIANT2_SECONDARY, { ohp: { key: 'bb_row', name: 'BB Row' }, bench: { key: 'pullup', name: 'Pull-ups' } })
 })

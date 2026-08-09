@@ -3,8 +3,8 @@ import type { CSSProperties } from 'react'
 import { C, cardStyle, inp, lbl, pillColor } from './theme'
 import { Card, BlockTitle } from './components'
 import * as repo from '../data/repository'
-import { computePosition, totalWeeksOf, parseLocalDate, mondayOf, isoLocal } from '../engine/date-engine'
-import { SET_LADDER, VOLUME_PCT, PACE_ROUND_S, ANCHOR_LIFTS, ANCHOR_LABEL, ANCHOR_NOTE, GIANTFIT_ACC_ITEMS, GIANTFIT_CARRY_DEFAULTS, GIANTFIT_GB_ACCESSORY, GIANTFIT_GB_DEFAULT_REPS, LIFT_SHORT, GIANT2_GIANT_DEFAULT_ROTATION } from '../engine/constants'
+import { computePosition, totalWeeksOf, parseLocalDate, mondayOf, isoLocal, isGiant2Date } from '../engine/date-engine'
+import { SET_LADDER, VOLUME_PCT, PACE_ROUND_S, ANCHOR_LIFTS, ANCHOR_LABEL, ANCHOR_NOTE, GIANTFIT_ACC_ITEMS, GIANTFIT_CARRY_DEFAULTS, GIANTFIT_GB_ACCESSORY, GIANTFIT_GB_DEFAULT_REPS, LIFT_SHORT, GIANT2_GIANT_DEFAULT_ROTATION, GIANT2_SECONDARY } from '../engine/constants'
 import { expandDayTops, giantSets, volumeWeight } from '../engine/loading'
 import { CAPACITY_MOVEMENTS, CAPACITY_VARIANTS, CAPACITY_ROUNDS_OPTIONS } from '../engine/capacity'
 import { runMode, easyPace, qualityRange, fmtPace, parseClock } from '../engine/runs'
@@ -19,6 +19,17 @@ import type { Macro, WeightsByCycle, AccessoryByCycle, RunTargetsByCycle, RunSlo
 const ANCHORS = ANCHOR_LIFTS
 const DIFFS: Difficulty[] = ['hard', 'medium', 'light']
 const CYCLES: number[] = [1, 2, 3]
+// The db_row/pendlay_row LANES are unchanged from GiantFit to Giant 2.0 — only
+// the occupant's display name changes (BB Row / Pull-ups), per whether the
+// macro being edited is Giant2-era. ANCHOR_LABEL itself stays GiantFit's
+// (it's still live for any GiantFit macro/history).
+function anchorLabel(lift: string, giant2: boolean): string {
+  if (giant2) {
+    if (lift === 'db_row') return GIANT2_SECONDARY.ohp!.name
+    if (lift === 'pendlay_row') return GIANT2_SECONDARY.bench!.name
+  }
+  return ANCHOR_LABEL[lift]
+}
 // GiantFit accessories = the four per-day carries (DL Farmers · OHP Overhead ·
 // Squat Bearhug · Bench Suitcase). Paired rows are logged per session (free
 // weight entry) — no recorded secondary weights anymore. Legacy items
@@ -199,6 +210,10 @@ function PacePreview({ pace }: { pace: string }) {
 
 export function Setup({ macro, bundle, macros = [], movements = [], onReload, onSelectMacro, onRollMacro, onSaveMovement, onArchiveMovement }: SetupProps) {
   const [startISO, setStartISO] = useState(macro?.startISO || '2026-04-13')
+  // Whether the macro being edited/created is Giant 2.0 — the db_row/pendlay_row
+  // anchor rows keep their lane but display BB Row/Pull-ups instead of
+  // GiantFit's DB Row/Pendlay Row for it (anchorLabel above).
+  const isGiant2Macro = isGiant2Date(startISO)
   const [number, setNumber] = useState(macro?.number || 1)
   const [cycle, setCycle] = useState(1)
   const [weights, setWeights] = useState<EditWeights>(() => initWeights(bundle?.weights))
@@ -373,14 +388,14 @@ export function Setup({ macro, bundle, macros = [], movements = [], onReload, on
           <div key={lift} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${C.border}` }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: 8, alignItems: 'center' }}>
               <label htmlFor={`hard-${cycle}-${lift}`} style={{ fontSize: 13, color: C.off, fontWeight: 600 }}>
-                {ANCHOR_LABEL[lift]} <span style={{ color: pillColor('hard') }}>· Hard top</span>
+                {anchorLabel(lift, isGiant2Macro)} <span style={{ color: pillColor('hard') }}>· Hard top</span>
                 {ANCHOR_NOTE[lift] && <span style={{ fontSize: 10, color: C.muted, fontWeight: 400 }}> · {ANCHOR_NOTE[lift]}</span>}
               </label>
               <input
                 id={`hard-${cycle}-${lift}`}
                 data-lift={lift}
                 data-diff="hard"
-                aria-label={`${ANCHOR_LABEL[lift]} Hard top, cycle ${cycle} (kg)`}
+                aria-label={`${anchorLabel(lift, isGiant2Macro)} Hard top, cycle ${cycle} (kg)`}
                 style={{ ...inp, padding: '6px', textAlign: 'center' }}
                 type="number"
                 step="2.5"

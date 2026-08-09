@@ -10,7 +10,7 @@ import { RunForm, buildBlankRun, SetPaceChip } from './RunForm'
 import { SCHEMES, LIFT_LABEL, SIGNALS, RUN_SIGNALS, SECONDARY_ITEM, RUN_TYPE_LABEL, GIANTFIT_ROW } from '../engine/constants'
 import { deloadTop } from '../engine/loading'
 import { runSlotFor } from '../engine/runs'
-import { todayISO, mondayOf, parseLocalDate, isoLocal, rotationLiftFor } from '../engine/date-engine'
+import { todayISO, mondayOf, parseLocalDate, isoLocal, rotationLiftFor, isGiant2Date } from '../engine/date-engine'
 import { computeWeekSignals, shouldRecommendDeload, usedDeloadThisMeso, weekKeyFor, capacityLogsForSessions } from '../engine/deload-rule'
 import type {
   Position,
@@ -76,6 +76,9 @@ interface Stamp {
   weekType: WeekType
   dayType: Lift
   difficulty: Difficulty
+  // Giant 2.0 only: re-stamped on every save just like `difficulty`, so a
+  // stale draft can never persist a wrong (or missing) Volume difficulty.
+  volumeDifficulty?: Difficulty | null
   topReps: number | null
   topWeight: number | null
   date: string
@@ -168,11 +171,15 @@ export function Today({
         </div>
       </Card>
     )
-  // Run day (Tue/Thu/Sat)? Never collides with lift session days (Mon/Wed/Fri):
-  // training + deload weeks render the run session; the testing-week Saturday is
-  // the 5k time trial. Reactive-deload weeks collapse to short-easy-only.
+  // Run day (Tue/Thu/Sat)? Never collides with lift session days (Mon/Wed/Fri)
+  // pre-Giant-2.0: training + deload weeks render the run session; the
+  // testing-week Saturday is the 5k time trial. Reactive-deload weeks
+  // collapse to short-easy-only. Giant 2.0 moves lift days onto Tue/Thu too
+  // (Bench/Deadlift) — Giant Run is explicitly NOT wired into Giant 2.0
+  // (out of scope, not touched), so it's suppressed entirely on Giant2-era
+  // dates rather than colliding with those sessions.
   const today = dateISO || todayISO()
-  const runSlot = computed.startISO ? runSlotFor(computed.startISO, computed.macro, parseLocalDate(today), shape) : null
+  const runSlot = computed.startISO && !computed.giant2 ? runSlotFor(computed.startISO, computed.macro, parseLocalDate(today), shape) : null
   if (runSlot && onSaveRun) {
     const runDeloadWeek =
       runSlot.weekType === 'training' &&
@@ -243,6 +250,57 @@ export function Today({
       </div>
     )
   }
+  // Giant 2.0's deload week DOES carry a dayType (fixed day->lift, deload or
+  // not — unlike GiantFit's, which has never had one and so has only ever
+  // shown a static card here). It's a real loggable session: Giant block
+  // only, ~70% of the last cycle's (C3) Hard anchor, fixed Hard rep scheme
+  // (no H/M/L this week — 'hard' is used purely as the SCHEMES lookup, same
+  // convention as GiantFit's own "hard rep scheme" deload text below).
+  if (computed.giant2 && computed.weekType === 'deload' && computed.dayType) {
+    const dayType = computed.dayType as Lift
+    const difficulty: Difficulty = 'hard'
+    const REFERENCE_CYCLE = 3 // the last training cycle — deload continues off it
+    const base = weights?.[REFERENCE_CYCLE]?.[dayType]?.hard
+    const hasWeight = base != null
+    const top = base != null ? deloadTop(base) : null
+    const rowAnchorKey = GIANTFIT_ROW[dayType]
+    const rowCell = rowAnchorKey ? weights?.[REFERENCE_CYCLE]?.[rowAnchorKey] ?? null : null
+    const sessionId = `${today}-${dayType}`
+    const existing = sessions.find((s) => s.id === sessionId)
+    const currentWeekSessions = sessions.filter((s) => s.weekType === 'deload' && s.date.slice(0, 7) === today.slice(0, 7))
+    return (
+      <div>
+        <SessionEditor
+          key={sessionId}
+          sessionId={sessionId}
+          existing={existing}
+          blank={() =>
+            buildBlankSession({ date: today, macroId, cycle: null, week: null, weekType: 'deload', dayType, difficulty, volumeDifficulty: null, baseTop: base, isDeload: true })
+          }
+          headerSlot={<PositionHeader computed={computed} label={`Deload Week${deloadExtended ? ' · extended' : ''}`} />}
+          dayType={dayType}
+          difficulty={difficulty}
+          top={top}
+          hasWeight={hasWeight}
+          isDeload={true}
+          volumeDifficulty={null}
+          volumeTop={null}
+          rowCell={rowCell}
+          giantAccessory={giantAccessory}
+          currentWeekSessions={currentWeekSessions}
+          stamp={{ macroId, cycle: null, week: null, weekType: 'deload', dayType, difficulty, volumeDifficulty: null, topReps: SCHEMES.hard.sets[3], topWeight: top, date: today, id: sessionId }}
+          onSaveSession={onSaveSession}
+          onRunningChange={onRunningChange}
+          saving={saving}
+          setSaving={setSaving}
+          saved={saved}
+          setSaved={setSaved}
+        />
+        {onExtendDeload && <DeloadExtend extended={deloadExtended} onExtendDeload={onExtendDeload} />}
+      </div>
+    )
+  }
+
   if (computed.weekType === 'deload')
     return (
       <div>
@@ -289,23 +347,36 @@ export function Today({
   const difficulty = viewDiff || posDiff
   // The actual day comes from the position (which applies the GiantFit C1
   // override — e.g. C1W1D1 is a MEDIUM deadlift, not the medium-slot lift);
-  // only a difficulty PEEK derives its lift from the era's rotation.
-  const dayType = viewDiff ? rotationLiftFor(week, viewDiff, !!computed.giantfit) : (computed.dayType as Lift)
+  // only a difficulty PEEK derives its lift from the era's rotation. Giant 2.0
+  // has no rotation to peek across (day->lift is fixed) — the peek toggle is
+  // hidden for it (controls.tsx PositionHeader), guarded here too.
+  const dayType = viewDiff && !computed.giant2 ? rotationLiftFor(week, viewDiff, !!computed.giantfit) : (computed.dayType as Lift)
   const base = weights?.[cycle]?.[dayType]?.[difficulty]
   const hasWeight = base != null
   const weekKey = weekKeyFor(macro, cycle, week)
   const isDeload = !!deloads[weekKey]
   const top = base != null ? (isDeload ? deloadTop(base) : base) : null
+  // Giant 2.0 only: the Volume block's OWN difficulty (independent of the
+  // Giant block's above) and its day-top off the SAME per-cycle cascade —
+  // just indexed by the other difficulty. Null volumeDifficulty (C3 W4, or
+  // any non-Giant-2.0 date) means no Volume block; no deload treatment needed
+  // here since corePosition already nulls volumeDifficulty on deload weeks.
+  const volumeDifficulty = computed.volumeDifficulty ?? null
+  const volumeTop = volumeDifficulty ? weights?.[cycle]?.[dayType]?.[volumeDifficulty] ?? null : null
   const carryDefault = accessory?.[cycle]?.[`carry_${dayType}`] ?? ''
   const secondaryItem = SECONDARY_ITEM[dayType]
   const secondaryDefault = secondaryItem ? accessory?.[cycle]?.[secondaryItem] ?? '' : ''
   const pullupCell = dayType === 'dips' ? weights?.[cycle]?.pullup ?? null : null
-  // The day's anchored row cell (GiantFit OHP/bench days) — same pattern as pullupCell.
+  // The day's anchored row/secondary cell — GiantFit's OHP/bench row lanes,
+  // REUSED unchanged for Giant 2.0's BB Row (OHP) / Pull-ups (bench); same
+  // lookup for both eras (GIANTFIT_ROW is just the day->lane map, not
+  // era-specific despite the name).
   const rowAnchorKey = GIANTFIT_ROW[dayType]
   const rowCell = rowAnchorKey ? weights?.[cycle]?.[rowAnchorKey] ?? null : null
   // Use the position's date (honours the dev ?today override) — stamping the
   // REAL date here once made an overridden Today render the wrong era.
-  const sessionId = `${today}-${dayType}-${difficulty[0].toUpperCase()}`
+  // Giant 2.0 ids drop the difficulty suffix (see buildBlankSession).
+  const sessionId = isGiant2Date(today) ? `${today}-${dayType}` : `${today}-${dayType}-${difficulty[0].toUpperCase()}`
   const existing = sessions.find((s) => s.id === sessionId)
   const currentWeekSessions = sessions.filter((s) => s.cycle === cycle && s.week === week)
   const currentWeekRuns = runs.filter((r) => r.cycle === cycle && r.week === week)
@@ -390,13 +461,15 @@ export function Today({
         key={sessionId + (isDeload ? '-d' : '')}
         sessionId={sessionId}
         existing={existing}
-        blank={() => buildBlankSession({ date: today, macroId, cycle, week, weekType: 'training', dayType, difficulty, baseTop: base, isDeload })}
+        blank={() => buildBlankSession({ date: today, macroId, cycle, week, weekType: 'training', dayType, difficulty, volumeDifficulty, baseTop: base, isDeload })}
         headerSlot={<PositionHeader computed={computed} viewDiff={viewDiff} setViewDiff={setViewDiff} />}
         dayType={dayType}
         difficulty={difficulty}
         top={top}
         hasWeight={hasWeight}
         isDeload={isDeload}
+        volumeDifficulty={volumeDifficulty}
+        volumeTop={volumeTop}
         carryLoad={carryDefault}
         secondaryLoad={secondaryDefault}
         pullupCell={pullupCell}
@@ -407,7 +480,19 @@ export function Today({
         currentWeekSessions={currentWeekSessions}
         currentWeekRuns={currentWeekRuns}
         allRuns={runs}
-        stamp={{ macroId, cycle, week, weekType: 'training', dayType, difficulty, topReps: SCHEMES[difficulty].sets[3], topWeight: top, date: today, id: sessionId }}
+        stamp={{
+          macroId,
+          cycle,
+          week,
+          weekType: 'training',
+          dayType,
+          difficulty,
+          volumeDifficulty,
+          topReps: SCHEMES[difficulty].sets[3],
+          topWeight: top,
+          date: today,
+          id: sessionId,
+        }}
         onSaveSession={onSaveSession}
         onRunningChange={onRunningChange}
         saving={saving}
@@ -546,6 +631,9 @@ interface SessionEditorProps {
   top: number | null
   hasWeight: boolean
   isDeload: boolean
+  // Giant 2.0 only: the Volume block's own difficulty + day-top.
+  volumeDifficulty?: Difficulty | null
+  volumeTop?: number | null
   carryLoad?: number | string | null
   secondaryLoad?: number | string | null
   pullupCell?: LiftWeights | null
@@ -565,7 +653,36 @@ interface SessionEditorProps {
   setSaved: (b: boolean) => void
 }
 
-function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, difficulty, top, hasWeight, isDeload, carryLoad, secondaryLoad, pullupCell, rowCell, giantAccessory, capacityCtx = null, capacityLogs = [], currentWeekSessions, currentWeekRuns = [], allRuns = [], stamp, onSaveSession, onRunningChange, saving, setSaving, saved, setSaved }: SessionEditorProps) {
+function SessionEditor({
+  sessionId,
+  existing,
+  blank,
+  headerSlot,
+  dayType,
+  difficulty,
+  top,
+  hasWeight,
+  isDeload,
+  volumeDifficulty,
+  volumeTop,
+  carryLoad,
+  secondaryLoad,
+  pullupCell,
+  rowCell,
+  giantAccessory,
+  capacityCtx = null,
+  capacityLogs = [],
+  currentWeekSessions,
+  currentWeekRuns = [],
+  allRuns = [],
+  stamp,
+  onSaveSession,
+  onRunningChange,
+  saving,
+  setSaving,
+  saved,
+  setSaved,
+}: SessionEditorProps) {
   const [draft, setDraft] = useState<SessionDraft>(() => existing || blank())
   const [err, setErr] = useState('')
   const [nowTs, setNowTs] = useState(() => Date.now())
@@ -703,7 +820,24 @@ function SessionEditor({ sessionId, existing, blank, headerSlot, dayType, diffic
         />
       )}
 
-      <SessionForm dayType={dayType} difficulty={difficulty} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} locked={notStarted} carryLoad={carryLoad} secondaryLoad={secondaryLoad} pullupCell={pullupCell} rowCell={rowCell} giantAccessory={giantAccessory} capacity={capacity} />
+      <SessionForm
+        dayType={dayType}
+        difficulty={difficulty}
+        top={top}
+        hasWeight={hasWeight}
+        isDeload={isDeload}
+        volumeDifficulty={volumeDifficulty}
+        volumeTop={volumeTop}
+        draft={draft}
+        setField={setField}
+        locked={notStarted}
+        carryLoad={carryLoad}
+        secondaryLoad={secondaryLoad}
+        pullupCell={pullupCell}
+        rowCell={rowCell}
+        giantAccessory={giantAccessory}
+        capacity={capacity}
+      />
 
       {completed && (
         <button

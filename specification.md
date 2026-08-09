@@ -112,6 +112,67 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-08-09 (Giant 2.0, Phase 3 — Primer/Giant/Volume session views)
+- `feat`: **Giant 2.0 sessions are now loggable** — Primer → Giant → Volume,
+  end to end (Today, the Calendar's per-day modal, and Setup's anchor labels).
+  The Capability block (Hypertrophy/Oly/Carries) is still Phase 4 — nothing
+  renders it yet, so an athlete training under Giant 2.0 before that ships
+  will not see that block on screen.
+  - New `Giant2SessionForm.tsx` — a SEPARATE component from `SessionForm.tsx`,
+    dispatched to by date (`isGiant2Date`) at the top of `SessionForm`.
+    Deliberately kept separate rather than adding a third branch inline:
+    GiantFit's live rendering had to stay untouched while a real macro is
+    still running under it.
+  - Primer: rope flow + day-typed band activation (Crossover Symmetry upper /
+    Hip Halo lower) + the bodyweight ramp, then the barbell build-up (+ the
+    secondary's own build-up when weighted) — prescription-only, no RPE, same
+    treatment as GiantFit's own Warm-Up block.
+  - Giant block: the main lift's 4-set ladder (SCHEMES/SET_LADDER reused
+    unchanged) + the secondary (BB Row always weighted, Pull-ups two-mode —
+    reactivates `liftMode`/`ClusterInput` for real, not just legacy rendering)
+    + the GB accessory (Ab-Roll / Leg Raises). Reused `BlockCompletion` (S7)
+    and `LogRpe` verbatim.
+  - Volume block: genuinely independent of the Giant block's difficulty — its
+    own day-top (`volumeTop`, read off the SAME per-cycle cascade, just
+    indexed by `volumeDifficulty`) and its own rep count
+    (`SCHEMES[volumeDifficulty].vol` — confirmed to be the exact 6/8/10 the
+    spec calls for, no new constant needed). Doesn't render at all when
+    `volumeDifficulty` is null (C3 week 4).
+  - **Giant 2.0's deload week is a real, loggable session** — Today and the
+    Calendar modal both got a dedicated branch (GiantFit's deload has never
+    had one and still shows only the static card). Reads the last training
+    cycle's (C3) Hard anchor as the reference weight, `deloadTop` at ~70%,
+    fixed Hard rep scheme (no H/M/L that week).
+  - **Bug found and fixed before it could bite**: Giant Run's Tue/Thu/Sat
+    schedule would have intercepted Giant 2.0's Bench (Tue) and Deadlift (Thu)
+    sessions — the exact collision flagged as a risk in the Phase 1 plan.
+    Giant Run is now explicitly suppressed on Giant2-era dates in both
+    `Today.tsx` (the run-slot check) and `Calendar.tsx` (the run row) — it
+    stays fully intact for any GiantFit-era macro.
+  - Session ids drop the difficulty suffix for Giant 2.0
+    (`buildBlankSession`/`SessionModal.buildRecord` — `${date}-${lift}`, day-
+    lift is already unique, difficulty is no longer singular per session).
+  - Setup's anchor grid now shows "BB Row"/"Pull-ups" instead of "DB Row"/
+    "Pendlay Row" when the macro being edited/created is Giant2-era (by its
+    own start date) — the underlying `db_row`/`pendlay_row` lanes and
+    `ANCHOR_LABEL` (still GiantFit's) are unchanged; only the display resolves
+    differently per era.
+  - `giant_accessory_config`'s default merge (mappers.ts) now includes
+    `leg_raises` (Giant 2.0's new GB accessory key) alongside GiantFit's four —
+    one shared table, one shared merge, both eras' keys known.
+  - **Known, deliberately deferred gaps**: the Volume block's bodyweight-mode
+    Pull-ups render prescription-only (no separate cluster-log field from the
+    Giant block's); `session-summary.ts` (the copy-to-clipboard text
+    generator, `Data.tsx`) and the CSV export still render Giant 2.0 sessions
+    with GiantFit-flavored labels — not a crash, just wrong copy — both belong
+    to Phase 6 (Trends/Data/CSV/docs), not this phase.
+  - No React/UI component tests exist in this repo for any session view
+    (GiantFit's included) — verified by typecheck + build + careful review,
+    matching the project's existing testing boundary. Could not log in to
+    visually verify (same constraint as Phase 1 — the only credential
+    available is the athlete's real account password). 211/211 engine tests
+    still passing, clean typecheck, clean build.
+
 ## 2026-08-09 (Giant 2.0, Phase 2 — date/position engine)
 - `feat`: **Giant 2.0 date/position engine** — `corePosition` (and
   `computePosition`/`nextSessionFrom`/`enumerateMacro`) now compute Giant 2.0

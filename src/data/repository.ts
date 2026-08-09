@@ -52,7 +52,7 @@ import {
   GIANTFIT_START_DATE,
   GIANTFIT_GB_ACCESSORY,
   GIANT2_START_DATE,
-  GIANT2_GB_ACCESSORY_KEY,
+  GIANT2_GB_ACCESSORY,
 } from '../engine/constants'
 
 // Browser-only offline handling (Node smoke test has no navigator/window).
@@ -458,8 +458,9 @@ export async function ensureSeedGiant2ProgramVersion(): Promise<{ versions: Prog
   if (vErr) throw vErr
   const version = M.rowToProgramVersion(vRow)
 
+  const giant2GbAccessoryKeys = Object.fromEntries(Object.entries(GIANT2_GB_ACCESSORY).map(([day, m]) => [day, m.key])) as Partial<Record<Lift, string>>
   const slots = buildGiant2SeedSlots(version.id, movements, {
-    gbAccessoryKeys: GIANT2_GB_ACCESSORY_KEY,
+    gbAccessoryKeys: giant2GbAccessoryKeys,
     primerKeys: SEED_GIANT2_PRIMER_KEYS,
     hypertrophyKeys: SEED_GIANT2_HYPERTROPHY_KEYS,
     olyKeys: SEED_GIANT2_OLY_KEYS,

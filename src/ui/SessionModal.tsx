@@ -7,7 +7,7 @@ import { TestingSessionView } from './TestingSession'
 import { fmtClock, DurationEdit, errMsg } from './controls'
 import { SCHEMES, LIFT_LABEL, SECONDARY_ITEM, GIANTFIT_ROW } from '../engine/constants'
 import { deloadTop } from '../engine/loading'
-import { parseLocalDate } from '../engine/date-engine'
+import { parseLocalDate, isGiant2Date } from '../engine/date-engine'
 import type {
   MacroCell,
   Session,
@@ -20,6 +20,7 @@ import type {
   CapacityLog,
   CapacityLogDraft,
   GiantAccessoryReps,
+  Difficulty,
 } from '../engine/types'
 
 function shortDate(iso: string): string {
@@ -73,27 +74,45 @@ export function SessionModal({
   onDeleteCapacityLog,
   onClose,
 }: SessionModalProps) {
-  const isSpecial = cell.weekType === 'testing' || cell.weekType === 'deload'
+  // Giant 2.0's deload week is a real, loggable session (fixed day->lift, no
+  // H/M/L Giant difficulty this week) — unlike GiantFit's, which has never
+  // had one and stays the static "nothing to log" cell below.
+  const giant2 = isGiant2Date(cell.date)
+  const isGiant2Deload = giant2 && cell.weekType === 'deload'
+  const isSpecial = cell.weekType === 'testing' || (cell.weekType === 'deload' && !giant2)
   const dayType = cell.dayType
-  const difficulty = cell.difficulty
-  const cycle = cell.meso
-  const base = !isSpecial && dayType && cycle != null && difficulty ? weights?.[cycle]?.[dayType]?.[difficulty] : null
+  // 'hard' during Giant 2.0 deload is purely the SCHEMES lookup (fixed Hard
+  // rep scheme that week, same convention as Today.tsx) — there's no H/M/L
+  // Giant difficulty then. The weight LOOKUP also uses a separate reference
+  // cycle (3, the last training cycle) since cell.meso is null on deload.
+  const difficulty: Difficulty | null = isGiant2Deload ? 'hard' : cell.difficulty
+  const weightCycle = isGiant2Deload ? 3 : cell.meso
+  const base = !isSpecial && dayType && weightCycle != null && difficulty ? weights?.[weightCycle]?.[dayType]?.[difficulty] : null
   const hasWeight = base != null
-  const weekKey = `M${macroNumber}C${cycle}W${cell.week}`
-  const isDeload = !isSpecial && !!deloads[weekKey]
+  const weekKey = `M${macroNumber}C${cell.meso}W${cell.week}`
+  const isDeload = !isSpecial && (cell.weekType === 'deload' || !!deloads[weekKey])
   const top = base != null ? (isDeload ? deloadTop(base) : base) : null
-  const carryDefault = cycle != null && dayType ? accessory?.[cycle]?.[`carry_${dayType}`] ?? '' : ''
+  // Giant 2.0 only: the Volume block's own difficulty (already computed by
+  // enumerateMacro/corePosition onto the cell) + its day-top off the SAME
+  // per-cycle cascade. Null on deload (no Volume block) and off-era.
+  const volumeDifficulty = cell.volumeDifficulty ?? null
+  const volumeTop = volumeDifficulty && dayType && weightCycle != null ? weights?.[weightCycle]?.[dayType]?.[volumeDifficulty] ?? null : null
+  const carryDefault = weightCycle != null && dayType ? accessory?.[weightCycle]?.[`carry_${dayType}`] ?? '' : ''
   const secondaryItem = dayType ? SECONDARY_ITEM[dayType] : undefined
-  const secondaryDefault = cycle != null && secondaryItem ? accessory?.[cycle]?.[secondaryItem] ?? '' : ''
-  const pullupCell = dayType === 'dips' && cycle != null ? weights?.[cycle]?.pullup ?? null : null
-  // The day's anchored row cell (GiantFit OHP/bench days) — same pattern as pullupCell.
+  const secondaryDefault = weightCycle != null && secondaryItem ? accessory?.[weightCycle]?.[secondaryItem] ?? '' : ''
+  const pullupCell = dayType === 'dips' && weightCycle != null ? weights?.[weightCycle]?.pullup ?? null : null
+  // The day's anchored row/secondary cell — GiantFit's OHP/bench row lanes,
+  // reused unchanged for Giant 2.0's BB Row (OHP) / Pull-ups (bench).
   const rowAnchorKey = dayType ? GIANTFIT_ROW[dayType] : undefined
-  const rowCell = rowAnchorKey && cycle != null ? weights?.[cycle]?.[rowAnchorKey] ?? null : null
+  const rowCell = rowAnchorKey && weightCycle != null ? weights?.[weightCycle]?.[rowAnchorKey] ?? null : null
+  // The STORED record's cycle/week are the cell's own (null on deload) — only
+  // the WEIGHT lookup above uses the reference cycle.
+  const cycle = isGiant2Deload ? null : cell.meso
 
   const [draft, setDraft] = useState<SessionDraft>(
     () =>
       existing ||
-      buildBlankSession({ date: cell.date, macroId, cycle, week: cell.week, weekType: cell.weekType, dayType, difficulty, baseTop: base, isDeload })
+      buildBlankSession({ date: cell.date, macroId, cycle, week: cell.week, weekType: cell.weekType, dayType, difficulty, volumeDifficulty, baseTop: base, isDeload })
   )
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
@@ -122,10 +141,11 @@ export function SessionModal({
 
   // The stamped record for this cell (only valid on a normal training cell,
   // where dayType/difficulty are set). Shared by Save and the capacity block's
-  // ensure-session-first save.
+  // ensure-session-first save. Giant 2.0 ids drop the difficulty suffix (see
+  // buildBlankSession).
   const buildRecord = (): SessionDraft => ({
     ...draft,
-    id: `${cell.date}-${dayType}-${difficulty![0].toUpperCase()}`,
+    id: giant2 ? `${cell.date}-${dayType}` : `${cell.date}-${dayType}-${difficulty![0].toUpperCase()}`,
     date: cell.date,
     macroId,
     cycle,
@@ -133,13 +153,16 @@ export function SessionModal({
     weekType: cell.weekType,
     dayType,
     difficulty,
+    volumeDifficulty,
     topReps: SCHEMES[difficulty!].sets[3],
     topWeight: top,
   })
 
   // GiantFit capacity block for this cell: the capacity log's FK needs the
   // session row, so its save upserts the cell's record first (idempotent).
-  const sessionId = dayType && difficulty ? `${cell.date}-${dayType}-${difficulty[0].toUpperCase()}` : null
+  // Never applies to Giant 2.0 (no Capacity block — cell.capacityVariant is
+  // already null there, capacityProp below short-circuits regardless).
+  const sessionId = dayType && difficulty ? (giant2 ? `${cell.date}-${dayType}` : `${cell.date}-${dayType}-${difficulty[0].toUpperCase()}`) : null
   const capacityProp =
     !isSpecial && sessionId && cell.capacityVariant && capacity && onSaveCapacityLog && onDeleteCapacityLog
       ? {
@@ -259,7 +282,23 @@ export function SessionModal({
           </div>
         ) : (
           <>
-            <SessionForm dayType={dayType!} difficulty={difficulty!} top={top} hasWeight={hasWeight} isDeload={isDeload} draft={draft} setField={setField} carryLoad={carryDefault} secondaryLoad={secondaryDefault} pullupCell={pullupCell} rowCell={rowCell} giantAccessory={giantAccessory} capacity={capacityProp} />
+            <SessionForm
+              dayType={dayType!}
+              difficulty={difficulty!}
+              top={top}
+              hasWeight={hasWeight}
+              isDeload={isDeload}
+              volumeDifficulty={volumeDifficulty}
+              volumeTop={volumeTop}
+              draft={draft}
+              setField={setField}
+              carryLoad={carryDefault}
+              secondaryLoad={secondaryDefault}
+              pullupCell={pullupCell}
+              rowCell={rowCell}
+              giantAccessory={giantAccessory}
+              capacity={capacityProp}
+            />
             {draft.startedAt && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
                 <div>

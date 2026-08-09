@@ -378,11 +378,42 @@ export const GIANT2_CAPABILITY_BY_CYCLE: Record<number, CapabilityProgram> = { 1
 // Giant/Volume block secondary occupant per day (the anchored lane's Giant
 // 2.0 content — reuses the 'db_row'/'pendlay_row' LANES from working_weights
 // unchanged; only the occupant swaps, per ANCHORED_LANES discipline).
-// Squat/Deadlift train alone, same as GiantFit.
-export const GIANT2_SECONDARY_KEY: Partial<Record<Lift, string>> = { ohp: 'bb_row', bench: 'pullup' }
+// Squat/Deadlift train alone, same as GiantFit. Display label + reps-by-
+// difficulty are the SAME treatment as GiantFit's anchored row (own build-up,
+// fixed reps per difficulty, ladder off its own day top) — GIANTFIT_ROW_REPS
+// is reused verbatim, not redefined.
+export const GIANT2_SECONDARY: Partial<Record<Lift, { key: string; name: string }>> = {
+  ohp: { key: 'bb_row', name: 'BB Row' },
+  bench: { key: 'pullup', name: 'Pull-ups' },
+}
 // Giant block bodyweight accessory per day — Ab-Roll reuses the existing
 // ab_rollout movement (same exercise as GiantFit's), Leg Raises is new.
-export const GIANT2_GB_ACCESSORY_KEY: Partial<Record<Lift, string>> = { squat: 'ab_rollout', deadlift: 'ab_rollout', bench: 'leg_raises', ohp: 'leg_raises' }
+// Shape mirrors GIANTFIT_GB_ACCESSORY exactly (key/name/reps default).
+export const GIANT2_GB_ACCESSORY: Partial<Record<Lift, { key: string; name: string; reps: number }>> = {
+  squat: { key: 'ab_rollout', name: 'Ab-Roll', reps: 10 },
+  deadlift: { key: 'ab_rollout', name: 'Ab-Roll', reps: 10 },
+  bench: { key: 'leg_raises', name: 'Leg Raises', reps: 12 },
+  ohp: { key: 'leg_raises', name: 'Leg Raises', reps: 12 },
+}
+// The all-defaults rep-target map for Giant 2.0's GB accessories, merged into
+// the SAME giant_accessory_config default base as GiantFit's (mappers.ts) —
+// one shared table, one shared merge, per movement key.
+export const GIANT2_GB_DEFAULT_REPS: Record<string, number> = { leg_raises: 12 }
+
+// Primer block content (session-view display — mirrors GIANTFIT_ACTIVATION's
+// {name,dose}[] shape). Rope flow is shared; band activation and the
+// bodyweight ramp are day-typed (GIANT2_DAY_TYPE). No load, no RPE — tracked
+// as prescription only, same treatment as GiantFit's own Warm-Up block.
+export const GIANT2_ROPE_FLOW = { name: 'Rope flow', dose: 'flow sequence' }
+export const GIANT2_PRIMER_BAND: Record<'upper' | 'lower', { name: string; dose: string }> = {
+  upper: { name: 'Crossover Symmetry', dose: 'band activation sequence' },
+  lower: { name: 'Hip Halo', dose: 'band activation sequence' },
+}
+// The bodyweight ramp — 1-2-3 ascending reps across 3 rounds (GIANT2_PRIMER_RAMP_ROUNDS).
+export const GIANT2_PRIMER_RAMP: Record<'upper' | 'lower', string[]> = {
+  upper: ['Inverted Row', 'Push-ups', 'Dead Bug', 'Support Scap-Dip'],
+  lower: ['Good Morning', 'Reverse Lunges', 'Bird Dogs', 'Shallow Lateral Lunge'],
+}
 
 // Primer bodyweight ramp — 1-2-3 ascending rep scheme (round i = i reps of
 // every movement in the group), 3 rounds, tempo not tracked (2026-08-09

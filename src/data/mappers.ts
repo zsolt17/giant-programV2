@@ -37,7 +37,7 @@ import type { Movement, MovementSeed, LoadType, CountType } from '../engine/move
 import type { ProgramVersion, ProgramSlot } from '../engine/program'
 import { expandDayTops } from '../engine/loading'
 import { mergeCapacityConfig } from '../engine/capacity'
-import { GIANTFIT_GB_DEFAULT_REPS, GIANT2_GIANT_DEFAULT_ROTATION } from '../engine/constants'
+import { GIANTFIT_GB_DEFAULT_REPS, GIANT2_GB_DEFAULT_REPS, GIANT2_GIANT_DEFAULT_ROTATION } from '../engine/constants'
 
 const blankToNull = (v: string | null | undefined): string | null => (v === '' || v === undefined ? null : v)
 const toNum = (v: unknown): number | null => (v === '' || v === null || v === undefined ? null : Number(v))
@@ -493,10 +493,12 @@ export interface GiantAccessoryRow {
   rep_target: number | null
 }
 // giant_accessory_config rows -> { key: reps } with the app defaults
-// (GIANTFIT_GB_ACCESSORY) merged in; unknown stored keys ignored, null rep
-// targets fall back to the movement's default (capacity-config pattern).
+// (GIANTFIT_GB_ACCESSORY + GIANT2_GB_DEFAULT_REPS — one shared table, one
+// shared merge, both eras' keys known) merged in; unknown stored keys
+// ignored, null rep targets fall back to the movement's default
+// (capacity-config pattern).
 export function rowsToGiantAccessory(rows: GiantAccessoryRow[]): GiantAccessoryReps {
-  const out: GiantAccessoryReps = { ...GIANTFIT_GB_DEFAULT_REPS }
+  const out: GiantAccessoryReps = { ...GIANTFIT_GB_DEFAULT_REPS, ...GIANT2_GB_DEFAULT_REPS }
   ;(rows || []).forEach((r) => {
     const reps = toNum(r.rep_target)
     if (out[r.movement_key] != null && reps != null) out[r.movement_key] = reps

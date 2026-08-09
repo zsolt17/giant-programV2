@@ -3,7 +3,7 @@ import { C, cardStyle, HEADING, pillColor } from './theme'
 import { Card } from './components'
 import { SessionModal } from './SessionModal'
 import { RunModal } from './RunModal'
-import { enumerateMacro, parseLocalDate, isoLocal, mondayOf, todayISO } from '../engine/date-engine'
+import { enumerateMacro, parseLocalDate, isoLocal, mondayOf, todayISO, isGiant2Date } from '../engine/date-engine'
 import { LIFT_SHORT, RUN_TYPE_LABEL } from '../engine/constants'
 import { fmt } from '../engine/loading'
 import { runSlotsForWeek, derivedPaceS, fmtPace } from '../engine/runs'
@@ -252,7 +252,10 @@ export function Calendar({
             </div>
 
             {/* Giant Run row — Tue/Thu/Sat under the lift row (the week block grows
-                vertically; cells stay 3-up so iPhone sizing matches the lift row). */}
+                vertically; cells stay 3-up so iPhone sizing matches the lift row).
+                Suppressed on Giant 2.0 weeks: Tue/Thu are now Bench/Deadlift lift
+                days, and Giant Run isn't wired into Giant 2.0 (see Today.tsx). */}
+            {!isGiant2Date(row.cells[0].date) && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginTop: 6 }}>
               {runSlotsForWeek(startISO, macroNumber, row.weekIndex, shape).map((slot) => {
                 const st = runCellState(slot)
@@ -290,6 +293,7 @@ export function Calendar({
                 )
               })}
             </div>
+            )}
           </div>
         )
       })}

@@ -184,10 +184,13 @@ export function PositionHeader({
   const shownDiff = viewDiff || computed.difficulty
   const isPeeking = viewDiff && viewDiff !== computed.difficulty
   // Not peeking → the position's own lift (carries the GiantFit C1 override);
-  // peeking → the era's rotation lift for the previewed difficulty.
+  // peeking → the era's rotation lift for the previewed difficulty. Giant 2.0
+  // has no rotation to peek across (day->lift is fixed) — the toggle is
+  // hidden entirely below, but guard here too in case viewDiff is ever passed
+  // in some other way for a Giant 2.0 date.
   const shownLift =
     computed.weekType === 'training' && computed.week && shownDiff
-      ? isPeeking
+      ? isPeeking && !computed.giant2
         ? rotationLiftFor(computed.week, shownDiff, !!computed.giantfit)
         : computed.dayType ?? null
       : null
@@ -207,7 +210,7 @@ export function PositionHeader({
           )}
         </div>
       </div>
-      {computed.weekType === 'training' && computed.isSessionDay && setViewDiff && (
+      {computed.weekType === 'training' && computed.isSessionDay && !computed.giant2 && setViewDiff && (
         <div role="group" aria-label="Preview difficulty" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {(['hard', 'medium', 'light'] as Difficulty[]).map((d) => (
             <button

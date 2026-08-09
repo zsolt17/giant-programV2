@@ -2,9 +2,10 @@ import { C, inp, lbl } from './theme'
 import { Card } from './components'
 import { blockTitle, Row, LogRpe, secondaryDesc, CompletionPick } from './controls'
 import { CapacityBlock } from './CapacityBlock'
+import { Giant2SessionForm } from './Giant2SessionForm'
 import { SCHEMES, WU_PCT, WU_REPS, SET_LADDER, DAY_META, LIFT_LABEL, PULLUP, BLOCK_COMPLETION, GIANTFIT_PAIRING, GIANTFIT_ACTIVATION, GIANTFIT_ROW, GIANTFIT_ROW_REPS, GIANTFIT_GB_ACCESSORY, ANCHOR_LABEL } from '../engine/constants'
 import { fmt, giantSets, warmupSets, volumeWeight, deloadTop, liftMode } from '../engine/loading'
-import { isGiantFitDate } from '../engine/date-engine'
+import { isGiantFitDate, isGiant2Date } from '../engine/date-engine'
 import { clusterTotal, isUnbroken, meetsTarget } from '../engine/pullups'
 import type { Difficulty, Lift, WeekType, SessionDraft, LiftWeights, CapacityVariant, CapacityConfig, CapacityLog, CapacityLogDraft, GiantAccessoryReps } from '../engine/types'
 
@@ -16,11 +17,16 @@ interface BlankSessionArgs {
   weekType: WeekType
   dayType?: Lift | null
   difficulty?: Difficulty | null
+  // Giant 2.0 only: the Volume block's own difficulty (null = no Volume block
+  // this session — GiantFit sessions and Giant 2.0's C3 W4 both pass null).
+  volumeDifficulty?: Difficulty | null
   baseTop?: number | null
   isDeload?: boolean
 }
 
-// Build a blank session draft for a given slot.
+// Build a blank session draft for a given slot. Giant 2.0 ids drop the
+// difficulty suffix (date-lift is already unique — day->lift is fixed, no
+// rotation — and difficulty is no longer singular per session anyway).
 export function buildBlankSession({
   date,
   macroId,
@@ -29,13 +35,15 @@ export function buildBlankSession({
   weekType,
   dayType,
   difficulty,
+  volumeDifficulty,
   baseTop,
   isDeload,
 }: BlankSessionArgs): SessionDraft {
   const scheme = difficulty ? SCHEMES[difficulty] : null
   const top = baseTop != null && isDeload ? deloadTop(baseTop) : baseTop ?? null
+  const id = isGiant2Date(date) ? `${date}-${dayType || 'x'}` : `${date}-${dayType || 'x'}-${difficulty ? difficulty[0].toUpperCase() : 'X'}`
   return {
-    id: `${date}-${dayType || 'x'}-${difficulty ? difficulty[0].toUpperCase() : 'X'}`,
+    id,
     macroId,
     date,
     cycle: cycle ?? null,
@@ -43,7 +51,7 @@ export function buildBlankSession({
     weekType,
     dayType: dayType ?? null,
     difficulty: difficulty ?? null,
-    volumeDifficulty: null, // Giant 2.0 only (Phase 3 wires this up); GiantFit sessions never set it
+    volumeDifficulty: volumeDifficulty ?? null,
     topReps: scheme ? scheme.sets[3] : null,
     topWeight: top,
     rpe: '',
@@ -76,6 +84,11 @@ interface SessionFormProps {
   draft: SessionDraft
   setField: <K extends keyof SessionDraft>(k: K, v: SessionDraft[K]) => void
   locked?: boolean
+  // Giant 2.0 only: the Volume block's own difficulty + its day-top (off that
+  // OTHER difficulty — independent of `difficulty`/`top` above, which are the
+  // Giant block's). null volumeDifficulty = no Volume block this session.
+  volumeDifficulty?: Difficulty | null
+  volumeTop?: number | null
   // Per-cycle carry weight from Setup (accessory_weights). When set, it replaces the
   // hardcoded descriptive load in the carry prescription.
   carryLoad?: number | string | null
@@ -106,7 +119,47 @@ interface SessionFormProps {
 // The prescription + log fields for a training-week session. Reused by Today
 // (inline) and SessionModal (overlay). The parent owns the draft + Save button;
 // it stamps the prescribed top weight/reps on save.
-export function SessionForm({ dayType, difficulty, top, hasWeight, isDeload, draft, setField, locked = false, carryLoad, secondaryLoad, pullupCell, rowCell, giantAccessory, capacity = null }: SessionFormProps) {
+export function SessionForm({
+  dayType,
+  difficulty,
+  top,
+  hasWeight,
+  isDeload,
+  draft,
+  setField,
+  locked = false,
+  volumeDifficulty,
+  volumeTop,
+  carryLoad,
+  secondaryLoad,
+  pullupCell,
+  rowCell,
+  giantAccessory,
+  capacity = null,
+}: SessionFormProps) {
+  // Giant 2.0 (the DATE decides, same discipline as the GiantFit cutover
+  // below): a completely different session shape — Primer/Giant/Volume with
+  // two independent difficulties, no Capacity block. Dispatches to its own
+  // component so GiantFit's live rendering here stays untouched.
+  if (isGiant2Date(draft.date)) {
+    return (
+      <Giant2SessionForm
+        dayType={dayType}
+        difficulty={difficulty}
+        volumeDifficulty={volumeDifficulty ?? null}
+        top={top}
+        volumeTop={volumeTop ?? null}
+        hasWeight={hasWeight}
+        isDeload={isDeload}
+        draft={draft}
+        setField={setField}
+        locked={locked}
+        secondaryCell={rowCell}
+        giantAccessory={giantAccessory}
+      />
+    )
+  }
+
   const scheme = SCHEMES[difficulty]
   const meta = DAY_META[dayType]
   // GiantFit era (the DATE decides): Warm-Up → Giant → Volume → Capacity → Carry,
