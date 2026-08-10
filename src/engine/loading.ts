@@ -1,8 +1,7 @@
 // Loading math — the single-anchor cascade. Derived loads round to 2.5 kg
-// (DEFAULT_INCREMENT — all GiantFit lifts are barbell moves; the Giant-era
-// 0.5 kg dips/pull-up increment is retired). The Hard-top ANCHOR is never
-// rounded — user input stays exactly as entered; rounding applies only to
-// derived values.
+// (DEFAULT_INCREMENT — every lift is a barbell move). The Hard-top ANCHOR is
+// never rounded — user input stays exactly as entered; rounding applies only
+// to derived values.
 import { SCHEMES, WU_PCT, WU_REPS, DAY_SPREAD, SET_LADDER, VOLUME_PCT, DEFAULT_INCREMENT } from './constants'
 import type { Difficulty, Scheme, GiantSet, WarmupSet } from './types'
 
@@ -17,10 +16,9 @@ export function schemeFor(difficulty: Difficulty): Scheme {
   return SCHEMES[difficulty]
 }
 
-// LEGACY (Giant-era two-mode dips/pull-ups): a zero/empty anchor meant
-// bodyweight/unbroken mode (cluster logging), any weight the full cascade.
-// Kept ONLY so pre-GiantFit dips-day sessions keep rendering in History /
-// the Calendar modal — no new-session or Setup logic may use it.
+// Two-mode Pull-ups (bench day's secondary, pendlay_row lane): a zero/empty
+// anchor means bodyweight/unbroken mode (cluster logging), any weight the
+// full cascade. A live, Setup-writable anchor — not legacy-only.
 export function liftMode(anchor: number | null | undefined): 'weighted' | 'bodyweight' {
   return anchor != null && anchor > 0 ? 'weighted' : 'bodyweight'
 }
@@ -77,10 +75,4 @@ export function volumeWeight(top: number): number {
 // Deload top set = ~70% of the working load.
 export function deloadTop(top: number): number {
   return round(top * 0.7)
-}
-
-// Testing-day guidance ceiling: ~+5% over the C3 Hard anchor. Guidance only —
-// test results are recorded, never prescribed. (LEGACY testing weeks.)
-export function testCeiling(anchor: number): number {
-  return round(anchor * 1.05)
 }

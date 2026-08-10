@@ -1,13 +1,11 @@
 // Pure derivation: our persisted Session/Macro/deload data -> the flat row shape
 // the Trends charts consume (TrendSession). No DB calls, no React. The deload
 // signal flags mirror deload-rule.ts exactly so Trends never disagrees with Deload.
-import type { Session, Macro, Run, DeloadMap, BreakDayMap, AccessoryByCycle, CapacityLog, TrendSession, TrendDay, TrendCapacity, TrendCarry, TrendRun, CarryType, AttStatus, AttMacro, AttCycle } from './types'
+import type { Session, Macro, DeloadMap, BreakDayMap, AccessoryByCycle, TrendSession, TrendCarry, CarryType, AttStatus, AttMacro, AttCycle, AttEndRow } from './types'
 import { weekKeyFor } from './deload-rule'
-import { enumerateMacro, todayISO, isGiant2Date } from './date-engine'
-import { perRoundSeconds } from './capacity'
-import { derivedPaceS } from './runs'
+import { enumerateMacro, todayISO } from './date-engine'
 
-const DAY_LABEL: Record<string, TrendDay> = { deadlift: 'DL', ohp: 'OHP', squat: 'Squat', bench: 'Bench', dips: 'Dips' }
+const DAY_LABEL: Record<string, TrendSession['day']> = { deadlift: 'DL', ohp: 'OHP', squat: 'Squat', bench: 'Bench' }
 const SPD: Record<string, 0 | 1 | 2> = { down: 0, normal: 1, up: 2 }
 
 // "R9.5" -> 9.5 ; "" / unparseable -> null.
@@ -43,12 +41,10 @@ export function toTrendSessions(sessions: Session[], macros: Macro[], deloads: D
         rpe,
         spd,
         dur: durMs != null ? Math.round(durMs / 60000) : null,
-        // Signal definitions match deload-rule.ts EXACTLY (S4 is notebook-only,
-        // omitted) — including Giant 2.0's one exception: C3 week 4 has no
-        // Volume block, so S2 never applies there (volDone can't meaningfully
-        // be false for a block that doesn't exist that session).
+        // Signal definitions match deload-rule.ts EXACTLY: S2 never applies to a
+        // session with no Volume block (C3 week 4, or a deload).
         S1: rpe != null && rpe >= 9.5 ? 1 : 0,
-        S2: (!isGiant2Date(s.date) || s.volumeDifficulty != null) && s.volDone === false ? 1 : 0,
+        S2: s.volumeDifficulty != null && s.volDone === false ? 1 : 0,
         S3: s.carrySkipped && s.carrySkipReason === 'fatigue' ? 1 : 0,
         S5: s.barSpeed === 'down' ? 1 : 0,
         S7: s.blockCompletion && s.blockCompletion !== 'completed' ? 1 : 0,
@@ -60,68 +56,13 @@ export function toTrendSessions(sessions: Session[], macros: Macro[], deloads: D
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
 }
 
-// Giant Run: every logged run with a derivable pace, oldest → newest, for the
-// Runs trend view. Pace is derived with the same engine call the UI renders.
-export function toRunTrend(runs: Run[], macros: Macro[]): TrendRun[] {
-  const numById: Record<string, number> = {}
-  macros.forEach((m) => {
-    numById[m.id] = m.number
-  })
-  return runs
-    .map((r) => {
-      const paceS = derivedPaceS(r.distanceKm, r.durationS)
-      if (paceS == null) return null
-      const num = numById[r.macroId] ?? 0
-      return { macro: `M${num}`, macroNumber: num, date: r.date, type: r.runType, paceS, distanceKm: r.distanceKm, hr: r.avgHr, terrain: r.terrain || 'road' } satisfies TrendRun
-    })
-    .filter((r): r is TrendRun => r != null)
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
-}
-
-// GiantFit capacity: every completed log (time + rounds both usable) joined to
-// its session, oldest → newest, for the Capacity trend view. Per-round time
-// comes from the engine helper (capacity.perRoundSeconds) — never re-derived
-// here. This series is a READOUT ONLY: the time-based S6 was retired on
-// 2026-07-31 (an uncapped circuit's per-round time measures transitions and
-// equipment, not the athlete), so nothing about the deload rule reads it.
-export function toCapacityTrend(logs: CapacityLog[], sessions: Session[], macros: Macro[]): TrendCapacity[] {
-  const numById: Record<string, number> = {}
-  macros.forEach((m) => {
-    numById[m.id] = m.number
-  })
-  const byId = new Map(sessions.map((s) => [s.id, s]))
-  return (logs || [])
-    .map((log): TrendCapacity | null => {
-      const s = byId.get(log.sessionId)
-      const perRoundS = perRoundSeconds(log)
-      if (!s || perRoundS == null) return null
-      const num = numById[s.macroId] ?? 0
-      return {
-        macro: `M${num}`,
-        macroNumber: num,
-        date: s.date,
-        variant: log.variant,
-        perRoundS,
-        rounds: log.roundsCompleted as number,
-        totalS: log.totalTimeSeconds as number,
-        calories: log.calories,
-        rpe: parseRpe(log.rpe),
-      }
-    })
-    .filter((p): p is TrendCapacity => p != null)
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
-}
-
 // Each training session has one carry, typed by the day's lift. Weight is the
 // per-cycle accessory load; distance is the session's logged metres/round.
-// Day → carry implement (final reassignment). Weight comes from the per-cycle
-// accessory item keyed by day (carry_<day>), so the keys are unchanged.
 const CARRY_OF: Record<string, { type: CarryType; item: string }> = {
   deadlift: { type: 'Farmer', item: 'carry_deadlift' },
   ohp: { type: 'Overhead', item: 'carry_ohp' },
   squat: { type: 'Sandbag', item: 'carry_squat' },
-  bench: { type: 'Suitcase', item: 'carry_bench' }, // GiantFit bench day
-  dips: { type: 'Suitcase', item: 'carry_dips' }, // legacy Giant dips day
+  bench: { type: 'Suitcase', item: 'carry_bench' },
 }
 export function toCarrySessions(sessions: Session[], macros: Macro[], accessory: Record<string, AccessoryByCycle>): TrendCarry[] {
   const numById: Record<string, number> = {}
@@ -147,9 +88,8 @@ export function toCarrySessions(sessions: Session[], macros: Macro[], accessory:
 }
 
 // Attendance, derived from the real schedule (enumerateMacro) — columns are the
-// Mon/Wed/Fri slots, so the lift rotation isn't forced into fixed lift-columns.
-// Each cell's status comes from breaks / deload weeks / what was logged / whether
-// the date has passed.
+// Mon/Tue/Thu/Fri slots. Each cell's status comes from breaks / deload weeks /
+// what was logged / whether the date has passed.
 export function toAttendance(macros: Macro[], sessions: Session[], deloads: DeloadMap, breakDays: BreakDayMap): AttMacro[] {
   const logged = new Set(sessions.map((s) => s.date))
   const today = todayISO()
@@ -160,7 +100,7 @@ export function toAttendance(macros: Macro[], sessions: Session[], deloads: Delo
     .map((m) => {
       const rows = enumerateMacro(m.startISO, m.number, { weeks: m.weeks, deloadExtended: m.deloadExtended })
       const cycleMap: Record<number, AttCycle> = {}
-      const endRows: AttMacro['endRows'] = []
+      const endRows: AttEndRow[] = []
       let epDone = 0
       let epMissed = 0
       let epHoliday = 0
@@ -184,39 +124,15 @@ export function toAttendance(macros: Macro[], sessions: Session[], deloads: Delo
             else if (c === 'missed') cyc.missed++
             else if (c === 'holiday') cyc.holiday++
           })
-        } else if (row.weekType === 'testing' || row.weekType === 'deload') {
-          // Testing weeks exist only on legacy macros; they render as plain
-          // attendance (done/missed) with week-number labels — Trends carries
-          // no testing-specific annotation anymore.
-          const isDeloadRow = row.weekType === 'deload'
-          const label = `W${row.displayWeek}`
-          const cells: AttStatus[] = row.cells.map((cell) => {
-            const planned = isDeloadRow || cell.testRole === 'test' // a counted slot
-            if (breakDays[cell.date]) {
-              if (planned) {
-                epTotal++
-                epHoliday++
-              }
-              return 'holiday'
-            }
-            if (logged.has(cell.date)) {
-              if (planned) {
-                epTotal++
-                epDone++
-              }
-              return isDeloadRow ? 'deload' : 'done'
-            }
-            if (planned) {
-              epTotal++
-              if (cell.date < today) {
-                epMissed++
-                return 'missed'
-              }
-              return 'upcoming'
-            }
-            return null // optional legacy Wed light day — not counted
+        } else if (row.weekType === 'deload') {
+          const cells: AttStatus[] = row.cells.map((cell) => (breakDays[cell.date] ? 'holiday' : logged.has(cell.date) ? 'done' : cell.date < today ? 'missed' : 'upcoming'))
+          endRows.push({ row: `W${row.displayWeek}`, cells })
+          cells.forEach((c) => {
+            epTotal++
+            if (c === 'done') epDone++
+            else if (c === 'holiday') epHoliday++
+            else if (c === 'missed') epMissed++
           })
-          endRows.push({ row: label, cells })
         }
       }
 

@@ -1,7 +1,7 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { round, fmt, schemeFor, dayTop, expandDayTops, giantSets, set1Weight, warmupSets, volumeWeight, deloadTop, testCeiling, liftMode } from './loading'
-import { ANCHOR_LIFTS, ANCHOR_LABEL, GIANTFIT_ROW, GIANTFIT_ROW_REPS, GIANTFIT_GB_ACCESSORY, GIANTFIT_GB_DEFAULT_REPS } from './constants'
+import { round, fmt, schemeFor, dayTop, expandDayTops, giantSets, set1Weight, warmupSets, volumeWeight, deloadTop, liftMode } from './loading'
+import { ANCHOR_LIFTS, ANCHOR_LABEL, SECONDARY_LANE, SECONDARY_REPS, GB_ACCESSORY, GB_DEFAULT_REPS } from './constants'
 
 test('round: nearest 2.5 kg', () => {
   assert.equal(round(120), 120)
@@ -86,12 +86,7 @@ test('anchor is NEVER rounded: hard day-top returns the anchor exactly', () => {
   assert.equal(dayTop(1, 'hard'), 1) // would snap to 0 if rounded
 })
 
-test('testCeiling: ~+5% of the anchor, rounded to 2.5', () => {
-  assert.equal(testCeiling(160), 167.5) // round(168, 2.5)
-  assert.equal(testCeiling(67.5), 70) // round(70.875, 2.5)
-})
-
-test('liftMode (LEGACY, old dips-day rendering only): 0/null/undefined = bodyweight', () => {
+test('liftMode: 0/null/undefined = bodyweight (Pull-ups bench-day secondary, two-mode)', () => {
   assert.equal(liftMode(0), 'bodyweight')
   assert.equal(liftMode(null), 'bodyweight')
   assert.equal(liftMode(undefined), 'bodyweight')
@@ -99,37 +94,37 @@ test('liftMode (LEGACY, old dips-day rendering only): 0/null/undefined = bodywei
   assert.equal(liftMode(10), 'weighted')
 })
 
-test('ANCHOR_LIFTS: six GiantFit anchors incl. the rows (2026-07-30 revision), all labelled', () => {
+test('ANCHOR_LIFTS: six anchors incl. the two secondary lanes, all labelled', () => {
   assert.deepEqual(ANCHOR_LIFTS, ['deadlift', 'ohp', 'squat', 'bench', 'db_row', 'pendlay_row'])
   for (const l of ANCHOR_LIFTS) assert.ok(ANCHOR_LABEL[l], `label missing for ${l}`)
 })
 
-test('GIANTFIT_ROW: OHP day pairs the DB Row anchor, bench day the Pendlay Row; DL/squat train alone', () => {
-  assert.deepEqual(GIANTFIT_ROW, { ohp: 'db_row', bench: 'pendlay_row' })
+test('SECONDARY_LANE: OHP day pairs the db_row anchor (BB Row), bench day pendlay_row (Pull-ups); DL/squat train alone', () => {
+  assert.deepEqual(SECONDARY_LANE, { ohp: 'db_row', bench: 'pendlay_row' })
 })
 
-test('GIANTFIT_ROW_REPS: fixed row reps by day — H8 / M9 / L10', () => {
-  assert.deepEqual(GIANTFIT_ROW_REPS, { hard: 8, medium: 9, light: 10 })
+test('SECONDARY_REPS: fixed secondary reps by day — H8 / M9 / L10', () => {
+  assert.deepEqual(SECONDARY_REPS, { hard: 8, medium: 9, light: 10 })
 })
 
-test('GIANTFIT_GB_ACCESSORY: one bodyweight accessory per day, default 10 reps each', () => {
+test('GB_ACCESSORY: one bodyweight accessory per day', () => {
   assert.deepEqual(
-    Object.entries(GIANTFIT_GB_ACCESSORY).map(([d, m]) => [d, m.key, m.reps]),
+    Object.entries(GB_ACCESSORY).map(([d, m]) => [d, m.key, m.reps]),
     [
+      ['squat', 'ab_rollout', 10],
       ['deadlift', 'ab_rollout', 10],
-      ['ohp', 'toes_to_bar', 10],
-      ['squat', 'ghd_abs', 10],
-      ['bench', 'ghd_back_ext', 10],
+      ['bench', 'leg_raises', 12],
+      ['ohp', 'leg_raises', 12],
     ]
   )
-  assert.deepEqual(GIANTFIT_GB_DEFAULT_REPS, { ab_rollout: 10, toes_to_bar: 10, ghd_abs: 10, ghd_back_ext: 10 })
+  assert.deepEqual(GB_DEFAULT_REPS, { ab_rollout: 10, leg_raises: 12 })
 })
 
-test('volume rep scheme (main lift AND the anchored row): H 2×6 / M 2×8 / L 2×10', () => {
+test('volume rep scheme (main lift AND the secondary): H 2×6 / M 2×8 / L 2×10', () => {
   assert.equal(schemeFor('hard').vol, 6)
   assert.equal(schemeFor('medium').vol, 8)
   assert.equal(schemeFor('light').vol, 10)
-  // The row's volume load uses the identical 80% helper off the ROW's day top.
+  // The secondary's volume load uses the identical 80% helper off its OWN day top.
   assert.equal(volumeWeight(dayTop(60, 'medium')), volumeWeight(57.5)) // 60×0.95 -> 57.5 -> 45
   assert.equal(volumeWeight(dayTop(60, 'medium')), 45)
 })

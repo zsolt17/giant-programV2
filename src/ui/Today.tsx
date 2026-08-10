@@ -4,14 +4,12 @@ import { C, HEADING, pillColor, lbl } from './theme'
 import { Card } from './components'
 import { PositionHeader, DurationEdit, fmtClock, errMsg } from './controls'
 import { useWakeLock } from './useWakeLock'
-import { SessionForm, buildBlankSession } from './SessionForm'
-import { TestingSessionView } from './TestingSession'
-import { RunForm, buildBlankRun, SetPaceChip } from './RunForm'
-import { SCHEMES, LIFT_LABEL, SIGNALS, RUN_SIGNALS, SECONDARY_ITEM, RUN_TYPE_LABEL, GIANTFIT_ROW } from '../engine/constants'
+import { Giant2SessionForm } from './Giant2SessionForm'
+import { buildBlankSession } from './SessionForm'
+import { SCHEMES, LIFT_LABEL, SIGNALS, SECONDARY_LANE } from '../engine/constants'
 import { deloadTop } from '../engine/loading'
-import { runSlotFor } from '../engine/runs'
-import { todayISO, mondayOf, parseLocalDate, isoLocal, rotationLiftFor, isGiant2Date } from '../engine/date-engine'
-import { computeWeekSignals, shouldRecommendDeload, usedDeloadThisMeso, weekKeyFor, capacityLogsForSessions } from '../engine/deload-rule'
+import { mondayOf, parseLocalDate, isoLocal } from '../engine/date-engine'
+import { computeWeekSignals, shouldRecommendDeload, usedDeloadThisMeso, weekKeyFor } from '../engine/deload-rule'
 import type {
   Position,
   Session,
@@ -21,18 +19,9 @@ import type {
   AccessoryByCycle,
   DeloadMap,
   BreakDayMap,
-  TestingResult,
   WeekType,
   Lift,
   Difficulty,
-  Run,
-  RunDraft,
-  RunSlot,
-  RunTargetsByCycle,
-  CapacityVariant,
-  CapacityConfig,
-  CapacityLog,
-  CapacityLogDraft,
   GiantAccessoryReps,
   HypertrophyLog,
   HypertrophyLogDraft,
@@ -41,19 +30,10 @@ import type {
 } from '../engine/types'
 import type { Movement } from '../engine/movements'
 
-// Everything the capacity block needs, bundled for prop threading: the slot's
-// variant, the Setup config, this session's log, and the App-level handlers.
-interface CapacityCtx {
-  variant: CapacityVariant
-  config: CapacityConfig
-  log: CapacityLog | null
-  onSaveCapacityLog: (log: CapacityLogDraft) => Promise<CapacityLog>
-  onDeleteCapacityLog: (sessionId: string) => Promise<void>
-}
-
-// Giant 2.0 Capability block context — same "FK needs the session row first"
-// shape as CapacityCtx, but movements + BOTH log arrays (only one program is
-// ever active for a given cycle, but the context doesn't need to know which).
+// Capability block context — the FK needs the session row first, so its save
+// upserts the current draft before writing the sub-record. Movements + BOTH
+// log arrays (only one program is ever active for a given cycle, but the
+// context doesn't need to know which).
 interface CapabilityCtx {
   movements: Movement[]
   hypertrophyLogs: HypertrophyLog[]
@@ -92,8 +72,6 @@ interface Stamp {
   weekType: WeekType
   dayType: Lift
   difficulty: Difficulty
-  // Giant 2.0 only: re-stamped on every save just like `difficulty`, so a
-  // stale draft can never persist a wrong (or missing) Volume difficulty.
   volumeDifficulty?: Difficulty | null
   topReps: number | null
   topWeight: number | null
@@ -109,21 +87,12 @@ interface TodayProps {
   sessions: Session[]
   deloads: DeloadMap
   breakDays?: BreakDayMap
-  testingResults?: TestingResult[]
-  runs?: Run[]
-  runTargets?: RunTargetsByCycle
-  refPaceS?: number | null
-  // The macro's shape (weeks + athlete deload extension) — feeds the engine.
-  macroWeeks?: number
   deloadExtended?: boolean
   // The date the position was computed for (honours the dev ?today override).
   dateISO?: string
-  // GiantFit capacity: Setup config + this macro's logs + handlers.
-  capacity?: CapacityConfig
-  capacityLogs?: CapacityLog[]
   // Giant Block accessory rep targets (Setup config, defaults merged).
   giantAccessory?: GiantAccessoryReps
-  // Giant 2.0 Capability block: the athlete's movement library + this macro's
+  // The Capability block: the athlete's movement library + this macro's
   // Hypertrophy/Oly logs + save handlers.
   movements?: Movement[]
   hypertrophyLogs?: HypertrophyLog[]
@@ -131,14 +100,7 @@ interface TodayProps {
   onSaveHypertrophyLog?: (log: HypertrophyLogDraft) => Promise<HypertrophyLog>
   onSaveOlyLog?: (log: OlyLogDraft) => Promise<OlyLog>
   onSaveSession: (record: SessionDraft) => Promise<Session>
-  onDeleteSession: (id: string) => Promise<void>
   onApplyDeload: (weekKey: string, on: boolean) => Promise<void>
-  onSaveTestingResult: (r: TestingResult) => Promise<TestingResult>
-  onDeleteTestingResult: (id: string) => void
-  onSaveRun?: (record: RunDraft) => Promise<Run>
-  onSaveCapacityLog?: (log: CapacityLogDraft) => Promise<CapacityLog>
-  onDeleteCapacityLog?: (sessionId: string) => Promise<void>
-  onSetRefPace?: (refPaceS: number | null) => Promise<void>
   onExtendDeload?: (on: boolean) => Promise<void>
   onRunningChange?: (running: boolean) => void
 }
@@ -151,35 +113,19 @@ export function Today({
   sessions,
   deloads,
   breakDays = {},
-  testingResults = [],
-  runs = [],
-  runTargets = {},
-  refPaceS = null,
-  macroWeeks,
   deloadExtended = false,
   dateISO,
-  capacity,
-  capacityLogs = [],
   giantAccessory,
   movements = [],
   hypertrophyLogs = [],
   olyLogs = [],
   onSaveSession,
-  onDeleteSession,
   onApplyDeload,
-  onSaveTestingResult,
-  onDeleteTestingResult,
-  onSaveRun,
-  onSaveCapacityLog,
-  onDeleteCapacityLog,
   onSaveHypertrophyLog,
   onSaveOlyLog,
-  onSetRefPace,
   onExtendDeload,
   onRunningChange,
 }: TodayProps) {
-  const shape = { weeks: macroWeeks, deloadExtended }
-  const [viewDiff, setViewDiff] = useState<Difficulty | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -199,100 +145,21 @@ export function Today({
         </div>
       </Card>
     )
-  // Run day (Tue/Thu/Sat)? Never collides with lift session days (Mon/Wed/Fri)
-  // pre-Giant-2.0: training + deload weeks render the run session; the
-  // testing-week Saturday is the 5k time trial. Reactive-deload weeks
-  // collapse to short-easy-only. Giant 2.0 moves lift days onto Tue/Thu too
-  // (Bench/Deadlift) — Giant Run is explicitly NOT wired into Giant 2.0
-  // (out of scope, not touched), so it's suppressed entirely on Giant2-era
-  // dates rather than colliding with those sessions.
-  const today = dateISO || todayISO()
-  const runSlot = computed.startISO && !computed.giant2 ? runSlotFor(computed.startISO, computed.macro, parseLocalDate(today), shape) : null
-  if (runSlot && onSaveRun) {
-    const runDeloadWeek =
-      runSlot.weekType === 'training' &&
-      runSlot.cycle != null &&
-      runSlot.week != null &&
-      !!deloads[weekKeyFor(computed.macro, runSlot.cycle, runSlot.week)]
-    const targetRaw = runSlot.weekType === 'training' && runSlot.cycle != null ? runTargets?.[runSlot.cycle]?.[runSlot.slot] : null
-    const isTraining = runSlot.weekType === 'training'
-    return (
-      <div>
-        <PositionHeader computed={computed} label={`${RUN_TYPE_LABEL[runDeloadWeek ? 'easy' : runSlot.runType]} Run`} />
-        <RunDay
-          key={runSlot.date}
-          slot={runSlot}
-          macroId={macroId}
-          refPaceS={refPaceS}
-          targetKm={targetRaw ?? null}
-          deloadWeek={runDeloadWeek}
-          existing={runs.find((r) => r.date === runSlot.date)}
-          // Pooled weekly signal feedback (training weeks only — testing/deload
-          // weeks never feed the recommendation).
-          weekSessions={isTraining ? sessions.filter((s) => s.cycle === runSlot.cycle && s.week === runSlot.week) : []}
-          weekRuns={isTraining ? runs.filter((r) => r.cycle === runSlot.cycle && r.week === runSlot.week) : []}
-          allRuns={runs}
-          capacityLogs={capacityLogs}
-          onSaveRun={onSaveRun}
-          onSetRefPace={onSetRefPace}
-        />
-      </div>
-    )
-  }
+  const today = dateISO || isoLocal(new Date())
 
-  if (computed.weekType === 'testing') {
-    if (computed.isSessionDay && computed.testRole === 'test' && computed.testLift) {
-      // Full session structure computed off the C3 Hard anchor (exact, never rounded);
-      // Set 4 is the open recording field. Result still saves to testing_results.
-      return (
-        <div>
-          <PositionHeader computed={computed} label="Testing Week" />
-          <TestingSessionView
-            macroId={macroId}
-            lift={computed.testLift}
-            c3Hard={weights?.[3]?.[computed.testLift]?.hard ?? null}
-            testedOn={today}
-            results={testingResults}
-            onSave={onSaveTestingResult}
-            onDelete={onDeleteTestingResult}
-            companion={sessions.find((s) => s.id === `${today}-${computed.testLift}-TEST`) ?? null}
-            onSaveSession={onSaveSession}
-            onDeleteSession={onDeleteSession}
-          />
-        </div>
-      )
-    }
-    return (
-      <div>
-        <PositionHeader computed={computed} label="Testing Week" />
-        <Card style={{ border: `1px solid ${C.gold}` }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: C.gold, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>
-            {computed.isSessionDay && computed.testRole === 'light' ? 'Optional light session' : 'Testing week'}
-          </div>
-          <div style={{ fontSize: 13, color: C.off, lineHeight: 1.5 }}>
-            {computed.isSessionDay && computed.testRole === 'light'
-              ? 'Optional easy session between the two test days — keep it light, just movement and a pump. Skip if you prefer.'
-              : 'Test days are Monday & Friday this week. Open Today on a test day (or any test cell in the Calendar) to record your 2–3RM.'}
-          </div>
-        </Card>
-      </div>
-    )
-  }
-  // Giant 2.0's deload week DOES carry a dayType (fixed day->lift, deload or
-  // not — unlike GiantFit's, which has never had one and so has only ever
-  // shown a static card here). It's a real loggable session: Giant block
-  // only, ~70% of the last cycle's (C3) Hard anchor, fixed Hard rep scheme
-  // (no H/M/L this week — 'hard' is used purely as the SCHEMES lookup, same
-  // convention as GiantFit's own "hard rep scheme" deload text below).
-  if (computed.giant2 && computed.weekType === 'deload' && computed.dayType) {
+  // The deload week DOES carry a dayType (fixed day->lift applies deload or
+  // not): Giant block only, ~70% of the last training cycle's (C3) Hard
+  // anchor, fixed Hard rep scheme (no H/M/L that week — 'hard' is used
+  // purely as the SCHEMES lookup).
+  if (computed.weekType === 'deload' && computed.dayType) {
     const dayType = computed.dayType as Lift
     const difficulty: Difficulty = 'hard'
     const REFERENCE_CYCLE = 3 // the last training cycle — deload continues off it
     const base = weights?.[REFERENCE_CYCLE]?.[dayType]?.hard
     const hasWeight = base != null
     const top = base != null ? deloadTop(base) : null
-    const rowAnchorKey = GIANTFIT_ROW[dayType]
-    const rowCell = rowAnchorKey ? weights?.[REFERENCE_CYCLE]?.[rowAnchorKey] ?? null : null
+    const laneKey = SECONDARY_LANE[dayType]
+    const secondaryCell = laneKey ? weights?.[REFERENCE_CYCLE]?.[laneKey] ?? null : null
     const sessionId = `${today}-${dayType}`
     const existing = sessions.find((s) => s.id === sessionId)
     const currentWeekSessions = sessions.filter((s) => s.weekType === 'deload' && s.date.slice(0, 7) === today.slice(0, 7))
@@ -313,7 +180,7 @@ export function Today({
           isDeload={true}
           volumeDifficulty={null}
           volumeTop={null}
-          rowCell={rowCell}
+          secondaryCell={secondaryCell}
           giantAccessory={giantAccessory}
           currentWeekSessions={currentWeekSessions}
           stamp={{ macroId, cycle: null, week: null, weekType: 'deload', dayType, difficulty, volumeDifficulty: null, topReps: SCHEMES.hard.sets[3], topWeight: top, date: today, id: sessionId }}
@@ -329,34 +196,13 @@ export function Today({
     )
   }
 
-  if (computed.weekType === 'deload')
-    return (
-      <div>
-        <PositionHeader computed={computed} label="Deload Week" />
-        <Card style={{ border: `1px solid ${C.gold}` }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: C.gold, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>
-            End-of-macro deload{deloadExtended ? ' · extended' : ''}
-          </div>
-          <div style={{ fontSize: 13, color: C.off, lineHeight: 1.5 }}>
-            Giant Block only at 50–60% of working loads, hard rep scheme. No volume, no carries.{' '}
-            {computed.giantfit ? '' : 'Keep skill days. '}This should feel easy — that's correct.
-          </div>
-        </Card>
-        {onExtendDeload && <DeloadExtend extended={deloadExtended} onExtendDeload={onExtendDeload} />}
-      </div>
-    )
-
   if (!computed.isSessionDay) {
     const ns = computed.nextSession
     return (
       <div>
         <PositionHeader computed={computed} />
         <Card style={{ textAlign: 'center', padding: 24 }}>
-          {/* GiantFit removed skill days — post-cutover off-days are plain rest
-              (Tue/Thu/Sat render the run session before reaching this branch). */}
-          <div style={{ fontFamily: HEADING, fontSize: 22, color: C.gold, letterSpacing: '0.05em' }}>
-            {computed.giantfit ? 'Rest Day' : 'Skill day / Rest'}
-          </div>
+          <div style={{ fontFamily: HEADING, fontSize: 22, color: C.gold, letterSpacing: '0.05em' }}>Rest Day</div>
           <div style={{ fontSize: 12, color: C.muted, marginTop: 6 }}>No strength session scheduled today.</div>
           {ns && ns.dayType && (
             <div style={{ fontSize: 13, color: C.off, marginTop: 12 }}>
@@ -370,65 +216,33 @@ export function Today({
 
   // --- normal training session ---------------------------------------------
   // On a training session day the date engine guarantees these are all set.
-  const { meso: cycle, week, macro, difficulty: posDiff, weekIndex } = computed
-  if (cycle == null || week == null || posDiff == null || weekIndex == null) return null
-  const difficulty = viewDiff || posDiff
-  // The actual day comes from the position (which applies the GiantFit C1
-  // override — e.g. C1W1D1 is a MEDIUM deadlift, not the medium-slot lift);
-  // only a difficulty PEEK derives its lift from the era's rotation. Giant 2.0
-  // has no rotation to peek across (day->lift is fixed) — the peek toggle is
-  // hidden for it (controls.tsx PositionHeader), guarded here too.
-  const dayType = viewDiff && !computed.giant2 ? rotationLiftFor(week, viewDiff, !!computed.giantfit) : (computed.dayType as Lift)
+  const { meso: cycle, week, macro, difficulty, weekIndex } = computed
+  if (cycle == null || week == null || difficulty == null || weekIndex == null) return null
+  const dayType = computed.dayType as Lift
   const base = weights?.[cycle]?.[dayType]?.[difficulty]
   const hasWeight = base != null
   const weekKey = weekKeyFor(macro, cycle, week)
   const isDeload = !!deloads[weekKey]
   const top = base != null ? (isDeload ? deloadTop(base) : base) : null
-  // Giant 2.0 only: the Volume block's OWN difficulty (independent of the
-  // Giant block's above) and its day-top off the SAME per-cycle cascade —
-  // just indexed by the other difficulty. Null volumeDifficulty (C3 W4, or
-  // any non-Giant-2.0 date) means no Volume block; no deload treatment needed
-  // here since corePosition already nulls volumeDifficulty on deload weeks.
+  // The Volume block's OWN difficulty (independent of the Giant block's
+  // above) and its day-top off the SAME per-cycle cascade — just indexed by
+  // the other difficulty. Null volumeDifficulty (C3 W4) means no Volume block.
   const volumeDifficulty = computed.volumeDifficulty ?? null
   const volumeTop = volumeDifficulty ? weights?.[cycle]?.[dayType]?.[volumeDifficulty] ?? null : null
   const carryDefault = accessory?.[cycle]?.[`carry_${dayType}`] ?? ''
-  const secondaryItem = SECONDARY_ITEM[dayType]
-  const secondaryDefault = secondaryItem ? accessory?.[cycle]?.[secondaryItem] ?? '' : ''
-  const pullupCell = dayType === 'dips' ? weights?.[cycle]?.pullup ?? null : null
-  // The day's anchored row/secondary cell — GiantFit's OHP/bench row lanes,
-  // REUSED unchanged for Giant 2.0's BB Row (OHP) / Pull-ups (bench); same
-  // lookup for both eras (GIANTFIT_ROW is just the day->lane map, not
-  // era-specific despite the name).
-  const rowAnchorKey = GIANTFIT_ROW[dayType]
-  const rowCell = rowAnchorKey ? weights?.[cycle]?.[rowAnchorKey] ?? null : null
-  // Use the position's date (honours the dev ?today override) — stamping the
-  // REAL date here once made an overridden Today render the wrong era.
-  // Giant 2.0 ids drop the difficulty suffix (see buildBlankSession).
-  const sessionId = isGiant2Date(today) ? `${today}-${dayType}` : `${today}-${dayType}-${difficulty[0].toUpperCase()}`
+  // The day's secondary (db_row/pendlay_row lane — BB Row on OHP day, Pull-ups on bench day).
+  const laneKey = SECONDARY_LANE[dayType]
+  const secondaryCell = laneKey ? weights?.[cycle]?.[laneKey] ?? null : null
+  const sessionId = `${today}-${dayType}`
   const existing = sessions.find((s) => s.id === sessionId)
   const currentWeekSessions = sessions.filter((s) => s.cycle === cycle && s.week === week)
-  const currentWeekRuns = runs.filter((r) => r.cycle === cycle && r.week === week)
 
-  // Reactive-deload recommendation (based on previous week's signals — lifts and
-  // runs pooled).
-  // GiantFit capacity context for this slot (post-cutover training days only).
-  const capacityCtx: CapacityCtx | null =
-    computed.giantfit && computed.capacityVariant && capacity && onSaveCapacityLog && onDeleteCapacityLog
-      ? {
-          variant: computed.capacityVariant,
-          config: capacity,
-          log: capacityLogs.find((l) => l.sessionId === sessionId) ?? null,
-          onSaveCapacityLog,
-          onDeleteCapacityLog,
-        }
-      : null
-
-  // Giant 2.0 Capability block context — only when the cycle actually has one
-  // (never on deload, cycle is null there). The block itself decides
-  // Hypertrophy/Oly/Carries by cycle; this context just supplies the data
-  // both per-movement log types might need.
+  // Capability block context — only when the cycle actually has one (never
+  // on deload, cycle is null there). The block itself decides Hypertrophy/
+  // Oly/Carries by cycle; this context just supplies the data both
+  // per-movement log types might need.
   const capabilityCtx: CapabilityCtx | null =
-    computed.giant2 && cycle != null && onSaveHypertrophyLog && onSaveOlyLog
+    onSaveHypertrophyLog && onSaveOlyLog
       ? {
           movements,
           hypertrophyLogs: hypertrophyLogs.filter((l) => l.sessionId === sessionId),
@@ -438,20 +252,15 @@ export function Today({
         }
       : null
 
+  // Reactive-deload recommendation, based on the previous week's signals.
   const prevWeekSessions = week > 1 ? sessions.filter((s) => s.cycle === cycle && s.week === week - 1) : []
-  const prevWeekRuns = week > 1 ? runs.filter((r) => r.cycle === cycle && r.week === week - 1) : []
   const recommend = shouldRecommendDeload({
     prevWeekSessions,
-    prevWeekRuns,
-    priorRuns: runs,
-    capacityLogs,
     alreadyDeloaded: isDeload,
     usedThisMeso: usedDeloadThisMeso(deloads, macro, cycle),
     breakComing: breakInWeek(computed.startISO ?? '', weekIndex, breakDays),
   })
-  // The previous week's signal breakdown, listed on the recommendation card
-  // (incl. S6's offending capacity-session dates).
-  const prevSig = recommend ? computeWeekSignals(prevWeekSessions, prevWeekRuns, runs, capacityLogsForSessions(capacityLogs, prevWeekSessions)) : null
+  const prevSig = recommend ? computeWeekSignals(prevWeekSessions) : null
 
   return (
     <div>
@@ -460,16 +269,13 @@ export function Today({
           <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', color: C.red, textTransform: 'uppercase', marginBottom: 6 }}>Reactive deload recommended</div>
           <div style={{ fontSize: 13, color: C.off, lineHeight: 1.5, marginBottom: 10 }}>
             Last week (W{week - 1}) logged 3+ fatigue signals. The rule recommends a deload: Giant Block only at ~70%, no
-            volume, {computed.giantfit ? 'no capacity block, ' : ''}light/skipped carries.{computed.giantfit ? '' : ' Skill days stay normal.'}
+            volume, light/skipped carries.
           </div>
           {prevSig && prevSig.types.size > 0 && (
             <div style={{ fontSize: 12, color: C.off, lineHeight: 1.6, marginBottom: 10 }}>
               {[...prevSig.types].map((id) => (
                 <div key={id}>
                   <span style={{ color: C.red, fontWeight: 600 }}>{id}</span> · {signalLabel(id)}
-                  {id === 'S6' && prevSig.s6Dates && prevSig.s6Dates.length > 0 && (
-                    <span style={{ color: C.muted }}> ({prevSig.s6Dates.join(' + ')})</span>
-                  )}
                 </div>
               ))}
             </div>
@@ -505,7 +311,7 @@ export function Today({
         sessionId={sessionId}
         existing={existing}
         blank={() => buildBlankSession({ date: today, macroId, cycle, week, weekType: 'training', dayType, difficulty, volumeDifficulty, baseTop: base, isDeload })}
-        headerSlot={<PositionHeader computed={computed} viewDiff={viewDiff} setViewDiff={setViewDiff} />}
+        headerSlot={<PositionHeader computed={computed} />}
         dayType={dayType}
         difficulty={difficulty}
         top={top}
@@ -514,18 +320,12 @@ export function Today({
         volumeDifficulty={volumeDifficulty}
         volumeTop={volumeTop}
         carryLoad={carryDefault}
-        secondaryLoad={secondaryDefault}
-        pullupCell={pullupCell}
-        rowCell={rowCell}
+        secondaryCell={secondaryCell}
         giantAccessory={giantAccessory}
-        capacityCtx={capacityCtx}
-        capacityLogs={capacityLogs}
         cycle={cycle}
         weekInCycle={week}
         capabilityCtx={capabilityCtx}
         currentWeekSessions={currentWeekSessions}
-        currentWeekRuns={currentWeekRuns}
-        allRuns={runs}
         stamp={{
           macroId,
           cycle,
@@ -608,65 +408,6 @@ function DeloadExtend({ extended, onExtendDeload }: { extended: boolean; onExten
   )
 }
 
-interface RunDayProps {
-  slot: RunSlot
-  macroId: string
-  refPaceS: number | null
-  targetKm: number | null
-  deloadWeek: boolean
-  existing?: Run
-  weekSessions?: Session[]
-  weekRuns?: Run[]
-  allRuns?: Run[]
-  capacityLogs?: CapacityLog[]
-  onSaveRun: (record: RunDraft) => Promise<Run>
-  onSetRefPace?: (refPaceS: number | null) => Promise<void>
-}
-
-// The run-day editor: RunForm + save, no timer (duration is a logged field).
-// The slot stamp (id/date/cycle/week/weekType/runType) is applied on every save
-// so a draft can't drift from the computed schedule.
-function RunDay({ slot, macroId, refPaceS, targetKm, deloadWeek, existing, weekSessions = [], weekRuns = [], allRuns = [], capacityLogs = [], onSaveRun, onSetRefPace }: RunDayProps) {
-  const [draft, setDraft] = useState<RunDraft>(() => existing || buildBlankRun(slot, macroId))
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [err, setErr] = useState('')
-  const setField = <K extends keyof RunDraft>(k: K, v: RunDraft[K]) => setDraft((p) => ({ ...p, [k]: v }) as RunDraft)
-
-  async function handleSave() {
-    setSaving(true)
-    setErr('')
-    try {
-      const blank = buildBlankRun(slot, macroId)
-      await onSaveRun({ ...draft, id: blank.id, date: blank.date, cycle: blank.cycle, week: blank.week, weekType: blank.weekType, runType: blank.runType })
-      setSaved(true)
-      setTimeout(() => setSaved(false), 1800)
-    } catch (e) {
-      setErr(errMsg(e))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div>
-      <RunForm slot={slot} refPaceS={refPaceS} targetKm={targetKm} deloadWeek={deloadWeek} draft={draft} setField={setField} />
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        style={{ width: '100%', background: saved ? C.green : C.gold, color: C.dark, border: 'none', borderRadius: 2, padding: 14, fontSize: 14, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}
-      >
-        {saving ? 'Saving…' : saved ? 'Saved ✓' : existing ? 'Update run' : 'Log run'}
-      </button>
-      {err && (
-        <div style={{ marginTop: 10, fontSize: 12, color: C.red }}>Couldn't save — {err}. Check your connection and try again.</div>
-      )}
-      {slot.runType === 'tt' && existing && onSetRefPace && <SetPaceChip run={existing} refPaceS={refPaceS} onSetRefPace={onSetRefPace} />}
-      {slot.weekType === 'training' && <SignalBanner currentWeekSessions={weekSessions} weekRuns={weekRuns} allRuns={allRuns} capacityLogs={capacityLogs} runDraft={draft} />}
-    </div>
-  )
-}
-
 interface SessionEditorProps {
   sessionId: string
   existing?: Session
@@ -677,24 +418,17 @@ interface SessionEditorProps {
   top: number | null
   hasWeight: boolean
   isDeload: boolean
-  // Giant 2.0 only: the Volume block's own difficulty + day-top.
   volumeDifficulty?: Difficulty | null
   volumeTop?: number | null
   carryLoad?: number | string | null
-  secondaryLoad?: number | string | null
-  pullupCell?: LiftWeights | null
-  rowCell?: LiftWeights | null
+  secondaryCell?: LiftWeights | null
   giantAccessory?: GiantAccessoryReps
-  capacityCtx?: CapacityCtx | null
-  capacityLogs?: CapacityLog[]
-  // Giant 2.0 Capability block: the cycle (null on deload — nothing renders),
-  // the week within it (Oly's position-wave text), and the log context.
+  // The cycle (null on deload — nothing renders), the week within it (Oly's
+  // position-wave text), and the Capability block's log context.
   cycle?: number | null
   weekInCycle?: number | null
   capabilityCtx?: CapabilityCtx | null
   currentWeekSessions: Session[]
-  currentWeekRuns?: Run[]
-  allRuns?: Run[]
   stamp: Stamp
   onSaveSession: (record: SessionDraft) => Promise<Session>
   onRunningChange?: (running: boolean) => void
@@ -717,18 +451,12 @@ function SessionEditor({
   volumeDifficulty,
   volumeTop,
   carryLoad,
-  secondaryLoad,
-  pullupCell,
-  rowCell,
+  secondaryCell,
   giantAccessory,
-  capacityCtx = null,
-  capacityLogs = [],
   cycle,
   weekInCycle,
   capabilityCtx = null,
   currentWeekSessions,
-  currentWeekRuns = [],
-  allRuns = [],
   stamp,
   onSaveSession,
   onRunningChange,
@@ -841,22 +569,8 @@ function SessionEditor({
 
   const autoEnded = (draft.notes || '').includes(AUTO_END_NOTE)
 
-  // Capacity block: the log's FK needs the session row, so its save upserts the
-  // current draft first (idempotent) and then writes the capacity log.
-  const capacity = capacityCtx
-    ? {
-        variant: capacityCtx.variant,
-        config: capacityCtx.config,
-        log: capacityCtx.log,
-        onSave: async (l: CapacityLogDraft) => {
-          await onSaveSession({ ...draft, ...stamp })
-          return capacityCtx.onSaveCapacityLog(l)
-        },
-        onDelete: capacityCtx.onDeleteCapacityLog,
-      }
-    : null
-
-  // Capability block: same FK-needs-the-session-row-first pattern as capacity.
+  // Capability block: FK needs the session row, so its save upserts the
+  // current draft first (idempotent) and then writes the sub-record.
   const capability = capabilityCtx
     ? {
         movements: capabilityCtx.movements,
@@ -891,25 +605,22 @@ function SessionEditor({
         />
       )}
 
-      <SessionForm
+      <Giant2SessionForm
         dayType={dayType}
         difficulty={difficulty}
+        volumeDifficulty={volumeDifficulty ?? null}
         top={top}
+        volumeTop={volumeTop ?? null}
         hasWeight={hasWeight}
         isDeload={isDeload}
-        volumeDifficulty={volumeDifficulty}
-        volumeTop={volumeTop}
         draft={draft}
         setField={setField}
         locked={notStarted}
-        carryLoad={carryLoad}
-        secondaryLoad={secondaryLoad}
-        pullupCell={pullupCell}
-        rowCell={rowCell}
+        secondaryCell={secondaryCell}
         giantAccessory={giantAccessory}
-        capacity={capacity}
         cycle={cycle}
         weekInCycle={weekInCycle}
+        carryLoad={carryLoad}
         capability={capability}
       />
 
@@ -925,7 +636,7 @@ function SessionEditor({
       {err && (
         <div style={{ marginTop: 10, fontSize: 12, color: C.red }}>Couldn't save — {err}. Check your connection and try again.</div>
       )}
-      <SignalBanner currentWeekSessions={currentWeekSessions} weekRuns={currentWeekRuns} allRuns={allRuns} capacityLogs={capacityLogs} draft={draft} />
+      <SignalBanner currentWeekSessions={currentWeekSessions} draft={draft} />
 
       {running && <SessionControlBar elapsedMs={elapsedMs} saving={saving} onEnd={handleEnd} />}
     </div>
@@ -1044,39 +755,16 @@ function SessionControlBar({ elapsedMs, saving, onEnd }: { elapsedMs: number; sa
   )
 }
 
-// Label lookup spans the lift + run signal sets (pooled week).
 export function signalLabel(id: string): string | undefined {
-  return (SIGNALS.find((x) => x.id === id) || RUN_SIGNALS.find((x) => x.id === id))?.label
+  return SIGNALS.find((x) => x.id === id)?.label
 }
 
-const numOrNull = (v: number | string | null | undefined): number | null =>
-  v === '' || v == null || Number.isNaN(Number(v)) ? null : Number(v)
-
-// Live fatigue-signal feedback for the current week (lifts + runs pooled),
-// including the in-progress draft (session or run).
-function SignalBanner({
-  currentWeekSessions,
-  weekRuns = [],
-  allRuns = [],
-  capacityLogs = [],
-  draft,
-  runDraft,
-}: {
-  currentWeekSessions: Session[]
-  weekRuns?: Run[]
-  allRuns?: Run[]
-  capacityLogs?: CapacityLog[]
-  draft?: SessionDraft
-  runDraft?: RunDraft
-}) {
+// Live fatigue-signal feedback for the current week, including the
+// in-progress draft.
+function SignalBanner({ currentWeekSessions, draft }: { currentWeekSessions: Session[]; draft?: SessionDraft }) {
   // computeWeekSignals ignores the fields that differ between draft and Session.
   const mergedSessions = draft ? currentWeekSessions.filter((s) => s.id !== draft.id).concat(draft as Session) : currentWeekSessions
-  const mergedRuns = runDraft
-    ? weekRuns
-        .filter((r) => r.id !== runDraft.id)
-        .concat({ ...runDraft, distanceKm: numOrNull(runDraft.distanceKm), durationS: numOrNull(runDraft.durationS), avgHr: numOrNull(runDraft.avgHr) })
-    : weekRuns
-  const sig = computeWeekSignals(mergedSessions, mergedRuns, allRuns, capacityLogsForSessions(capacityLogs, mergedSessions))
+  const sig = computeWeekSignals(mergedSessions)
   if (sig.occurrences === 0) return null
   const fired = sig.fired
   return (

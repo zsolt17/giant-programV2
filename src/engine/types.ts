@@ -1,24 +1,15 @@
-// Shared domain types for The Giant Program. Used across the engine and the data
-// layer so the row<->app boundary and the program logic stay in sync.
+// Shared domain types for The Giant Program (Giant 2.0). Used across the
+// engine and the data layer so the row<->app boundary and the program logic
+// stay in sync.
 
 export type Difficulty = 'hard' | 'medium' | 'light'
-// Day lifts across both eras: GiantFit rotates DL/OHP/Squat/Bench; 'dips' is
-// the DEPRECATED Giant-era day lift — kept so pre-cutover history renders.
-export type Lift = 'deadlift' | 'ohp' | 'squat' | 'bench' | 'dips'
+export type Lift = 'deadlift' | 'ohp' | 'squat' | 'bench'
 // Lifts that can hold a per-cycle Hard-top anchor in working_weights. Anchors
 // are DL/OHP/Squat/Bench plus two anchored secondary lanes — the LANE keys
-// 'db_row' and 'pendlay_row' (never renamed once created, ANCHORED_LANES
-// discipline in engine/program.ts) — see ANCHOR_LIFTS in constants.ts.
-// The lanes are anchors, not day lifts: they never appear in the rotation.
-// Era history: GiantFit's 'db_row'/'pendlay_row' lanes carried DB Row (OHP)
-// and Pendlay Row (bench); Giant 2.0 (from GIANT2_START_DATE) reassigns the
-// SAME lanes to BB Row (OHP) and Pull-ups (bench, two-mode — see liftMode in
-// engine/loading.ts) — the lane persists, only the occupant changes. 'dips'
-// is a DEPRECATED Giant-era anchor — stored rows keep loading so old sessions
-// render, but Setup no longer shows or writes it.
-export type AnchorLift = Lift | 'pullup' | 'db_row' | 'pendlay_row'
-export type WeekType = 'training' | 'testing' | 'deload'
-export type TestRole = 'test' | 'light'
+// 'db_row' (OHP day, holds BB Row) and 'pendlay_row' (bench day, holds
+// Pull-ups, two-mode — see liftMode in engine/loading.ts).
+export type AnchorLift = Lift | 'db_row' | 'pendlay_row'
+export type WeekType = 'training' | 'deload'
 
 export interface Scheme {
   sets: number[]
@@ -33,9 +24,6 @@ export interface CarryMeta {
   sets: string
 }
 export interface DayMeta {
-  secondary: string
-  secondaryType: 'pullup' | 'rdl' | 'dbrow' | 'lunge' | 'pendlay'
-  core: string
   carry: CarryMeta
 }
 
@@ -44,26 +32,24 @@ export interface NextSession {
   date: string
   dayType?: Lift | null
   difficulty?: Difficulty | null
-  // Giant 2.0 only: the Volume block's own difficulty (null on GiantFit/legacy
-  // NextSessions, and on Giant 2.0 weeks with no Volume block — C3 week 4).
+  // The Volume block's own difficulty (null on weeks with no Volume block —
+  // C3 week 4).
   volumeDifficulty?: Difficulty | null
   meso?: number | null
   week?: number | null
-  testing?: boolean
   deload?: boolean
 }
 
 // The per-macro structure the date engine computes against: total weeks as
-// stored on the macro (13 for new macros; legacy 15-week macros keep their
-// lived testing weeks renderable) and the athlete's deload extension. Every
-// engine entry point takes this as an optional trailing argument.
+// stored on the macro (13 by default) and the athlete's deload extension.
+// Every engine entry point takes this as an optional trailing argument.
 export interface MacroShape {
   weeks?: number
   deloadExtended?: boolean
 }
 
 // Result of the date engine's position math. Special states set beforeStart /
-// complete; the normal training/testing/deload state fills the rest.
+// complete; the normal training/deload state fills the rest.
 export interface Position {
   macro: number
   phase: string
@@ -76,50 +62,29 @@ export interface Position {
   week?: number | null
   dayType?: Lift | null
   difficulty?: Difficulty | null
-  testRole?: TestRole | null
-  testLift?: Lift | null
   isSessionDay?: boolean
   displayWeekGlobal?: number
-  // Total weeks of this macro incl. a deload extension (13/14, legacy 15/16) —
-  // drives every "wk X/Y" label.
+  // Total weeks of this macro incl. a deload extension (13/14) — drives every
+  // "wk X/Y" label.
   totalWeeks?: number
-  // True when the target date is on/after GIANTFIT_START_DATE (the cutover):
-  // GiantFit rotation + C1 override + no skill days. False = legacy Giant rules.
-  // UNCHANGED meaning (still true for Giant 2.0 dates too, chronologically) —
-  // check `giant2` FIRST, it's the more specific flag.
-  giantfit?: boolean
-  // True when the target date is on/after GIANT2_START_DATE: fixed Mon/Tue/
-  // Thu/Fri day->lift, two independent difficulties (Giant/Volume), no
-  // Capacity block. Implies `giantfit` is also true (Giant 2.0 is chronologically
-  // later), but callers must check `giant2` first — it is NOT the GiantFit era.
-  giant2?: boolean
-  // Giant 2.0 only: the Volume block's own difficulty (fixed per cycle, null
-  // when there's no Volume block that week — C3 week 4 — or on any
-  // non-Giant-2.0 date).
+  // The Volume block's own difficulty (fixed per cycle, null when there's no
+  // Volume block that week — C3 week 4).
   volumeDifficulty?: Difficulty | null
-  // GiantFit capacity variant for this strength slot (A/B alternating by the
-  // scheduled-slot index since the cutover). Null off-slot / pre-cutover /
-  // Giant 2.0 (no Capacity block).
-  capacityVariant?: CapacityVariant | null
   nextSession?: NextSession | null
   startISO?: string
 }
 
-// One Mon/Wed/Fri cell in the calendar grid.
+// One Mon/Tue/Thu/Fri cell in the calendar grid.
 export interface MacroCell {
   date: string
   dow: number
   weekType: WeekType
-  testRole: TestRole | null
-  testLift: Lift | null
   meso: number | null
   week: number | null
   dayType: Lift | null
   difficulty: Difficulty | null
-  // GiantFit capacity variant for this slot (null pre-cutover / off-slot).
-  capacityVariant: CapacityVariant | null
-  // Giant 2.0 only: the Volume block's own difficulty (null off-era, or on a
-  // Giant 2.0 week with no Volume block — C3 week 4).
+  // The Volume block's own difficulty (null on a week with no Volume block —
+  // C3 week 4).
   volumeDifficulty: Difficulty | null
 }
 export interface MacroWeekRow {
@@ -154,10 +119,9 @@ export interface Session {
   weekType: WeekType
   dayType: Lift | null
   difficulty: Difficulty | null
-  // Giant 2.0: the Volume block's OWN difficulty (fixed per cycle — see
+  // The Volume block's OWN difficulty (fixed per cycle — see
   // GIANT2_VOLUME_DIFFICULTY_BY_CYCLE). Null = no Volume block that session
-  // (C3 week 4, deload, or any pre-Giant2 row — `difficulty` above is never
-  // reused for this; the two are independent).
+  // (C3 week 4, or deload) — independent of `difficulty` above.
   volumeDifficulty: Difficulty | null
   topReps: number | null
   topWeight: number | null
@@ -171,12 +135,8 @@ export interface Session {
   volDone: boolean
   volRpe: string
   volSpeed: string
-  // GiantFit: weight used for the session's paired row (DB Row / Pendlay Row).
-  // Free per-session entry — unanchored, no ladder. Null pre-GiantFit / squat days.
-  pairWeight: number | null
+  // Bench day's two-mode secondary (Pull-ups, bodyweight mode): final-round cluster, e.g. "6+4".
   pullupCluster: string
-  // Dips final-round cluster (dips day, bodyweight mode only — zero dips anchor).
-  dipsCluster: string
   carrySkipped: boolean
   carrySkipReason: string
   carryRounds: number | null
@@ -191,11 +151,10 @@ export interface Session {
 // A session as held in the UI form state and handed to the persistence layer.
 // Numeric inputs hold raw strings until the mappers coerce them (toNum/blankToNull),
 // so the form-bound fields are looser than the canonical persisted Session.
-export interface SessionDraft extends Omit<Session, 'cardioCals' | 'carryRounds' | 'carryDistance' | 'pairWeight'> {
+export interface SessionDraft extends Omit<Session, 'cardioCals' | 'carryRounds' | 'carryDistance'> {
   cardioCals: (number | string | null)[]
   carryRounds: number | string | null
   carryDistance: number | string | null
-  pairWeight: number | string | null
 }
 
 export interface WeekSignals {
@@ -203,117 +162,6 @@ export interface WeekSignals {
   occurrences: number
   sessionCount: number
   fired: boolean
-  // The dates of the fatigue-attributed capacity sessions when S6 is among the
-  // types — surfaced on the recommendation card. Empty otherwise.
-  s6Dates?: string[]
-}
-
-// ---- The Giant Run ----------------------------------------------------------
-// The run performed on a day. The SLOT (weekday → easy/quality/long, what the
-// per-cycle distance targets key off) is a RunSlotKey; the TYPE adds 'tt' and
-// can differ from the slot (the Thu quality slot runs easy during mesocycle 1).
-export type RunSlotKey = 'easy' | 'quality' | 'long'
-export type RunType = RunSlotKey | 'tt'
-// Road (default) vs trail: trail pace varies with terrain, not fatigue, so
-// pace-based readouts (trend chart, R3 signal) exclude trail runs.
-export type Terrain = 'road' | 'trail'
-
-// A logged run (app-object shape; mappers convert to/from DB rows). Pace is
-// always DERIVED (durationS / distanceKm), never stored.
-export interface Run {
-  id: string // "2026-07-14-run-E" (date + run-type letter)
-  macroId: string
-  date: string // the SCHEDULED slot date (strict-date model, like sessions)
-  cycle: number | null
-  week: number | null
-  weekType: WeekType
-  runType: RunType
-  distanceKm: number | null
-  durationS: number | null
-  avgHr: number | null
-  // 'completed' (default) or a categorical reason (RUN_COMPLETION); legacy
-  // null → treated as completed. Drives the run deload signals (R1/R2).
-  completion: string
-  // Road (default) / trail; legacy null → road.
-  terrain: Terrain
-  // Post-run Bulletproof circuit done (single habit boolean; legacy null → false).
-  bulletproof: boolean
-  notes: string
-  updatedAt?: string
-}
-
-// A run as held in UI form state (numeric inputs hold raw strings until the
-// mappers coerce them — same pattern as SessionDraft).
-export interface RunDraft extends Omit<Run, 'distanceKm' | 'durationS' | 'avgHr'> {
-  distanceKm: number | string | null
-  durationS: number | string | null
-  avgHr: number | string | null
-}
-
-// The computed run schedule for one date (from engine/runs.ts runSlotFor).
-export interface RunSlot {
-  date: string
-  weekIndex: number
-  weekType: WeekType
-  cycle: number | null // meso (training weeks only)
-  week: number | null // week within meso (training weeks only)
-  slot: RunSlotKey // weekday slot — what the distance target keys off
-  runType: RunType // what is actually prescribed (meso-1 Thu = easy; testing Sat = tt)
-  optional: boolean // testing Tue/Thu + all of deload W15 — never marked missed
-}
-
-// cycle (1|2|3) -> slot ('easy'|'quality'|'long') -> target km (guidance only)
-export type RunTargetsByCycle = Record<number, Partial<Record<RunSlotKey, number | null>>>
-
-// Result of computeRunSignalHits: run-derived signal occurrences for one week,
-// pooled into computeWeekSignals alongside the lift signals.
-export interface RunSignalHits {
-  types: Set<string>
-  occurrences: number
-  runIds: Set<string>
-}
-
-// ---- GiantFit capacity block ------------------------------------------------
-// Two fixed 8-movement circuit variants. The movement DEFINITIONS (names, order,
-// which are loaded, defaults) are static app content in engine/capacity.ts;
-// only the editable numbers (rep target, weight, rounds) are persisted.
-export type CapacityVariant = 'A' | 'B'
-// Editable per-movement values. null reps = use the movement's default target;
-// weight is only meaningful for loaded movements (null = unset).
-export interface CapacityMovementConfig {
-  reps: number | null
-  weight: number | null
-}
-// variant -> movement_key -> {reps, weight}
-export type CapacityMovementsConfig = Record<CapacityVariant, Record<string, CapacityMovementConfig>>
-export interface CapacityConfig {
-  rounds: number // 3 | 4 (CAPACITY_ROUNDS options; default 3)
-  movements: CapacityMovementsConfig
-}
-
-// One capacity-block result per session (capacity_logs; upsert on sessionId).
-// No UI until Phase 3 — the typed client lands with the table.
-export interface CapacityLog {
-  id?: string
-  sessionId: string
-  variant: CapacityVariant
-  roundsCompleted: number | null
-  totalTimeSeconds: number | null
-  calories: number | null // from the Bike movement (variant B); null otherwise
-  rpe: string
-  // Adherence, categorical — the S6 deload input (2026-07-31). '' / null reads
-  // as 'completed' (legacy rows), exactly like sessions.block_completion.
-  // ANY *_fatigue value fires S6; nothing else does.
-  completion: string
-  notes: string
-  updatedAt?: string
-}
-// Form-state shape (numeric inputs hold raw strings until the mappers coerce
-// them — same pattern as SessionDraft).
-export interface CapacityLogDraft extends Omit<CapacityLog, 'roundsCompleted' | 'totalTimeSeconds' | 'calories'> {
-  roundsCompleted: number | string | null
-  totalTimeSeconds: number | string | null
-  calories: number | string | null
 }
 
 // ---- Giant 2.0 ---------------------------------------------------------------
@@ -330,9 +178,9 @@ export type CapabilityProgram = 'hypertrophy' | 'oly' | 'carries'
 // GIANT2_GIANT_DEFAULT_ROTATION on read.
 export type Giant2DifficultyConfig = Record<number, Partial<Record<Lift, Difficulty>>>
 
-// ---- Giant 2.0 Capability block logs (C1 Hypertrophy, C2 Oly) --------------
-// One row PER MOVEMENT per session — unlike CapacityLog's one row per session.
-// Carries (C3) need no equivalent: they reuse Session's own carry_* fields.
+// ---- Capability block logs (C1 Hypertrophy, C2 Oly) ------------------------
+// One row PER MOVEMENT per session. Carries (C3) need no equivalent: they
+// reuse Session's own carry_* fields.
 export interface HypertrophyLog {
   id?: string
   sessionId: string
@@ -370,9 +218,6 @@ export interface Macro {
   startISO: string
   weeks: number
   status: MacroStatus
-  // Giant Run reference pace P (seconds/km) — the single per-macro run anchor.
-  // Null = talk-test mode. Never rounded; typically set from a time-trial result.
-  refPaceS: number | null
   // Athlete extended the deload by one identical week (decided during the
   // deload, never pre-planned). Adds one week to the macro's total.
   deloadExtended: boolean
@@ -393,21 +238,11 @@ export interface LiftWeightsInput {
 }
 // cycle (1|2|3) -> lift -> H/M/L grid
 export type WeightsByCycle = Record<number, Record<string, LiftWeights>>
-// cycle -> item ('clean' | 'carry_*') -> weight
+// cycle -> item (carry_*) -> weight
 export type AccessoryByCycle = Record<number, Record<string, number | null>>
 
 export type DeloadMap = Record<string, boolean> // weekKey -> true
 export type BreakDayMap = Record<string, boolean> // dateISO -> true
-
-export interface TestingResult {
-  id?: string
-  macroId: string
-  lift: string
-  weight: number | null
-  reps: number | null
-  notes: string
-  testedOn: string | null
-}
 
 export interface MacroBundle {
   weights: WeightsByCycle
@@ -415,28 +250,20 @@ export interface MacroBundle {
   sessions: Session[]
   deloads: DeloadMap
   breakDays: BreakDayMap
-  testing: TestingResult[]
-  runs: Run[]
-  runTargets: RunTargetsByCycle
-  // User-scoped (like breakDays), loaded with the bundle: GiantFit capacity
-  // config with app defaults already merged in.
-  capacity: CapacityConfig
-  // Capacity-block results for this macro's sessions (one per session).
-  capacityLogs: CapacityLog[]
-  // User-scoped Giant Block accessory rep targets (movement key → reps),
-  // app defaults already merged in (GIANTFIT_GB_ACCESSORY).
+  // User-scoped Giant Block accessory rep targets (movement key → reps), app
+  // defaults already merged in (GB_DEFAULT_REPS).
   giantAccessory: GiantAccessoryReps
-  // User-scoped Giant 2.0 weekly Giant-difficulty rotation override, app
-  // default (GIANT2_GIANT_DEFAULT_ROTATION) already merged in.
+  // User-scoped weekly Giant-difficulty rotation override, app default
+  // (GIANT2_GIANT_DEFAULT_ROTATION) already merged in.
   giant2Difficulty: Giant2DifficultyConfig
   // Capability block logs for this macro's sessions (C1 Hypertrophy / C2 Oly
-  // — one row per movement per session, unlike capacityLogs).
+  // — one row per movement per session).
   hypertrophyLogs: HypertrophyLog[]
   olyLogs: OlyLog[]
 }
 
-// GiantFit Giant Block bodyweight-accessory rep targets, keyed by movement key
-// (ab_rollout / toes_to_bar / ghd_abs / ghd_back_ext), defaults merged on read.
+// Giant Block bodyweight-accessory rep targets, keyed by movement key
+// (ab_rollout / leg_raises), defaults merged on read.
 export type GiantAccessoryReps = Record<string, number>
 
 // ---- Trends tab ------------------------------------------------------------
@@ -447,16 +274,13 @@ export interface TrendsData {
   sessions: Session[]
   weights: Record<string, WeightsByCycle>
   accessory: Record<string, AccessoryByCycle>
-  testing: TestingResult[]
   deloads: DeloadMap // weekKey ("M2C3W4") is globally unique, so one map spans macros
   breakDays: BreakDayMap
-  runs: Run[]
-  capacityLogs: CapacityLog[]
 }
 
 // A training session flattened to the shape the Trends charts consume (mirrors the
 // mockup's row model). Derived from Session via engine/trends.ts — not persisted.
-export type TrendDay = 'DL' | 'OHP' | 'Squat' | 'Dips' | 'Bench'
+export type TrendDay = 'DL' | 'OHP' | 'Squat' | 'Bench'
 export interface TrendSession {
   macro: string // "M2"
   macroNumber: number
@@ -472,42 +296,13 @@ export interface TrendSession {
   S2: 0 | 1
   S3: 0 | 1
   S5: 0 | 1
-  S7: 0 | 1 // giant block not completed as prescribed (numbered S6 in the Giant era)
+  S7: 0 | 1 // giant block not completed as prescribed
   volOk: boolean
   status: 'done' | 'deload'
   sets: number[] // per-round cardio kcal (cardio_cals)
 }
 
-// One completed capacity session for the Capacity trend view: per-round time
-// over date, one series per variant (A and B are different circuits — never
-// mixed). Derived via engine/trends.ts toCapacityTrend on the SAME per-round
-// math the S6 deload signal reads (engine/capacity.ts) — never re-derived.
-export interface TrendCapacity {
-  macro: string // "M3"
-  macroNumber: number
-  date: string
-  variant: CapacityVariant
-  perRoundS: number // total_time_seconds / rounds_completed
-  rounds: number
-  totalS: number
-  calories: number | null // Bike (variant B) only
-  rpe: number | null
-}
-
-// One logged run with a derivable pace, for the Runs trend view (pace over time,
-// per run type). Pace is derived at build time — never persisted.
-export interface TrendRun {
-  macro: string // "M2"
-  macroNumber: number
-  date: string
-  type: RunType
-  paceS: number // derived s/km (unrounded)
-  distanceKm: number | null
-  hr: number | null
-  terrain: Terrain // trail points are hidden by default and drawn hollow when shown
-}
-
-// ---- Recovery > Tendon Health ---------------------------------------------
+// ---- Recovery > Tendon Health -----------------------------------------------
 // An active or completed joint isometric-loading protocol. Joint/Phase live in
 // engine/recovery-content.ts (the static content module).
 export interface RecoveryProtocol {
@@ -522,8 +317,8 @@ export interface RecoveryProtocol {
 // Which tendons are logged done for the viewed date: tendon_key -> true.
 export type RecoveryLogMap = Record<string, boolean>
 
-// Attendance grid (Session view). Columns are the Mon/Wed/Fri slots; each cell's
-// status is derived from the schedule + what was logged.
+// Attendance grid (Session view). Columns are the Mon/Tue/Thu/Fri slots; each
+// cell's status is derived from the schedule + what was logged.
 export type AttStatus = 'done' | 'deload' | 'missed' | 'holiday' | 'upcoming' | null
 export interface AttWeek {
   week: string
@@ -539,7 +334,7 @@ export interface AttCycle {
   total: number
 }
 export interface AttEndRow {
-  row: string // week label beyond the cycles, e.g. "W13" (legacy macros "W13".."W15")
+  row: string // week label beyond the 3 cycles, e.g. "W13" ("W14" when extended)
   cells: AttStatus[]
 }
 export interface AttMacro {

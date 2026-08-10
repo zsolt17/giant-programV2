@@ -1,15 +1,15 @@
-// Giant 2.0 Capability block — content changes by CYCLE (GIANT2_CAPABILITY_BY_CYCLE):
+// The Capability block — content changes by CYCLE (GIANT2_CAPABILITY_BY_CYCLE):
 // Hypertrophy (C1, per-exercise weight x reps), Oly (C2, per-exercise weight x
 // quality mark), Carries (C3, reuses the session's own carry_* fields — no
 // separate component, rendered inline in Giant2SessionForm). Both blocks here
-// are self-contained like CapacityBlock: they own their fields and save
-// through their own handler (one row PER MOVEMENT, batched under one Save),
-// so the parent's onSave only needs to ensure the session row exists first (FK).
+// are self-contained: they own their fields and save through their own
+// handler (one row PER MOVEMENT, batched under one Save), so the parent's
+// onSave only needs to ensure the session row exists first (FK).
 import { useState } from 'react'
 import { C, inp } from './theme'
 import { Card } from './components'
 import { blockTitle, errMsg } from './controls'
-import { SEED_GIANT2_HYPERTROPHY_KEYS, SEED_GIANT2_OLY_KEYS, seedByKey } from '../engine/movements'
+import { SEED_HYPERTROPHY_KEYS, SEED_OLY_KEYS, seedByKey } from '../engine/movements'
 import { OLY_QUALITY, GIANT2_OLY_POSITION_WAVE, GIANT2_HYPERTROPHY_SETS } from '../engine/constants'
 import type { Movement } from '../engine/movements'
 import type { Lift, HypertrophyLog, HypertrophyLogDraft, OlyLog, OlyLogDraft } from '../engine/types'
@@ -31,7 +31,7 @@ interface HypertrophyBlockProps {
 }
 
 export function HypertrophyBlock({ letter, dayType, sessionId, movements, logs, onSave }: HypertrophyBlockProps) {
-  const items = resolveItems(SEED_GIANT2_HYPERTROPHY_KEYS[dayType] || [], movements)
+  const items = resolveItems(SEED_HYPERTROPHY_KEYS[dayType] || [], movements)
   const [rows, setRows] = useState<Record<string, { weight: number | string; reps: number | string }>>(() =>
     Object.fromEntries(
       items.map((it) => {
@@ -134,7 +134,7 @@ interface OlyBlockProps {
 }
 
 export function OlyBlock({ letter, dayType, weekInCycle, sessionId, movements, logs, onSave }: OlyBlockProps) {
-  const items = resolveItems(SEED_GIANT2_OLY_KEYS[dayType] || [], movements)
+  const items = resolveItems(SEED_OLY_KEYS[dayType] || [], movements)
   const [rows, setRows] = useState<Record<string, { weight: number | string; quality: string }>>(() =>
     Object.fromEntries(
       items.map((it) => {

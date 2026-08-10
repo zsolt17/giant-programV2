@@ -15,20 +15,8 @@ import type {
   AccessoryByCycle,
   DeloadMap,
   BreakDayMap,
-  TestingResult,
   RecoveryProtocol,
   RecoveryLogMap,
-  Run,
-  RunDraft,
-  RunType,
-  RunSlotKey,
-  RunTargetsByCycle,
-  Terrain,
-  CapacityVariant,
-  CapacityMovementConfig,
-  CapacityConfig,
-  CapacityLog,
-  CapacityLogDraft,
   GiantAccessoryReps,
   Giant2DifficultyConfig,
   HypertrophyLog,
@@ -40,8 +28,7 @@ import type { Joint, Phase } from '../engine/recovery-content'
 import type { Movement, MovementSeed, LoadType, CountType } from '../engine/movements'
 import type { ProgramVersion, ProgramSlot } from '../engine/program'
 import { expandDayTops } from '../engine/loading'
-import { mergeCapacityConfig } from '../engine/capacity'
-import { GIANTFIT_GB_DEFAULT_REPS, GIANT2_GB_DEFAULT_REPS, GIANT2_GIANT_DEFAULT_ROTATION } from '../engine/constants'
+import { GB_DEFAULT_REPS, GIANT2_GIANT_DEFAULT_ROTATION } from '../engine/constants'
 
 const blankToNull = (v: string | null | undefined): string | null => (v === '' || v === undefined ? null : v)
 const toNum = (v: unknown): number | null => (v === '' || v === null || v === undefined ? null : Number(v))
@@ -53,7 +40,6 @@ export interface MacroRow {
   start_date: string
   weeks: number
   status: MacroStatus
-  ref_pace_s: number | null // Giant Run reference pace P (s/km); null = talk-test mode
   deload_extended: boolean | null // athlete extended the deload by one week (null = no)
 }
 // Single-anchor model: only the Hard top set is stored. Medium/Light day tops and
@@ -89,9 +75,7 @@ export interface SessionRow {
   vol_done: boolean | null
   vol_rpe: string | null
   vol_speed: string | null
-  pair_weight: number | null
   pullup_cluster: string | null
-  dips_cluster: string | null
   carry_skipped: boolean | null
   carry_skip_reason: string | null
   carry_rounds: number | null
@@ -102,15 +86,6 @@ export interface SessionRow {
   ended_at: string | null
   updated_at?: string
 }
-export interface TestingRow {
-  id?: string
-  macro_id: string
-  lift: string
-  weight: number | null
-  reps: number | null
-  notes: string | null
-  tested_on: string | null
-}
 
 // ---- macro -----------------------------------------------------------------
 export function rowToMacro(r: MacroRow): Macro {
@@ -120,7 +95,6 @@ export function rowToMacro(r: MacroRow): Macro {
     startISO: r.start_date,
     weeks: r.weeks,
     status: r.status,
-    refPaceS: toNum(r.ref_pace_s),
     deloadExtended: !!r.deload_extended,
   }
 }
@@ -204,9 +178,7 @@ export function rowToSession(r: SessionRow): Session {
     volDone: r.vol_done ?? true,
     volRpe: r.vol_rpe || '',
     volSpeed: r.vol_speed || '',
-    pairWeight: toNum(r.pair_weight),
     pullupCluster: r.pullup_cluster || '',
-    dipsCluster: r.dips_cluster || '',
     carrySkipped: !!r.carry_skipped,
     carrySkipReason: r.carry_skip_reason || '',
     carryRounds: r.carry_rounds ?? null,
@@ -238,9 +210,7 @@ export function sessionToRow(s: SessionDraft): SessionRow {
     vol_done: s.volDone ?? true,
     vol_rpe: blankToNull(s.volRpe),
     vol_speed: blankToNull(s.volSpeed),
-    pair_weight: toNum(s.pairWeight),
     pullup_cluster: blankToNull(s.pullupCluster),
-    dips_cluster: blankToNull(s.dipsCluster),
     carry_skipped: !!s.carrySkipped,
     carry_skip_reason: blankToNull(s.carrySkipReason),
     carry_rounds: toNum(s.carryRounds),
@@ -266,142 +236,6 @@ export function rowsToBreakDays(rows: { date: string }[]): BreakDayMap {
     o[r.date] = true
   })
   return o
-}
-
-// ---- testing results -------------------------------------------------------
-export function rowToTesting(r: TestingRow): TestingResult {
-  return {
-    id: r.id,
-    macroId: r.macro_id,
-    lift: r.lift,
-    weight: toNum(r.weight),
-    reps: r.reps,
-    notes: r.notes || '',
-    testedOn: r.tested_on,
-  }
-}
-export function testingToRow(t: TestingResult): TestingRow {
-  const row: TestingRow = {
-    macro_id: t.macroId,
-    lift: t.lift,
-    weight: toNum(t.weight),
-    reps: t.reps ?? null,
-    notes: blankToNull(t.notes),
-    tested_on: t.testedOn || null,
-  }
-  if (t.id) row.id = t.id
-  return row
-}
-
-// ---- runs (The Giant Run) ---------------------------------------------------
-export interface RunRow {
-  id: string
-  macro_id: string
-  date: string
-  cycle: number | null
-  week: number | null
-  week_type: WeekType
-  run_type: string
-  distance_km: number | null
-  duration_s: number | null
-  avg_hr: number | null
-  completion: string | null
-  terrain: string | null
-  bulletproof: boolean | null
-  notes: string | null
-  updated_at?: string
-}
-export function rowToRun(r: RunRow): Run {
-  return {
-    id: r.id,
-    macroId: r.macro_id,
-    date: r.date,
-    cycle: r.cycle,
-    week: r.week,
-    weekType: r.week_type,
-    runType: r.run_type as RunType,
-    distanceKm: toNum(r.distance_km),
-    durationS: toNum(r.duration_s),
-    avgHr: toNum(r.avg_hr),
-    completion: r.completion || 'completed', // legacy null → treated as completed
-    terrain: (r.terrain as Terrain) || 'road', // legacy null → road
-    bulletproof: !!r.bulletproof, // legacy null → not done
-    notes: r.notes || '',
-    updatedAt: r.updated_at,
-  }
-}
-export function runToRow(r: RunDraft): RunRow {
-  return {
-    id: r.id,
-    macro_id: r.macroId,
-    date: r.date,
-    cycle: r.cycle ?? null,
-    week: r.week ?? null,
-    week_type: r.weekType,
-    run_type: r.runType,
-    distance_km: toNum(r.distanceKm),
-    duration_s: toNum(r.durationS),
-    avg_hr: toNum(r.avgHr),
-    completion: blankToNull(r.completion),
-    terrain: r.terrain || 'road',
-    bulletproof: !!r.bulletproof,
-    notes: blankToNull(r.notes),
-  }
-}
-
-// ---- run targets (per-cycle distance guidance, accessory-weights pattern) ---
-export interface RunTargetRow {
-  macro_id: string
-  cycle: number
-  run_type: string
-  km: number | null
-}
-export function rowsToRunTargets(rows: RunTargetRow[]): RunTargetsByCycle {
-  const out: RunTargetsByCycle = {}
-  ;(rows || []).forEach((r) => {
-    out[r.cycle] = out[r.cycle] || {}
-    out[r.cycle][r.run_type as RunSlotKey] = toNum(r.km)
-  })
-  return out
-}
-export function runTargetsToRows(macroId: string, cycle: number, bySlot: Record<string, unknown>): RunTargetRow[] {
-  return Object.keys(bySlot).map((run_type) => ({
-    macro_id: macroId,
-    cycle: Number(cycle),
-    run_type,
-    km: toNum(bySlot[run_type]),
-  }))
-}
-
-// ---- GiantFit capacity (config + settings + per-session logs) ---------------
-export interface CapacityConfigRow {
-  variant: string
-  movement_key: string
-  rep_target: number | null
-  weight: number | null
-}
-// capacity_config rows + the capacity_settings rounds value -> a full config
-// with the app defaults (engine/capacity.ts) merged in.
-export function rowsToCapacityConfig(rows: CapacityConfigRow[], rounds?: number | null): CapacityConfig {
-  const stored: Partial<Record<CapacityVariant, Record<string, CapacityMovementConfig>>> = {}
-  ;(rows || []).forEach((r) => {
-    const v = r.variant as CapacityVariant
-    ;(stored[v] ||= {})[r.movement_key] = { reps: toNum(r.rep_target), weight: toNum(r.weight) }
-  })
-  return mergeCapacityConfig(stored, toNum(rounds))
-}
-// { [movementKey]: {reps, weight} } for one variant -> rows[] (user_id defaults
-// to auth.uid() at the DB, like break_days).
-export function capacityConfigToRows(
-  variant: CapacityVariant,
-  byMovement: Record<string, { reps: number | string | null; weight: number | string | null }>
-): CapacityConfigRow[] {
-  return Object.keys(byMovement).map((movement_key) => ({
-    variant,
-    movement_key,
-    rep_target: toNum(byMovement[movement_key].reps),
-    weight: toNum(byMovement[movement_key].weight),
-  }))
 }
 
 // ---- movement library (user-scoped) ----------------------------------------
@@ -491,18 +325,16 @@ export function programSlotToRow(s: ProgramSlot): ProgramSlotRow {
   }
 }
 
-// ---- GiantFit Giant Block accessories (rep targets, user-scoped) ------------
+// ---- Giant Block accessories (rep targets, user-scoped) --------------------
 export interface GiantAccessoryRow {
   movement_key: string
   rep_target: number | null
 }
 // giant_accessory_config rows -> { key: reps } with the app defaults
-// (GIANTFIT_GB_ACCESSORY + GIANT2_GB_DEFAULT_REPS — one shared table, one
-// shared merge, both eras' keys known) merged in; unknown stored keys
-// ignored, null rep targets fall back to the movement's default
-// (capacity-config pattern).
+// (GB_DEFAULT_REPS, constants.ts) merged in; unknown stored keys ignored,
+// null rep targets fall back to the movement's default (capacity-config pattern).
 export function rowsToGiantAccessory(rows: GiantAccessoryRow[]): GiantAccessoryReps {
-  const out: GiantAccessoryReps = { ...GIANTFIT_GB_DEFAULT_REPS, ...GIANT2_GB_DEFAULT_REPS }
+  const out: GiantAccessoryReps = { ...GB_DEFAULT_REPS }
   ;(rows || []).forEach((r) => {
     const reps = toNum(r.rep_target)
     if (out[r.movement_key] != null && reps != null) out[r.movement_key] = reps
@@ -514,8 +346,8 @@ export function giantAccessoryToRows(byKey: Record<string, number | string | nul
   return Object.keys(byKey).map((movement_key) => ({ movement_key, rep_target: toNum(byKey[movement_key]) }))
 }
 
-// ---- Giant 2.0 weekly Giant-difficulty rotation (user-scoped, capacity-config
-// ---- pattern — the app default merges under whatever's stored here) --------
+// ---- weekly Giant-difficulty rotation (user-scoped, capacity-config pattern —
+// ---- the app default merges under whatever's stored here) ------------------
 export interface Giant2DifficultyRow {
   week_in_cycle: number
   lift: string
@@ -544,49 +376,7 @@ export function giant2DifficultyToRows(config: Giant2DifficultyConfig): Giant2Di
   return rows
 }
 
-export interface CapacityLogRow {
-  id?: string
-  session_id: string
-  variant: string
-  rounds_completed: number | null
-  total_time_seconds: number | null
-  calories: number | null
-  rpe: string | null
-  completion: string | null
-  notes: string | null
-  updated_at?: string
-}
-export function rowToCapacityLog(r: CapacityLogRow): CapacityLog {
-  return {
-    id: r.id,
-    sessionId: r.session_id,
-    variant: r.variant as CapacityVariant,
-    roundsCompleted: toNum(r.rounds_completed),
-    totalTimeSeconds: toNum(r.total_time_seconds),
-    calories: toNum(r.calories),
-    rpe: r.rpe || '',
-    // Legacy rows (pre-0021) read as 'completed', like sessions.block_completion.
-    completion: r.completion || 'completed',
-    notes: r.notes || '',
-    updatedAt: r.updated_at,
-  }
-}
-export function capacityLogToRow(l: CapacityLogDraft): CapacityLogRow {
-  const row: CapacityLogRow = {
-    session_id: l.sessionId,
-    variant: l.variant,
-    rounds_completed: toNum(l.roundsCompleted),
-    total_time_seconds: toNum(l.totalTimeSeconds),
-    calories: toNum(l.calories),
-    rpe: blankToNull(l.rpe),
-    completion: blankToNull(l.completion),
-    notes: blankToNull(l.notes),
-  }
-  if (l.id) row.id = l.id
-  return row
-}
-
-// ---- Giant 2.0 Capability block logs (C1 Hypertrophy, C2 Oly) --------------
+// ---- Capability block logs (C1 Hypertrophy, C2 Oly) ------------------------
 export interface HypertrophyLogRow {
   id?: string
   session_id: string

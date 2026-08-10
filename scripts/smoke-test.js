@@ -14,7 +14,6 @@ import { supabase, signIn, signOut } from '../src/data/supabase'
 import * as repo from '../src/data/repository'
 import { SEED_MOVEMENTS } from '../src/engine/movements'
 import { ANCHORED_LANES, validateVersion, resolveProgram } from '../src/engine/program'
-import { GIANTFIT_START_DATE, CAPACITY_COMPLETION } from '../src/engine/constants'
 
 const email = process.env.SMOKE_EMAIL
 const password = process.env.SMOKE_PASSWORD
@@ -53,7 +52,7 @@ async function main() {
   ok('new macro deload not extended', macro.deloadExtended === false, macro.deloadExtended)
   const id = macro.id
 
-  // Deload extension (0013): boolean round-trips both ways.
+  // Deload extension: boolean round-trips both ways.
   let mExt = await repo.updateMacro(id, { deloadExtended: true })
   ok('deload_extended set = true', mExt.deloadExtended === true, mExt.deloadExtended)
   mExt = await repo.updateMacro(id, { deloadExtended: false })
@@ -83,68 +82,52 @@ async function main() {
     ok('upsert updates C1 deadlift hard -> 162.5', w?.[1]?.deadlift?.hard === 162.5, w?.[1]?.deadlift?.hard)
     ok('cascade follows edit: C1 deadlift medium -> 155', w?.[1]?.deadlift?.medium === 155, w?.[1]?.deadlift?.medium)
 
-    // Bench anchor (0014, GiantFit): stored like any lift; cascade rounds at 2.5.
+    // Bench anchor: stored like any lift; cascade rounds at 2.5.
     await repo.saveWorkingWeights(id, 1, { bench: { hard: 100 } })
     w = await repo.getWorkingWeights(id)
-    ok('C1 bench anchor = 100 (0014 CHECK accepts bench)', w?.[1]?.bench?.hard === 100, w?.[1]?.bench)
+    ok('C1 bench anchor = 100', w?.[1]?.bench?.hard === 100, w?.[1]?.bench)
     ok('bench medium computed at 2.5 kg = 95', w?.[1]?.bench?.medium === 95, w?.[1]?.bench?.medium)
 
-    // Row anchors (0017, GiantFit revision): DB Row (per-hand) + Pendlay Row
-    // store/cascade like any anchor.
+    // Secondary lanes (db_row holds BB Row, pendlay_row holds Pull-ups): store/cascade
+    // like any anchor — same LANES the row anchors have used since GiantFit.
     await repo.saveWorkingWeights(id, 1, { db_row: { hard: 30 }, pendlay_row: { hard: 60 } })
     w = await repo.getWorkingWeights(id)
-    ok('C1 db_row anchor = 30 (0017 CHECK accepts db_row)', w?.[1]?.db_row?.hard === 30, w?.[1]?.db_row)
+    ok('C1 db_row anchor = 30 (BB Row lane)', w?.[1]?.db_row?.hard === 30, w?.[1]?.db_row)
     ok('db_row medium computed at 2.5 kg = 27.5 (round 30×0.95)', w?.[1]?.db_row?.medium === 27.5, w?.[1]?.db_row?.medium)
-    ok('C1 pendlay_row anchor = 60 (0017 CHECK accepts pendlay_row)', w?.[1]?.pendlay_row?.hard === 60, w?.[1]?.pendlay_row)
+    ok('C1 pendlay_row anchor = 60 (Pull-ups lane)', w?.[1]?.pendlay_row?.hard === 60, w?.[1]?.pendlay_row)
     ok('pendlay_row light computed = 55 (round 60×0.90)', w?.[1]?.pendlay_row?.light === 55, w?.[1]?.pendlay_row?.light)
 
-    // The two empty secondary LANES (0019) accept anchors — the lane exists in the
-    // grid even while no movement occupies it.
-    await repo.saveWorkingWeights(id, 1, { secondary_deadlift: { hard: 40 }, secondary_squat: { hard: 35 } })
-    w = await repo.getWorkingWeights(id)
-    ok('C1 secondary_deadlift lane = 40 (0019 CHECK accepts it)', w?.[1]?.secondary_deadlift?.hard === 40, w?.[1]?.secondary_deadlift)
-    ok('C1 secondary_squat lane = 35 (0019 CHECK accepts it)', w?.[1]?.secondary_squat?.hard === 35, w?.[1]?.secondary_squat)
-    // ...and the CHECK still rejects a lane key that isn't in the registry.
+    // The CHECK rejects a lane key that isn't in the registry.
     let rejected = false
     try {
       await repo.saveWorkingWeights(id, 1, { not_a_lane: { hard: 10 } })
     } catch {
       rejected = true
     }
-    ok('working_weights CHECK still rejects an unknown lane key', rejected)
+    ok('working_weights CHECK rejects an unknown lane key', rejected)
 
-    // LEGACY anchors (dips/pullup) still store/load so old macros' history renders;
-    // rounding is now uniform 2.5 kg (0.5 retired) and the anchor itself stays exact.
-    await repo.saveWorkingWeights(id, 1, { pullup: { hard: 10 }, dips: { hard: 1 } })
-    w = await repo.getWorkingWeights(id)
-    ok('legacy C1 pullup anchor = 10', w?.[1]?.pullup?.hard === 10, w?.[1]?.pullup)
-    ok('pullup medium computed at 2.5 kg = 10', w?.[1]?.pullup?.medium === 10, w?.[1]?.pullup?.medium)
-    ok('dips 1 kg anchor stays exact (never rounded)', w?.[1]?.dips?.hard === 1, w?.[1]?.dips?.hard)
-
-    console.log('Accessory weights (recorded per-cycle secondaries: lunge / RDL / row / carries)')
-    await repo.saveAccessoryWeights(id, 1, { lunge_deadlift: 24, rdl_squat: 30, row_ohp: 22.5, carry_deadlift: 68 })
+    console.log('Accessory weights (recorded per-cycle carries)')
+    await repo.saveAccessoryWeights(id, 1, { carry_deadlift: 68, carry_ohp: 22.5, carry_squat: 70, carry_bench: 50 })
     const acc = await repo.getAccessoryWeights(id)
-    ok('C1 lunge_deadlift = 24', acc?.[1]?.lunge_deadlift === 24, acc?.[1])
-    ok('C1 rdl_squat = 30', acc?.[1]?.rdl_squat === 30, acc?.[1])
-    ok('C1 row_ohp = 22.5', acc?.[1]?.row_ohp === 22.5, acc?.[1])
     ok('C1 carry_deadlift = 68', acc?.[1]?.carry_deadlift === 68, acc?.[1])
+    ok('C1 carry_bench = 50 (Giant 2.0 bench-day carry)', acc?.[1]?.carry_bench === 50, acc?.[1])
 
     console.log('Sessions')
-    const sid = `SMOKE-${id}-deadlift-H`
+    const sid = `SMOKE-${id}-squat`
     const saved = await repo.saveSession({
       id: sid, macroId: id, date: '2099-01-04', cycle: 1, week: 1, weekType: 'training',
-      dayType: 'deadlift', difficulty: 'hard', topReps: 2, topWeight: 160, rpe: 'R8', barSpeed: 'normal',
+      dayType: 'squat', difficulty: 'hard', volumeDifficulty: 'light', topReps: 2, topWeight: 160, rpe: 'R8', barSpeed: 'normal',
       cardioCals: [15, 14, '', 15], blockCompletion: 'stopped_fatigue',
-      volDone: true, volRpe: '', volSpeed: '', pullupCluster: '', dipsCluster: '7+3',
+      volDone: true, volRpe: '', volSpeed: '', pullupCluster: '',
       carrySkipped: false, carrySkipReason: '', carryRounds: 3, carryDistance: 40, carryRpe: '', notes: 'smoke test',
       startedAt: '2099-01-04T08:00:00Z', endedAt: '2099-01-04T08:45:00Z',
     })
     ok('session saved, topWeight = 160', saved.topWeight === 160, saved.topWeight)
     ok('timer fields round-trip', !!saved.startedAt && !!saved.endedAt, { s: saved.startedAt, e: saved.endedAt })
+    ok('volumeDifficulty round-trips = light', saved.volumeDifficulty === 'light', saved.volumeDifficulty)
 
     // Extra logging fields round-trip (per-round cardio cals, carry rounds+distance).
     ok('blockCompletion round-trips = stopped_fatigue', saved.blockCompletion === 'stopped_fatigue', saved.blockCompletion)
-    ok('dipsCluster round-trips = 7+3', saved.dipsCluster === '7+3', saved.dipsCluster)
     ok('carryRounds round-trips = 3', saved.carryRounds === 3, saved.carryRounds)
     ok('carryDistance round-trips = 40', saved.carryDistance === 40, saved.carryDistance)
     ok('cardioCals = [15,14,null,15] (blank round -> NULL, length 4)',
@@ -161,38 +144,25 @@ async function main() {
     ok('session update: topWeight -> 162.5', sessions.find((s) => s.id === sid)?.topWeight === 162.5)
     ok('no duplicate session id', sessions.filter((s) => s.id === sid).length === 1)
 
-    // 0015: bench is a valid sessions.day_type (GiantFit rotation).
-    // 0016: pair_weight (the paired row's free weight entry) round-trips.
-    const bid = `SMOKE-${id}-bench-H`
-    const benchSaved = await repo.saveSession({ ...saved, id: bid, dayType: 'bench', difficulty: 'hard', pairWeight: 42.5 })
-    ok('bench session saved (0015 CHECK accepts bench)', benchSaved.dayType === 'bench', benchSaved.dayType)
-    ok('pairWeight round-trips = 42.5 (0016)', benchSaved.pairWeight === 42.5, benchSaved.pairWeight)
+    // bench is a valid sessions.day_type; carry_bench a valid accessory item.
+    const bid = `SMOKE-${id}-bench`
+    const benchSaved = await repo.saveSession({ ...saved, id: bid, dayType: 'bench', difficulty: 'hard' })
+    ok('bench session saved', benchSaved.dayType === 'bench', benchSaved.dayType)
     await repo.deleteSession(bid)
 
-    // 0016: carry_bench is a valid accessory item (GiantFit carry mapping).
-    await repo.saveAccessoryWeights(id, 1, { carry_bench: 24 })
-    ok('carry_bench accepted (0016 CHECK)', (await repo.getAccessoryWeights(id))?.[1]?.carry_bench === 24)
-
-    console.log('Capacity (GiantFit 0014: config read + per-session log round-trip)')
-    // Config is USER-scoped (not throwaway-macro-scoped), so smoke only READS it —
-    // never mutate the real config. The read also proves 0014's tables are live.
-    const capCfg = await repo.getCapacityConfig()
-    ok('capacity config loads with defaults merged (A/B × 7 movements)',
-      Object.keys(capCfg.movements.A).length === 7 && Object.keys(capCfg.movements.B).length === 7, capCfg.movements)
-    // Retired movements (ghd / single_unders / bb_clean / toes_to_bar) may still have
-    // stored rows — they must never come back through the merge.
-    ok('retired capacity movements stay out of the merged config',
-      ['ghd', 'single_unders', 'bb_clean', 'toes_to_bar'].every((k) => capCfg.movements.A[k] === undefined && capCfg.movements.B[k] === undefined),
-      capCfg.movements)
-    ok('capacity rounds is 3 or 4', capCfg.rounds === 3 || capCfg.rounds === 4, capCfg.rounds)
-
-    // Giant Block accessory config (0018) — USER-scoped like capacity config, so
-    // smoke only READS it (proves the table is live + defaults merge).
+    console.log('Giant Block accessory config (user-scoped, defaults merged)')
     const gbCfg = await repo.getGiantAccessoryConfig()
-    ok('giant accessory config loads with defaults merged (4 movements)',
-      ['ab_rollout', 'toes_to_bar', 'ghd_abs', 'ghd_back_ext'].every((k) => typeof gbCfg[k] === 'number'), gbCfg)
+    ok('giant accessory config loads with defaults merged (ab_rollout + leg_raises)',
+      ['ab_rollout', 'leg_raises'].every((k) => typeof gbCfg[k] === 'number'), gbCfg)
 
-    console.log('Movement library (0019: user-scoped, seeded from code)')
+    console.log('Weekly Giant-difficulty rotation (user-scoped, defaults merged)')
+    const diffCfg = await repo.getGiant2DifficultyConfig()
+    ok('rotation config loads with weeks 1-3 present', [1, 2, 3].every((w) => diffCfg[w]?.squat), diffCfg)
+    await repo.saveGiant2DifficultyConfig({ ...diffCfg, 1: { ...diffCfg[1], squat: 'light' } })
+    ok('rotation override round-trips', (await repo.getGiant2DifficultyConfig())[1]?.squat === 'light')
+    await repo.saveGiant2DifficultyConfig(diffCfg) // restore
+
+    console.log('Movement library (user-scoped, seeded from code)')
     // USER-scoped, so there is no throwaway to isolate to — but the seed IS the
     // product's own bootstrap (additive, idempotent, and only ever written when
     // the library is empty), so running it here is the real first-boot path, not
@@ -209,30 +179,24 @@ async function main() {
     const anchoredCount = lib.filter((m) => m.loadType === 'anchored').length
     ok('capabilities round-trip (six anchored movements)', anchoredCount === 6, anchoredCount)
 
-    console.log('Program versions + slots (0020: versioned slot assignment)')
+    console.log('Program version + slots (versioned slot assignment)')
     // Same reasoning as the movement library: user-scoped, and the seed IS the
     // product bootstrap — additive, idempotent, written only when the user has
     // no version. NOTHING reads these for prescription yet.
     const seeded = await repo.ensureSeedProgramVersion()
-    ok('version 1 exists, effective from the GiantFit cutover',
-      seeded.versions.length >= 1 && seeded.versions[0].number === 1 && seeded.versions[0].effectiveFrom === GIANTFIT_START_DATE,
-      seeded.versions[0])
-    const v1Slots = seeded.slots.filter((s) => s.versionId === seeded.versions[0].id)
-    ok('every anchored lane has a slot row (incl. the two deliberately empty ones)',
-      ANCHORED_LANES.every((lane) => v1Slots.some((s) => s.slotKey === lane)),
+    ok('a program version exists', seeded.versions.length >= 1, seeded.versions[0])
+    const v1 = seeded.versions[0]
+    const v1Slots = seeded.slots.filter((s) => s.versionId === v1.id)
+    ok('every anchored lane has a slot row', ANCHORED_LANES.every((lane) => v1Slots.some((s) => s.slotKey === lane)),
       ANCHORED_LANES.filter((lane) => !v1Slots.some((s) => s.slotKey === lane)))
-    ok('the empty secondary lanes carry a row with NO movement',
-      ['secondary_deadlift', 'secondary_squat'].every((lane) => v1Slots.find((s) => s.slotKey === lane)?.movementId === null))
-    ok('both capacity circuits seeded in order (7 + 7)',
-      v1Slots.filter((s) => s.slotKey === 'capacity.A').length === 7 && v1Slots.filter((s) => s.slotKey === 'capacity.B').length === 7)
     // The gate: the seeded version must validate against its own contracts.
     const violations = validateVersion(v1Slots, await repo.listMovements())
     ok('the seeded version passes every slot contract', violations.length === 0, violations)
     // ...and it resolves to a program with a main lift + carry on every day.
-    const resolvedV1 = resolveProgram(seeded.versions[0], v1Slots, await repo.listMovements())
+    const resolvedV1 = resolveProgram(v1, v1Slots, await repo.listMovements())
     ok('resolves a main lift and a carry for all four days',
       ['deadlift', 'ohp', 'squat', 'bench'].every((d) => resolvedV1.mainFor(d) && resolvedV1.carryFor(d)))
-    ok('resolves the rows on OHP/bench and nothing on DL/squat',
+    ok('resolves the secondary on OHP/bench and nothing on DL/squat',
       !!resolvedV1.secondaryFor('ohp') && !!resolvedV1.secondaryFor('bench') &&
       resolvedV1.secondaryFor('deadlift') === null && resolvedV1.secondaryFor('squat') === null)
     const seededAgain = await repo.ensureSeedProgramVersion()
@@ -240,58 +204,27 @@ async function main() {
       seededAgain.versions.length === seeded.versions.length && seededAgain.slots.length === seeded.slots.length,
       { before: seeded.slots.length, after: seededAgain.slots.length })
 
-    // capacity_logs hangs off the throwaway macro's session — safe to write.
-    const cl = await repo.saveCapacityLog({
-      sessionId: sid, variant: 'A', roundsCompleted: 3, totalTimeSeconds: 754, calories: '', rpe: 'R8', notes: 'smoke',
-    })
-    ok('capacity log saved (A, 3 rounds, 754s)', cl.variant === 'A' && cl.roundsCompleted === 3 && cl.totalTimeSeconds === 754, cl)
-    ok('capacity log "" calories -> NULL', cl.calories === null, cl.calories)
-    await repo.saveCapacityLog({ ...cl, totalTimeSeconds: 700 })
-    const cl2 = await repo.getCapacityLog(sid)
-    ok('capacity log upserts on session_id -> 700', cl2?.totalTimeSeconds === 700, cl2?.totalTimeSeconds)
-
-    // 0021 completion CHECK: all five values accepted, NULL accepted (legacy),
-    // anything else rejected. The *_fatigue values are what fire S6.
-    let allFive = true
-    for (const { id: c } of CAPACITY_COMPLETION) {
-      const saved = await repo.saveCapacityLog({ ...cl, totalTimeSeconds: 700, completion: c })
-      if (saved.completion !== c) allFive = false
+    console.log('Capability logs (Hypertrophy + Oly — one row per movement per session)')
+    const movementId = lib.find((m) => m.key === 'walking_lunge')?.id
+    ok('walking_lunge resolves in the seeded library', !!movementId)
+    if (movementId) {
+      const hLog = await repo.saveHypertrophyLog({ sessionId: sid, movementId, weight: 30, repsDone: 12, notes: 'smoke' })
+      ok('hypertrophy log saved', hLog.weight === 30 && hLog.repsDone === 12, hLog)
+      await repo.saveHypertrophyLog({ ...hLog, weight: 32.5 })
+      const hLogs = await repo.getHypertrophyLogs(id)
+      ok('hypertrophy log upserts on (session,movement) -> 32.5', hLogs.find((l) => l.movementId === movementId)?.weight === 32.5)
+      ok('no duplicate hypertrophy log row', hLogs.filter((l) => l.movementId === movementId).length === 1)
+      ok('getAllHypertrophyLogs spans macros (includes throwaway log)', (await repo.getAllHypertrophyLogs()).some((l) => l.sessionId === sid))
     }
-    ok('0021 CHECK accepts all five completion values', allFive)
-    const nulled = await repo.saveCapacityLog({ ...cl, totalTimeSeconds: 700, completion: '' })
-    ok("'' -> NULL, which reads back as 'completed' (legacy rows)", nulled.completion === 'completed', nulled.completion)
-    let badRejected = false
-    try {
-      await repo.saveCapacityLog({ ...cl, totalTimeSeconds: 700, completion: 'gave_up' })
-    } catch {
-      badRejected = true
+    const olyMovementId = lib.find((m) => m.key === 'oly_muscle_snatch')?.id
+    if (olyMovementId) {
+      const oLog = await repo.saveOlyLog({ sessionId: sid, movementId: olyMovementId, weight: 40, quality: 'Q3', notes: '' })
+      ok('oly log saved with a quality mark', oLog.quality === 'Q3', oLog)
+      ok('getAllOlyLogs spans macros (includes throwaway log)', (await repo.getAllOlyLogs()).some((l) => l.sessionId === sid))
     }
-    ok('0021 CHECK rejects an unknown completion value', badRejected)
-    // Restore a clean state on the throwaway log before the cascade-delete checks.
-    await repo.saveCapacityLog({ ...cl, totalTimeSeconds: 700, completion: 'completed' })
-    // Macro-scoped read (inner-join through sessions) — powers the boot bundle.
-    const macroLogs = await repo.getCapacityLogs(id)
-    ok('getCapacityLogs(macroId) finds the log via the session join', macroLogs.some((l) => l.sessionId === sid), macroLogs.length)
-    // All-macro read (Data page capacity CSV + summaries).
-    ok('getAllCapacityLogs spans macros (includes throwaway log)', (await repo.getAllCapacityLogs()).some((l) => l.sessionId === sid))
 
     await repo.deleteSession(sid)
     ok('session deleted', !(await repo.getSessions(id)).find((s) => s.id === sid))
-    ok('capacity log cascaded with the session delete', !(await repo.getCapacityLog(sid)))
-
-    console.log('Testing results (idempotent on macro_id, lift, tested_on)')
-    const t1 = await repo.saveTestingResult({ macroId: id, lift: 'deadlift', weight: 180, reps: 2, notes: 'first', testedOn: '2099-01-08' })
-    ok('testing result saved, weight = 180', t1.weight === 180, t1.weight)
-    // Re-save the SAME (lift, date) — must UPDATE in place, not duplicate (0003 key).
-    await repo.saveTestingResult({ macroId: id, lift: 'deadlift', weight: 182.5, reps: 3, notes: 'redo', testedOn: '2099-01-08' })
-    let tr = await repo.getTestingResults(id)
-    ok('re-save updates same row -> 182.5', tr.find((t) => t.lift === 'deadlift')?.weight === 182.5)
-    ok('no duplicate testing result', tr.filter((t) => t.lift === 'deadlift' && t.testedOn === '2099-01-08').length === 1)
-    // A different date for the same lift is a distinct result.
-    await repo.saveTestingResult({ macroId: id, lift: 'deadlift', weight: 185, reps: 2, notes: '', testedOn: '2099-01-15' })
-    tr = await repo.getTestingResults(id)
-    ok('different date = separate row (2 deadlift results)', tr.filter((t) => t.lift === 'deadlift').length === 2)
-    ok('getAllTestingResults spans macros (includes throwaway rows)', (await repo.getAllTestingResults()).some((t) => t.macroId === id))
 
     console.log('Deloads')
     await repo.setDeload(id, 'SMOKE-WEEK', true)
@@ -306,80 +239,20 @@ async function main() {
     await repo.setBreakDay('2099-01-01', false)
     ok('break day unset', !(await repo.getBreakDays())['2099-01-01'])
 
-    console.log('Giant Run (reference pace, runs, distance targets)')
-    // Reference pace P: stored exactly (never rounded), null = talk-test mode.
-    let m999 = await repo.setMacroRefPace(id, 337)
-    ok('ref pace set = 337 s/km (stored exact)', m999.refPaceS === 337, m999.refPaceS)
-    m999 = await repo.setMacroRefPace(id, null)
-    ok('ref pace cleared -> talk-test mode (null)', m999.refPaceS === null, m999.refPaceS)
-    await repo.setMacroRefPace(id, 337) // leave set for the roll-carry test below
-
-    const rid = '2099-01-05-run-E'
-    const savedRun = await repo.saveRun({
-      id: rid, macroId: id, date: '2099-01-05', cycle: 1, week: 1, weekType: 'training',
-      runType: 'easy', distanceKm: 5.2, durationS: 1980, avgHr: 148, completion: 'completed', notes: 'smoke run',
-    })
-    ok('run saved, distance = 5.2', savedRun.distanceKm === 5.2, savedRun.distanceKm)
-    ok('run duration/HR round-trip', savedRun.durationS === 1980 && savedRun.avgHr === 148, savedRun)
-    // "" -> NULL normalization on the raw run row; completion mapped back to 'completed'.
-    await repo.saveRun({ ...savedRun, avgHr: '', completion: '' })
-    const { data: rawRun } = await supabase.from('runs').select('avg_hr,completion').eq('id', rid).single()
-    ok('empty avgHr/completion stored as NULL', rawRun.avg_hr === null && rawRun.completion === null, rawRun)
-    let runs = await repo.getRuns(id)
-    ok('null completion reads back as completed', runs.find((r) => r.id === rid)?.completion === 'completed')
-    // Terrain (0011): round-trips; legacy NULL reads back as road.
-    await repo.saveRun({ ...savedRun, terrain: 'trail' })
-    runs = await repo.getRuns(id)
-    ok('terrain round-trips = trail', runs.find((r) => r.id === rid)?.terrain === 'trail')
-    await supabase.from('runs').update({ terrain: null }).eq('id', rid) // simulate a pre-0011 row
-    runs = await repo.getRuns(id)
-    ok('legacy NULL terrain reads back as road', runs.find((r) => r.id === rid)?.terrain === 'road')
-    // Bulletproof (0012): boolean round-trips; legacy NULL reads back as false.
-    await repo.saveRun({ ...savedRun, bulletproof: true })
-    runs = await repo.getRuns(id)
-    ok('bulletproof round-trips = true', runs.find((r) => r.id === rid)?.bulletproof === true)
-    await supabase.from('runs').update({ bulletproof: null }).eq('id', rid) // simulate a pre-0012 row
-    runs = await repo.getRuns(id)
-    ok('legacy NULL bulletproof reads back as false', runs.find((r) => r.id === rid)?.bulletproof === false)
-    // Idempotent update on the same id.
-    await repo.saveRun({ ...savedRun, completion: 'cut_fatigue', durationS: 2100 })
-    runs = await repo.getRuns(id)
-    ok('run update: completion -> cut_fatigue', runs.find((r) => r.id === rid)?.completion === 'cut_fatigue')
-    ok('no duplicate run id', runs.filter((r) => r.id === rid).length === 1)
-    ok('getAllRuns spans macros (includes throwaway run)', (await repo.getAllRuns()).some((r) => r.id === rid))
-    await repo.deleteRun(rid)
-    ok('run deleted', !(await repo.getRuns(id)).find((r) => r.id === rid))
-
-    // Distance targets: per-cycle upsert + isolation, like accessory weights.
-    await repo.saveRunTargets(id, 1, { easy: 3, quality: 3, long: 5 })
-    await repo.saveRunTargets(id, 3, { easy: 4, quality: 4, long: 7 })
-    let rt = await repo.getRunTargets(id)
-    ok('C1 run targets = 3/3/5', rt?.[1]?.easy === 3 && rt?.[1]?.quality === 3 && rt?.[1]?.long === 5, rt?.[1])
-    ok('per-cycle isolation: C3 long = 7', rt?.[3]?.long === 7, rt?.[3])
-    await repo.saveRunTargets(id, 1, { easy: 3.5 })
-    rt = await repo.getRunTargets(id)
-    ok('target upsert updates in place -> 3.5', rt?.[1]?.easy === 3.5, rt?.[1]?.easy)
-
     console.log('Bundle')
     const bundle = await repo.loadMacroBundle(id)
     ok('bundle returns all sections', !!(bundle && bundle.weights && bundle.sessions && 'deloads' in bundle))
-    ok('bundle includes runs + runTargets', Array.isArray(bundle.runs) && bundle.runTargets?.[1]?.easy === 3.5, bundle.runTargets?.[1])
+    ok('bundle includes Capability logs', Array.isArray(bundle.hypertrophyLogs) && Array.isArray(bundle.olyLogs))
 
-    // Roll forward: C3 weights/accessory/run-targets -> new C1, ref pace copied.
+    // Roll forward: C3 weights/accessory -> new C1.
     // The rolled macro (number 1000) is briefly ACTIVE — deleted right here, and
     // the finally block also sweeps it so a crash can't leave it behind.
-    console.log('Roll to next macro (carries C3 + ref pace)')
-    // A legacy C3 anchor (pullup) must NOT be carried — GiantFit anchors only.
-    await repo.saveWorkingWeights(id, 3, { pullup: { hard: 12 } })
+    console.log('Roll to next macro (carries C3 anchors + carries)')
     const next = await repo.rollToNextMacro({ currentMacroId: id, currentMacroNumber: TEST_MACRO_NUMBER, newStartISO: '2099-04-20' })
     ok('next macro created (number 1000)', next.number === TEST_MACRO_NUMBER + 1, next.number)
     ok('rolled macro is 13 weeks, not extended', next.weeks === 13 && next.deloadExtended === false, { w: next.weeks, e: next.deloadExtended })
-    ok('ref pace carried -> 337', next.refPaceS === 337, next.refPaceS)
-    const nrt = await repo.getRunTargets(next.id)
-    ok('C3 run targets carried as new C1 (long 7)', nrt?.[1]?.long === 7, nrt?.[1])
     const nw = await repo.getWorkingWeights(next.id)
     ok('C3 weights carried as new C1 (deadlift 170)', nw?.[1]?.deadlift?.hard === 170, nw?.[1]?.deadlift)
-    ok('legacy C3 pullup anchor NOT carried (GiantFit anchors only)', nw?.[1]?.pullup === undefined, nw?.[1]?.pullup)
     await supabase.from('macros').delete().eq('id', next.id)
     ok('rolled throwaway macro removed', !(await repo.getMacroByNumber(TEST_MACRO_NUMBER + 1)))
 

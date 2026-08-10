@@ -1,14 +1,13 @@
 import { Fragment, useState } from 'react'
 import { C, pillColor } from './theme'
 import { Card } from './components'
-import { blockTitle, Row, speedArrow } from './controls'
+import { blockTitle, speedArrow } from './controls'
 import { LIFT_LABEL, PULLUP, DAY_META } from '../engine/constants'
 import { fmt } from '../engine/loading'
 import { clusterTotal, isUnbroken } from '../engine/pullups'
-import type { Session, TestingResult, Lift, Difficulty } from '../engine/types'
+import type { Session, Lift, Difficulty } from '../engine/types'
 
-// GiantFit lifts first; dips kept so legacy Giant top sets stay visible.
-const LIFTS: Lift[] = ['deadlift', 'ohp', 'squat', 'bench', 'dips']
+const LIFTS: Lift[] = ['deadlift', 'ohp', 'squat', 'bench']
 const DIFFS: Difficulty[] = ['hard', 'medium', 'light']
 
 // Compact ` · …` suffixes for the recent-sessions feed line (empty = nothing logged).
@@ -29,16 +28,14 @@ function carrySuffix(s: Session): string {
 }
 interface HistoryProps {
   sessions: Session[]
-  testingResults?: TestingResult[]
   macroNumber: number
   onDeleteSession: (id: string) => void
 }
 
-export function History({ sessions, testingResults = [], macroNumber, onDeleteSession }: HistoryProps) {
+export function History({ sessions, macroNumber, onDeleteSession }: HistoryProps) {
   const [confirmId, setConfirmId] = useState<string | null>(null)
 
-  if (!sessions.length && !testingResults.length)
-    return <Card style={{ textAlign: 'center', color: C.muted, padding: 40 }}>No sessions logged yet.</Card>
+  if (!sessions.length) return <Card style={{ textAlign: 'center', color: C.muted, padding: 40 }}>No sessions logged yet.</Card>
 
   // Latest logged top set per lift × difficulty.
   const latest: Record<string, Record<string, { w: number | null }>> = {}
@@ -73,20 +70,7 @@ export function History({ sessions, testingResults = [], macroNumber, onDeleteSe
         </div>
       </Card>
 
-      {testingResults.length > 0 && (
-        <Card>
-          {blockTitle('Testing Results', 'recorded 2–3RM')}
-          {['deadlift', 'squat', 'ohp', 'dips']
-            .map((lift) => testingResults.find((r) => r.lift === lift))
-            .filter((r): r is TestingResult => Boolean(r))
-            .map((r) => (
-              <Row key={r.id} a={LIFT_LABEL[r.lift as Lift]} b={r.testedOn || ''} c={`${r.weight != null ? r.weight + ' kg' : '—'} × ${r.reps ?? '—'}`} />
-            ))}
-        </Card>
-      )}
-
-      <ClusterTrend sessions={sessions} field="pullupCluster" title="Pull-up Cluster Trend" />
-      <ClusterTrend sessions={sessions} field="dipsCluster" title="Dips Cluster Trend" />
+      <ClusterTrend sessions={sessions} />
       <CarryDistanceTrend sessions={sessions} />
 
       <Card>
@@ -183,21 +167,22 @@ function CarryDistanceTrend({ sessions }: { sessions: Session[] }) {
   )
 }
 
-// Bodyweight-mode cluster trend (dips-day final-round clusters, oldest -> newest).
-// Shared by pull-ups and dips — each logs its own cluster field while its anchor is 0.
-function ClusterTrend({ sessions, field, title }: { sessions: Session[]; field: 'pullupCluster' | 'dipsCluster'; title: string }) {
+// Bodyweight-mode Pull-ups cluster trend (bench day's secondary, final-round
+// clusters, oldest -> newest) — only meaningful while the pendlay_row anchor
+// is 0/unset for the cycle (bodyweight mode).
+function ClusterTrend({ sessions }: { sessions: Session[] }) {
   const items = sessions
-    .filter((s) => s.dayType === 'dips' && s[field])
+    .filter((s) => s.dayType === 'bench' && s.pullupCluster)
     .slice()
     .sort((a, b) => (a.date < b.date ? -1 : 1))
   if (!items.length) return null
   return (
     <Card>
-      {blockTitle(title, 'Dips day · toward unbroken')}
+      {blockTitle('Pull-up Cluster Trend', 'Bench day · toward unbroken')}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         {items.map((s, i) => {
-          const total = clusterTotal(s[field])
-          const unbroken = isUnbroken(s[field])
+          const total = clusterTotal(s.pullupCluster)
+          const unbroken = isUnbroken(s.pullupCluster)
           return (
             <Fragment key={s.id}>
               {i > 0 && <span style={{ color: C.muted }}>→</span>}
@@ -212,7 +197,7 @@ function ClusterTrend({ sessions, field, title }: { sessions: Session[]; field: 
                   fontVariantNumeric: 'tabular-nums',
                 }}
               >
-                {s[field]}
+                {s.pullupCluster}
                 <span style={{ color: C.muted, fontSize: 11 }}> ={total}</span>
               </span>
             </Fragment>

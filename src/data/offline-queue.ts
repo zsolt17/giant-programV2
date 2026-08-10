@@ -1,20 +1,12 @@
-// Durable offline write queue. Session/run saves & deletes made while offline
-// are stored in localStorage and replayed when back online. Replay is safe
+// Durable offline write queue. Session saves & deletes made while offline are
+// stored in localStorage and replayed when back online. Replay is safe
 // because these writes are idempotent (upsert by id). Browser-only — guarded so
 // the Node smoke test (no window/localStorage) is unaffected.
 const KEY = 'giant_pending_writes'
 const isBrowser = typeof window !== 'undefined' && typeof localStorage !== 'undefined'
 const MAX_ATTEMPTS = 5
 
-export type QueueKind =
-  | 'saveSession'
-  | 'deleteSession'
-  | 'saveRun'
-  | 'deleteRun'
-  | 'saveCapacityLog'
-  | 'deleteCapacityLog'
-  | 'saveHypertrophyLog'
-  | 'saveOlyLog'
+export type QueueKind = 'saveSession' | 'deleteSession' | 'saveHypertrophyLog' | 'saveOlyLog'
 export interface QueueOp {
   kind: QueueKind
   // Serialized write payload (a session row, or { id } for a delete). Dynamic JSON

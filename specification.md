@@ -46,77 +46,48 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ## Current capabilities
 
 - **Single-user auth** (Supabase email/password, RLS-protected).
-- **Giant 2.0 schedule (from 2026-08-10)** — the date decides the era, never a stored flag: dates
-  on/after the cutover use fixed weekday→lift session days (**Mon Squat · Tue Bench · Thu
-  Deadlift · Fri OHP, no rotation**, unlike every prior era), 13-week macros (three 4-week cycles
-  + one deload, extendable), with the Giant block's difficulty following a per-lift weekly
-  rotation that repeats identically every cycle (week 4 collapses to one difficulty for all four
-  sessions, by cycle: light/medium/hard) — independent of the Volume block's own difficulty, which
-  is fixed for the whole cycle (light C1 / medium C2 / hard C3, except C3 week 4 which drops the
-  Volume block entirely). Dates before the cutover keep rendering under whichever era already
-  applied to them (GiantFit or legacy Giant v7) — including an in-flight macro that crosses the
-  cutover mid-stream, which switches era at the cutover date using its own week/meso clock.
-- **Giant 2.0 sessions** — Primer (rope flow + day-typed band activation — Crossover Symmetry
-  upper / Hip Halo lower — + a 1-2-3 ascending bodyweight ramp, no load/RPE tracked) → Giant Block
-  (the lift's ladder + a day's paired **secondary** — BB Row on OHP day, Pull-ups on bench day,
-  reusing the GiantFit row/pull-up anchor lanes unchanged — + a bodyweight accessory; squat and
-  deadlift train alone) → Volume (80%, gated off on C3 week 4 and during any deload) →
-  **Capability**, whose content is a property of the CYCLE, not the week: **Hypertrophy** in C1
-  (per-movement weight/reps, 3 fixed sets), **Olympic lifting** in C2 (per-movement weight + a Q1/
-  Q2/Q3 quality mark, position wave copy by week), **Carries** in C3 (the unchanged GiantFit
-  day→implement mapping, flat RPE-6 guidance) — all suppressed during any deload, reactive or
-  scheduled.
-- **Today** — date-computed position (per era); full session prescription and logging. **Optional
+- **The program schedule** — one program, no era flag: fixed weekday→lift session days
+  (**Mon Squat · Tue Bench · Thu Deadlift · Fri OHP, no rotation**), 13-week macros (three
+  4-week cycles + one deload, extendable), with the Giant block's difficulty following a
+  per-lift weekly rotation that repeats identically every cycle (week 4 collapses to one
+  difficulty for all four sessions, by cycle: light/medium/hard) — independent of the Volume
+  block's own difficulty, which is fixed for the whole cycle (light C1 / medium C2 / hard C3,
+  except C3 week 4 which drops the Volume block entirely).
+- **Sessions** — Primer (rope flow + day-typed band activation — Crossover Symmetry upper /
+  Hip Halo lower — + a 1-2-3 ascending bodyweight ramp, no load/RPE tracked) → Giant Block
+  (the lift's ladder + a day's paired **secondary** — BB Row on OHP day, Pull-ups on bench day
+  — + a bodyweight accessory; squat and deadlift train alone) → Volume (80%, gated off on C3
+  week 4 and during any deload) → **Capability**, whose content is a property of the CYCLE, not
+  the week: **Hypertrophy** in C1 (per-movement weight/reps, 3 fixed sets), **Olympic lifting**
+  in C2 (per-movement weight + a Q1/Q2/Q3 quality mark, position wave copy by week), **Carries**
+  in C3 (day→implement mapping, flat RPE-6 guidance) — all suppressed during any deload,
+  reactive or scheduled.
+- **Today** — date-computed position; full session prescription and logging. **Optional
   session timer:** Start → live timer → End, duration derived from `started_at`/`ended_at`,
   90-min auto-end safeguard, manual duration edit.
-- **Calendar** — program-week grid, **3 or 4 columns depending on which era a given week is in**
-  (GiantFit/legacy Mon/Wed/Fri vs Giant 2.0's Mon/Tue/Thu/Fri; 13 weeks, 14 with an extended
-  deload, legacy macros 15) + the Tue/Thu/Sat Giant Run row (suppressed on Giant 2.0 weeks, whose
-  Tue/Thu slots are now lift days); log/edit/delete any session; mark breaks.
-- **History** — latest top sets, recent-session feed, pull-up cluster trend, testing results.
+- **Calendar** — program-week grid, **4 columns (Mon/Tue/Thu/Fri)**, 13 weeks (14 with an
+  extended deload); log/edit/delete any session; mark breaks.
+- **History** — latest top sets, recent-session feed, pull-up cluster trend.
 - **Deload** — per-week fatigue signals + reactive-deload recommend/apply (advise-and-confirm;
-  pooled lift + run + capacity signals, all era-aware — S2 has a Giant-2.0-only exception for C3
-  week 4's missing Volume block; S6 "Capacity not completed as prescribed" only ever fires on
-  GiantFit-era dates, since Giant 2.0 has no Capacity block and isn't given a replacement signal;
-  the recommendation card lists every fired signal incl. offending dates).
-- **Setup** — per-cycle (C1/C2/C3) **Hard-top anchor** per lift, era-aware labelling — GiantFit's
-  six (DL/OHP/Squat/Bench + DB Row/Pendlay Row) plus Giant 2.0's own Giant-Difficulty Rotation
-  card (editable per-cycle-week Hard/Medium/Light assignment, capacity-config pattern, merged over
-  the built-in default) — the build-up, ladder, and Volume all compute live off each anchor, with
-  a read-only preview + **Giant Block Accessories** (rep target per day's bodyweight movement,
-  shared table across eras) + the GiantFit-only **Capacity** section (variants A/B, editable rep
-  targets + weights, rounds 3/4) + carries, macro anchor, macro picker, and "start next macro"
-  archiving (carries C3→C1 anchors forward).
-- **Data** — export all data as CSVs (sessions incl. `volume_difficulty` + the deprecated-but-kept
-  `pair_weight` + `deload_week` columns, capacity results incl. derived per_round_s, runs,
-  Hypertrophy logs, Oly logs, legacy testing results — a union of every era's columns, old rows
-  never rewritten), and copy a plain-text summary of **any** logged session — era-appropriate
-  content per session (GiantFit carries the pairing weight + a capacity line; Giant 2.0 carries
-  its secondary/accessory/Volume-block detail + a Capability-not-included note where relevant) —
-  to the clipboard for coaching conversations. (Burger menu → Data.)
-- **Trends** — spans all three eras: Lifts (DL/OHP/Squat/Bench, dynamic per-macro attendance
-  columns) · Runs · **Capacity** (GiantFit-only: per-round time over date, one line per variant,
-  Bike-calories chart) · Carries · Session views; multi-macro range picker (each macro's own
-  columns/series render only where that era has data — legacy macros keep their reduced view, no
-  Capability series here since Giant 2.0 deliberately renders off hardcoded content, not the
-  modular program system); lazy recharts chunk.
+  S2 has an exception for any session with no Volume block — C3 week 4 or a deload; the
+  recommendation card lists every fired signal incl. offending dates).
+- **Setup** — per-cycle (C1/C2/C3) **Hard-top anchor** for all six lanes (DL/OHP/Squat/Bench +
+  BB Row/Pull-ups) plus the Giant-Difficulty Rotation card (editable per-cycle-week
+  Hard/Medium/Light assignment, merged over the built-in default) — the build-up, ladder, and
+  Volume all compute live off each anchor, with a read-only preview + **Giant Block
+  Accessories** (rep target per day's bodyweight movement) + carries, macro anchor, macro
+  picker, and "start next macro" archiving (carries C3→C1 anchors forward).
+- **Data** — export sessions (incl. `volume_difficulty`), Hypertrophy logs, and Oly logs as
+  CSVs, and copy a plain-text summary of any logged session (secondary/accessory/Volume-block
+  detail + a Capability-not-included note where relevant) to the clipboard for coaching
+  conversations. (Burger menu → Data.)
+- **Trends** — Lifts (DL/OHP/Squat/Bench, dynamic per-macro attendance columns) · Carries ·
+  Session views; multi-macro range picker; lazy recharts chunk. No Hypertrophy/Oly series yet.
 - **Recovery → Tendon Health** — joint-specific isometric loading protocol: pick a joint, phase
   auto-advances (Acute/Build/Maintenance, overridable), per-tendon 30s hold timer + light per-day
   "done" logging, position diagrams. One active protocol at a time. (Burger menu → Recovery; first item.)
-- **Pull-ups (reactivated, Giant 2.0)** — the two-mode engine (bodyweight cluster vs weighted
-  ladder) that went dormant under GiantFit is live again as bench day's secondary: a real
-  Setup-writable per-cycle anchor, not just legacy history rendering. **Dips** stay retired — no
-  era brought the main-lift dips slot back.
-- **The Giant Run** — Tue/Thu/Sat companion running program (ARCHITECTURE §13): date-computed
-  schedule (Thu quality runs easy in meso 1; testing Sat = 5k TT; W15 optional short easy),
-  two-mode pace engine off a per-macro reference pace P (talk-test when unset; Easy P+75s /
-  Quality P+15–40s, 5 s/km rounding, P never rounded), per-cycle distance targets (Setup,
-  seeded forward), run logging on Today + a second Calendar row (log/edit/delete retroactively,
-  breaks work, optional days never "missed"), TT → explicit-confirm "set as new P", run deload
-  signals (R1/R2/R3) pooled into the weekly trigger, runs in Data list/copy/CSV + a Trends
-  pace-over-time view.
-- **Testing weeks (legacy)** — removed from the 13-week schedule; historical results from
-  15-week macros stay viewable/exportable.
+- **Pull-ups** — the two-mode engine (bodyweight cluster vs weighted ladder) is live as bench
+  day's secondary: a real Setup-writable per-cycle anchor, not history rendering.
 - **Global loading states** — branded pre-React splash (home-screen-icon mark + shimmer bar);
   **first login is held** (sign-in button spinner spans auth + the first data fetch, then Today
   paints complete in one fade-in); slim top progress bar on later in-app reloads.
@@ -128,6 +99,45 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ---
 
 ## Change log
+
+## 2026-08-10 (Single-program cleanup — retire Giant v7 + GiantFit, remove Giant Run)
+- `chore`: **Phase 0 — backup.** Full schema+data dump taken before any destructive change
+  (`giant_schema_2026-08-09.sql` / `giant_data_2026-08-09.sql`, outside the repo); row counts
+  verified before/after export matched exactly.
+- `chore`: **Phase 1 — audit.** Confirmed exactly what was still reachable from either retired
+  era (macro M2 entirely Giant v7; M3's GiantFit-window sessions, `2026-07-27`–`2026-08-10`;
+  `program_versions` #1; a set of GiantFit/Giant-Run/orphaned-duplicate `movements` rows) versus
+  what Giant 2.0 actually reuses (the `db_row`/`pendlay_row` anchor lanes, the carry keys, the
+  Recovery tables, the session timer).
+- `feat`/`chore`: **Phase 2 — data/schema cleanup.** `0024_giant2_only_cleanup.sql` deleted
+  macro M2 (cascade), the GiantFit-window sessions on M3, the now-stale `program_versions` #1
+  (cascading its `program_slots`), 28 GiantFit/Giant-Run/orphaned-duplicate `movements` rows,
+  and dropped `capacity_logs`/`capacity_config`/`capacity_settings`/`testing_results` outright;
+  narrowed the `working_weights`/`sessions`/`accessory_weights` CHECK constraints to only the
+  values Giant 2.0 ever writes. `0025_prune_empty_secondary_lanes.sql` removed the two
+  never-populated `secondary_deadlift`/`secondary_squat` `program_slots` rows the smoke test
+  surfaced as newly orphaned once `engine/program.ts` dropped the concept.
+- `feat`: **Phase 3 — Giant Run fully removed.** UI, data, and schema all dropped — `runs` and
+  `run_targets` tables, `macros.ref_pace_s`, `engine/runs.ts`, `RunForm.tsx`/`RunModal.tsx`, the
+  Calendar run row, the Trends pace view. This goes further than the plan on the table at the
+  start of this cleanup, which had only proposed relocating Giant Run's nav entry off the
+  colliding Tue/Thu slots; the explicit decision made during this phase was to remove it
+  completely instead, after confirming the running history would remain readable only in the
+  Phase 0 dump. Giant Run may be rebuilt from scratch at some point, but that's out of scope
+  here and isn't planned.
+- `chore`: **Phase 4 — verification.** 119 engine unit tests passing, clean `tsc --noEmit`,
+  clean `npm run build`, a live-DB smoke test (`npm run smoke`, throwaway macro), and live
+  browser testing against production. Found and fixed one real bug during the browser pass:
+  `Setup.tsx`'s Giant Block Accessories section had a React key collision (two Setup rows for
+  the same accessory movement, since two lift-days share one accessory) — fixed by keying on
+  `day` instead of `m.key`.
+- `docs`: **Phase 5 — this doc rewrite.** `ARCHITECTURE.md` rewritten to describe one program
+  throughout (no more LEGACY markers or era-branching sections; §9's schema section brought in
+  line with `0024`/`0025`; the old Giant Run §13 and its scheduling-collision note in old §2.13
+  removed entirely) — cut from 1178 to ~720 lines. `CONVENTIONS.md`'s file tree, domain-rules
+  section, and stale bundle/id-scheme references updated to match the current single-era
+  codebase. `specification.md`'s "Current capabilities" rewritten to drop every GiantFit/Giant
+  Run/Capacity/testing-week claim.
 
 ## 2026-08-09 (Giant 2.0, Phase 6 — Trends/Data/CSV/docs)
 - `feat`: **Trends spans Giant 2.0** — `AttendanceChart` now computes each macro's own

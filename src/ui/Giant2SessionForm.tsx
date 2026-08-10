@@ -1,10 +1,6 @@
-// Giant 2.0 session view (from GIANT2_START_DATE) — Primer -> Giant -> Volume
-// -> Capability. Capability content is dispatched by CYCLE (Hypertrophy C1 /
-// Oly C2 / Carries C3, capabilityProgramFor) — null on deload (cycle unset).
-// Mirrors SessionForm.tsx's structure and reuses its shared helpers
-// (Row/LogRpe/BlockCompletion/ClusterInput) but is a SEPARATE component —
-// GiantFit's live rendering must stay untouched while an actual macro is
-// still running under it.
+// The Giant 2.0 session view — Primer -> Giant -> Volume -> Capability.
+// Capability content is dispatched by CYCLE (Hypertrophy C1 / Oly C2 /
+// Carries C3, capabilityProgramFor) — null on deload (cycle unset).
 import { C, inp, lbl } from './theme'
 import { Card } from './components'
 import { blockTitle, Row, LogRpe } from './controls'
@@ -17,13 +13,13 @@ import {
   SET_LADDER,
   LIFT_LABEL,
   PULLUP,
-  GIANTFIT_ROW_REPS,
+  SECONDARY_REPS,
   GIANT2_ROPE_FLOW,
   GIANT2_PRIMER_BAND,
   GIANT2_PRIMER_RAMP,
   GIANT2_PRIMER_RAMP_ROUNDS,
   GIANT2_SECONDARY,
-  GIANT2_GB_ACCESSORY,
+  GB_ACCESSORY,
   GIANT2_DAY_TYPE,
   GIANT2_CARRY_RPE_GUIDANCE,
   DAY_META,
@@ -58,8 +54,7 @@ interface Giant2SessionFormProps {
   // The db_row/pendlay_row lane's per-cycle cell — BB Row (OHP) or Pull-ups
   // (bench, two-mode). null on Squat/Deadlift (train alone) or when unset.
   secondaryCell?: LiftWeights | null
-  // Giant Block accessory rep targets from Setup (shared table with GiantFit's,
-  // GIANT2_GB_DEFAULT_REPS merged in — mappers.ts).
+  // Giant Block accessory rep targets from Setup (defaults merged in — mappers.ts).
   giantAccessory?: GiantAccessoryReps
   // Capability block (null cycle — deload — renders nothing here).
   cycle?: number | null
@@ -117,10 +112,10 @@ export function Giant2SessionForm({
   const secTop = secBase != null ? (isDeload ? deloadTop(secBase) : secBase) : null
   const secWu = secTop != null ? warmupSets(secTop) : null
   const secGsets = secTop != null ? giantSets(secTop, difficulty) : null
-  const secReps = GIANTFIT_ROW_REPS[difficulty]
+  const secReps = SECONDARY_REPS[difficulty]
   const secVolBase = secondary && secondaryWeighted && volumeDifficulty ? secondaryCell?.[volumeDifficulty] ?? null : null
 
-  const gbAcc = GIANT2_GB_ACCESSORY[dayType]
+  const gbAcc = GB_ACCESSORY[dayType]
   const gbAccReps = gbAcc ? giantAccessory?.[gbAcc.key] ?? gbAcc.reps : null
 
   const volScheme = volumeDifficulty ? SCHEMES[volumeDifficulty] : null
@@ -136,8 +131,7 @@ export function Giant2SessionForm({
         </Card>
       )}
 
-      {/* I. Primer — no load, no RPE; tracked as prescription only (same
-          treatment as GiantFit's own Warm-Up block). */}
+      {/* I. Primer — no load, no RPE; tracked as prescription only. */}
       <Card>
         {blockTitle('A. Primer', 'warm-up')}
         <Row a={GIANT2_ROPE_FLOW.name} b={GIANT2_ROPE_FLOW.dose} c="" cls={C.muted} />
@@ -206,8 +200,7 @@ export function Giant2SessionForm({
           null (C3 week 4) means it doesn't run at all that week. Also off on
           ANY deload — scheduled (volumeDifficulty is already null then) or
           reactive mid-cycle (volumeDifficulty would otherwise still be set,
-          so isDeload has to gate it explicitly) — same !isDeload discipline
-          GiantFit's own Volume block has always used. */}
+          so isDeload has to gate it explicitly). */}
       {!isDeload && volumeDifficulty && volScheme && (
         <Card>
           {blockTitle('C. Volume Block', `2 sets · 80% · ${volumeDifficulty}`)}

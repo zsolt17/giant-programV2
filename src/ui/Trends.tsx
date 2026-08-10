@@ -3,10 +3,8 @@ import type { CSSProperties, ReactNode } from 'react'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { C as TH, HEADING, BODY } from './theme'
 import { useFocusTrap } from './useFocusTrap'
-import { toTrendSessions, toCapacityTrend, toCarrySessions, toAttendance, toRunTrend, macroLabels } from '../engine/trends'
-import { fmtPace, fmtRunDuration } from '../engine/runs'
-import { RUN_TYPE_LABEL } from '../engine/constants'
-import type { TrendsData, TrendSession, TrendCapacity, TrendCarry, TrendDay, TrendRun, RunType, CarryType, AttMacro, AttStatus, CapacityVariant } from '../engine/types'
+import { toTrendSessions, toCarrySessions, toAttendance, macroLabels } from '../engine/trends'
+import type { TrendsData, TrendSession, TrendCarry, TrendDay, CarryType, AttMacro, AttStatus } from '../engine/types'
 
 // Mockup palette remapped onto the navy/gold system (the mockup's amber ≈ our gold).
 const C = {
@@ -31,23 +29,16 @@ const C = {
 const num: CSSProperties = { fontVariantNumeric: 'tabular-nums' }
 const tick = { fill: C.dim, fontSize: 9, fontFamily: BODY }
 
-// GiantFit lifts only — Trends carries no legacy series (dips/accessories live
-// in the DB and History, never here).
 const LIFT_COLORS: Record<string, string> = { DL: C.amber, OHP: C.slate, Squat: C.purple, Bench: C.green }
 const CARRY_TYPES: CarryType[] = ['Farmer', 'Suitcase', 'Sandbag', 'Overhead']
 const CARRY_COLORS: Record<CarryType, string> = { Farmer: C.amber, Suitcase: C.slate, Sandbag: C.purple, Overhead: C.green }
 const STATUS_COLOR: Record<string, string> = { done: C.green, missed: C.red, deload: C.amber, holiday: C.slate, upcoming: C.muted }
-// Session-day labels by slot count: 3 (Mon/Wed/Fri) pre-Giant-2.0, 4 (Mon/Tue/
-// Thu/Fri) from it — AttMacro's cells carry no weekday of their own (just
-// AttStatus), so the count is what picks the label set (the only two
-// schedules this app has ever had).
-const SLOTS_BY_COUNT: Record<number, string[]> = { 3: ['Mon', 'Wed', 'Fri'], 4: ['Mon', 'Tue', 'Thu', 'Fri'] }
+// Session-day labels: fixed Mon/Tue/Thu/Fri (AttMacro's cells carry no
+// weekday of their own — just AttStatus — so the count picks the label set).
+const SLOTS_BY_COUNT: Record<number, string[]> = { 4: ['Mon', 'Tue', 'Thu', 'Fri'] }
 const ALL_LIFTS: TrendDay[] = ['DL', 'OHP', 'Squat', 'Bench']
-const AUX_VIEWS = ['Lifts', 'Runs', 'Capacity', 'Carries', 'Session'] as const
+const AUX_VIEWS = ['Lifts', 'Carries', 'Session'] as const
 type View = (typeof AUX_VIEWS)[number]
-const VARIANT_COLORS: Record<CapacityVariant, string> = { A: C.amber, B: C.slate }
-const ALL_RUN_TYPES: RunType[] = ['easy', 'quality', 'long', 'tt']
-const RUN_COLORS: Record<RunType, string> = { easy: C.green, quality: C.amber, long: C.slate, tt: C.purple }
 
 // ─── shared UI ───────────────────────────────────────────────────────────────
 interface TipProps {
@@ -217,7 +208,7 @@ function useFocusTrapRef(onClose: () => void) {
 }
 
 // ─── filter bar ──────────────────────────────────────────────────────────────
-function FilterBar({ rangeStart, rangeEnd, cycle, lift, runType, view, onOpenPicker, onCycle, onLift, onRunType, onView }: { rangeStart: string; rangeEnd: string; cycle: string; lift: string; runType: string; view: View; onOpenPicker: () => void; onCycle: (c: string) => void; onLift: (l: string) => void; onRunType: (t: string) => void; onView: (v: View) => void }) {
+function FilterBar({ rangeStart, rangeEnd, cycle, lift, view, onOpenPicker, onCycle, onLift, onView }: { rangeStart: string; rangeEnd: string; cycle: string; lift: string; view: View; onOpenPicker: () => void; onCycle: (c: string) => void; onLift: (l: string) => void; onView: (v: View) => void }) {
   const isSingle = rangeStart === rangeEnd
   const rangeLabel = isSingle ? rangeStart : `${rangeStart} – ${rangeEnd}`
   const isLifts = view === 'Lifts'
@@ -234,7 +225,7 @@ function FilterBar({ rangeStart, rangeEnd, cycle, lift, runType, view, onOpenPic
       <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
         <span style={rowLabel}>VIEW</span>
         {AUX_VIEWS.map((v) => (
-          <Btn key={v} active={view === v} onClick={() => onView(v)} color={v === 'Carries' || v === 'Runs' ? C.green : v === 'Session' ? C.slate : C.amber}>
+          <Btn key={v} active={view === v} onClick={() => onView(v)} color={v === 'Carries' ? C.green : v === 'Session' ? C.slate : C.amber}>
             {v}
           </Btn>
         ))}
@@ -259,115 +250,7 @@ function FilterBar({ rangeStart, rangeEnd, cycle, lift, runType, view, onOpenPic
           ))}
         </div>
       )}
-      {view === 'Runs' && (
-        <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-          <span style={rowLabel}>RUN</span>
-          {['All', ...ALL_RUN_TYPES].map((t) => (
-            <Btn key={t} active={runType === t} color={RUN_COLORS[t as RunType]} onClick={() => onRunType(t)}>
-              {t === 'All' ? 'All' : t === 'tt' ? 'TT' : RUN_TYPE_LABEL[t as RunType]}
-            </Btn>
-          ))}
-        </div>
-      )}
     </div>
-  )
-}
-
-// ─── Runs view chart ─────────────────────────────────────────────────────────
-// Pace over time, one line per run type. The Y axis is REVERSED (up = faster)
-// and ticks/tooltip render mm:ss — raw seconds never reach the eye.
-function PaceTooltip({ active, payload, label }: TipProps) {
-  if (!active || !payload?.length) return null
-  return (
-    <div style={{ background: C.inset, border: `1px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', fontSize: 12 }}>
-      <div style={{ color: C.label, marginBottom: 4 }}>{label}</div>
-      {payload.map((p, i) => (
-        <div key={i} style={{ color: p.color || C.amber, display: 'flex', gap: 8 }}>
-          <span style={{ color: C.dim }}>{p.name}</span>
-          <span style={{ fontWeight: 600, ...num }}>{fmtPace(Number(p.value))}/km</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function RunsChart({ runs, runType }: { runs: TrendRun[]; runType: string }) {
-  const types: RunType[] = runType === 'All' ? ALL_RUN_TYPES : [runType as RunType]
-  // Trail runs are paced by terrain, not fitness — hidden by default so they
-  // can't distort the trend; the chip overlays them as hollow markers.
-  const [showTrail, setShowTrail] = useState(false)
-  const shown = useMemo(
-    () => runs.filter((r) => types.includes(r.type) && (showTrail || r.terrain !== 'trail')),
-    [runs, runType, showTrail] // eslint-disable-line react-hooks/exhaustive-deps
-  )
-  const trailCount = useMemo(() => runs.filter((r) => types.includes(r.type) && r.terrain === 'trail').length, [runs, runType]) // eslint-disable-line react-hooks/exhaustive-deps
-  const byDate = useMemo(() => {
-    const map: Record<string, Record<string, number | string | boolean>> = {}
-    shown.forEach((r) => {
-      const label = `${r.date.slice(8, 10)}.${r.date.slice(5, 7)}`
-      if (!map[r.date]) map[r.date] = { label }
-      map[r.date][RUN_TYPE_LABEL[r.type]] = Math.round(r.paceS)
-      map[r.date][`${RUN_TYPE_LABEL[r.type]}~trail`] = r.terrain === 'trail'
-    })
-    return Object.keys(map)
-      .sort()
-      .map((k) => map[k])
-  }, [shown])
-  // Latest ROAD pace per type for the legend strip (trail never sets the number).
-  const latestOf = (t: RunType) => {
-    const of = shown.filter((r) => r.type === t && r.terrain !== 'trail')
-    return of.length ? of[of.length - 1].paceS : null
-  }
-  // Hollow marker for trail points, solid for road.
-  const dotFor = (t: RunType) =>
-    function TerrainDot(props: { cx?: number; cy?: number; payload?: Record<string, unknown> }) {
-      const { cx, cy, payload } = props
-      if (cx == null || cy == null || payload?.[RUN_TYPE_LABEL[t]] == null) return <g />
-      const trail = !!payload?.[`${RUN_TYPE_LABEL[t]}~trail`]
-      return <circle cx={cx} cy={cy} r={trail ? 3.5 : 2.5} fill={trail ? 'transparent' : RUN_COLORS[t]} stroke={RUN_COLORS[t]} strokeWidth={trail ? 1.5 : 0} />
-    }
-  return (
-    <Card>
-      <SectionHeader sub="The Giant Run" title="Pace Over Time" />
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-        {types.map((t) => {
-          const latest = latestOf(t)
-          return (
-            <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <div style={{ width: 18, height: 3, background: RUN_COLORS[t], borderRadius: 2 }} />
-              <span style={{ fontSize: 11, color: C.label, ...num }}>
-                {RUN_TYPE_LABEL[t]} {latest != null ? `${fmtPace(latest)}/km` : '—'}
-              </span>
-            </div>
-          )
-        })}
-        <div style={{ marginLeft: 'auto' }}>
-          <Btn active={showTrail} onClick={() => setShowTrail((v) => !v)} color={C.green}>
-            Trail runs{trailCount ? ` (${trailCount})` : ''}
-          </Btn>
-        </div>
-      </div>
-      {!byDate.length ? (
-        <div style={{ textAlign: 'center', color: C.dim, padding: '40px 0', fontSize: 13 }}>
-          {trailCount ? 'Only trail runs so far — enable the Trail chip to see them.' : 'No runs with distance + duration logged yet.'}
-        </div>
-      ) : (
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={byDate} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={C.line} vertical={false} />
-            <XAxis dataKey="label" tick={tick} axisLine={false} tickLine={false} />
-            <YAxis reversed tick={tick} axisLine={false} tickLine={false} width={38} domain={['dataMin - 15', 'dataMax + 15']} tickFormatter={(v: number) => fmtPace(v)} />
-            <Tooltip content={<PaceTooltip />} />
-            {types.map((t) => (
-              <Line key={t} type="monotone" dataKey={RUN_TYPE_LABEL[t]} stroke={RUN_COLORS[t]} strokeWidth={2.5} dot={dotFor(t)} connectNulls />
-            ))}
-          </LineChart>
-        </ResponsiveContainer>
-      )}
-      <div style={{ fontSize: 10, color: C.dim, marginTop: 8, textAlign: 'right' }}>
-        up = faster · road only by default{showTrail ? ' · hollow = trail (terrain-paced)' : ''}
-      </div>
-    </Card>
   )
 }
 
@@ -494,104 +377,6 @@ function BarSpeedChart({ sessions, lift }: { sessions: TrendSession[]; lift: str
         ))}
       </div>
     </Card>
-  )
-}
-
-// ─── Capacity view (GiantFit) ────────────────────────────────────────────────
-// Per-round average time over date, ONE line per variant — A and B are
-// different circuits and never mix. Same per-round math the S6 signal reads.
-function CapacityTooltip({ active, payload }: TipProps) {
-  if (!active || !payload?.length) return null
-  // Route to the hovered variant's full log (stamped as "<variant>~meta").
-  const first = payload.find((p) => p.value != null)
-  const d = first?.payload?.[`${first.name}~meta`] as TrendCapacity | undefined
-  if (!d) return null
-  return (
-    <div style={{ background: C.inset, border: `1px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', fontSize: 11 }}>
-      <div style={{ color: C.label, marginBottom: 3 }}>
-        {d.date} · Variant {d.variant}
-      </div>
-      <div style={{ color: VARIANT_COLORS[d.variant], ...num }}>
-        {d.rounds} rds · {fmtRunDuration(d.totalS)} total · {fmtRunDuration(Math.round(d.perRoundS))}/rd
-      </div>
-      {d.rpe != null && <div style={{ color: C.dim, ...num }}>R{d.rpe}</div>}
-    </div>
-  )
-}
-
-function CapacityChart({ points }: { points: TrendCapacity[] }) {
-  const variants: CapacityVariant[] = ['A', 'B']
-  // One row per date; each point carries its full log for the tooltip.
-  const byDate = useMemo(() => {
-    const map: Record<string, Record<string, unknown>> = {}
-    points.forEach((p) => {
-      const label = `${p.date.slice(8, 10)}.${p.date.slice(5, 7)}`
-      if (!map[p.date]) map[p.date] = { label, date: p.date }
-      map[p.date][p.variant] = Math.round(p.perRoundS)
-      map[p.date][`${p.variant}~meta`] = p
-    })
-    return Object.keys(map)
-      .sort()
-      .map((k) => map[k])
-  }, [points])
-  const latestOf = (v: CapacityVariant) => {
-    const of = points.filter((p) => p.variant === v)
-    return of.length ? of[of.length - 1].perRoundS : null
-  }
-  const calData = useMemo(
-    () =>
-      points
-        .filter((p) => p.variant === 'B' && p.calories != null)
-        .map((p) => ({ label: `${p.date.slice(8, 10)}.${p.date.slice(5, 7)}`, cal: p.calories })),
-    [points]
-  )
-  if (!points.length)
-    return <Card style={{ textAlign: 'center', color: C.dim, padding: '40px 0', fontSize: 13 }}>No capacity sessions logged yet.</Card>
-  return (
-    <>
-      <Card>
-        <SectionHeader sub="GiantFit Capacity" title="Per-Round Time" />
-        <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-          {variants.map((v) => {
-            const latest = latestOf(v)
-            return (
-              <div key={v} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <div style={{ width: 18, height: 3, background: VARIANT_COLORS[v], borderRadius: 2 }} />
-                <span style={{ fontSize: 11, color: C.label, ...num }}>
-                  Variant {v} {latest != null ? `${fmtRunDuration(Math.round(latest))}/rd` : '—'}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={byDate} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={C.line} vertical={false} />
-            <XAxis dataKey="label" tick={tick} axisLine={false} tickLine={false} />
-            <YAxis tick={tick} axisLine={false} tickLine={false} width={40} domain={['dataMin - 10', 'dataMax + 10']} tickFormatter={(v: number) => fmtRunDuration(v)} />
-            <Tooltip content={<CapacityTooltip />} />
-            {variants.map((v) => (
-              <Line key={v} type="monotone" dataKey={v} name={v} stroke={VARIANT_COLORS[v]} strokeWidth={2.5} dot={{ r: 3, fill: VARIANT_COLORS[v], stroke: C.card, strokeWidth: 1.5 }} connectNulls />
-            ))}
-          </LineChart>
-        </ResponsiveContainer>
-        <div style={{ fontSize: 10, color: C.dim, marginTop: 8, textAlign: 'right' }}>down = faster · A and B never mix (different circuits)</div>
-      </Card>
-      {calData.length > 0 && (
-        <Card>
-          <SectionHeader sub="Variant B · Bike Finisher" title="Bike Calories" />
-          <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={calData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barSize={18}>
-              <CartesianGrid strokeDasharray="3 3" stroke={C.line} vertical={false} />
-              <XAxis dataKey="label" tick={tick} axisLine={false} tickLine={false} />
-              <YAxis tick={tick} axisLine={false} tickLine={false} />
-              <Tooltip content={<DarkTooltip unit=" cal" />} />
-              <Bar dataKey="cal" name="Calories" fill={VARIANT_COLORS.B} radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
-      )}
-    </>
   )
 }
 
@@ -779,7 +564,7 @@ function AttendanceChart({ macros }: { macros: AttMacro[] }) {
             <div style={{ marginTop: 4 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <div style={{ flex: 1, height: 1, background: C.border }} />
-                <span style={{ fontSize: 9, color: C.dim, letterSpacing: '0.08em' }}>TESTING · DELOAD</span>
+                <span style={{ fontSize: 9, color: C.dim, letterSpacing: '0.08em' }}>DELOAD</span>
                 <div style={{ flex: 1, height: 1, background: C.border }} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: `28px repeat(${cols}, 1fr)`, gap: 4 }}>
@@ -960,8 +745,6 @@ export function Trends({ data }: { data: TrendsData }) {
   const allSessions = useMemo(() => toTrendSessions(data.sessions, data.macros, data.deloads), [data])
   const allCarries = useMemo(() => toCarrySessions(data.sessions, data.macros, data.accessory), [data])
   const allAttendance = useMemo(() => toAttendance(data.macros, data.sessions, data.deloads, data.breakDays), [data])
-  const allRunTrend = useMemo(() => toRunTrend(data.runs || [], data.macros), [data])
-  const allCapacity = useMemo(() => toCapacityTrend(data.capacityLogs || [], data.sessions, data.macros), [data])
   const ALL_MACROS = useMemo(() => macroLabels(data.macros), [data.macros])
   const latest = ALL_MACROS[ALL_MACROS.length - 1] || ''
 
@@ -969,7 +752,6 @@ export function Trends({ data }: { data: TrendsData }) {
   const [rangeEnd, setRangeEnd] = useState(latest)
   const [cycle, setCycle] = useState('All')
   const [lift, setLift] = useState('All')
-  const [runType, setRunType] = useState('All')
   const [view, setView] = useState<View>('Lifts')
   const [pickerOpen, setPickerOpen] = useState(false)
 
@@ -990,7 +772,6 @@ export function Trends({ data }: { data: TrendsData }) {
   const handleView = (v: View) => {
     setView(v)
     if (v !== 'Lifts') setLift('All')
-    if (v !== 'Runs') setRunType('All')
     setCycle('All')
   }
 
@@ -1007,7 +788,7 @@ export function Trends({ data }: { data: TrendsData }) {
           <div style={{ fontSize: 10, color: C.amber, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 3 }}>The Giant Program · {subtitle}</div>
           <div style={{ fontFamily: HEADING, fontSize: 30, letterSpacing: '0.04em', color: C.bright, lineHeight: 1 }}>TRENDS</div>
         </div>
-        <FilterBar rangeStart={rangeStart} rangeEnd={rangeEnd} cycle={cycle} lift={lift} runType={runType} view={view} onOpenPicker={() => setPickerOpen(true)} onCycle={setCycle} onLift={setLift} onRunType={setRunType} onView={handleView} />
+        <FilterBar rangeStart={rangeStart} rangeEnd={rangeEnd} cycle={cycle} lift={lift} view={view} onOpenPicker={() => setPickerOpen(true)} onCycle={setCycle} onLift={setLift} onView={handleView} />
       </div>
 
       <div>
@@ -1021,8 +802,6 @@ export function Trends({ data }: { data: TrendsData }) {
               <BarSpeedChart sessions={filtered} lift={lift} />
             </>
           ))}
-        {view === 'Runs' && <RunsChart runs={allRunTrend.filter((r) => activeMacros.includes(r.macro))} runType={runType} />}
-        {view === 'Capacity' && <CapacityChart points={allCapacity.filter((p) => activeMacros.includes(p.macro))} />}
         {view === 'Carries' && <CarriesChart carries={allCarries} activeMacros={activeMacros} cycle={cycle} />}
         {view === 'Session' && (
           <>

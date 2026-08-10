@@ -2,30 +2,13 @@ import { useState, useRef, useEffect } from 'react'
 import type { CSSProperties } from 'react'
 import { useFocusTrap } from './useFocusTrap'
 import { C, HEADING, lbl, pillColor } from './theme'
-import { SessionForm, buildBlankSession } from './SessionForm'
-import { TestingSessionView } from './TestingSession'
+import { Giant2SessionForm } from './Giant2SessionForm'
+import { buildBlankSession } from './SessionForm'
 import { fmtClock, DurationEdit, errMsg } from './controls'
-import { SCHEMES, LIFT_LABEL, SECONDARY_ITEM, GIANTFIT_ROW } from '../engine/constants'
+import { SCHEMES, LIFT_LABEL, SECONDARY_LANE } from '../engine/constants'
 import { deloadTop } from '../engine/loading'
-import { parseLocalDate, isGiant2Date } from '../engine/date-engine'
-import type {
-  MacroCell,
-  Session,
-  SessionDraft,
-  WeightsByCycle,
-  AccessoryByCycle,
-  DeloadMap,
-  TestingResult,
-  CapacityConfig,
-  CapacityLog,
-  CapacityLogDraft,
-  GiantAccessoryReps,
-  Difficulty,
-  HypertrophyLog,
-  HypertrophyLogDraft,
-  OlyLog,
-  OlyLogDraft,
-} from '../engine/types'
+import { parseLocalDate } from '../engine/date-engine'
+import type { MacroCell, Session, SessionDraft, WeightsByCycle, AccessoryByCycle, DeloadMap, GiantAccessoryReps, Difficulty, HypertrophyLog, HypertrophyLogDraft, OlyLog, OlyLogDraft } from '../engine/types'
 import type { Movement } from '../engine/movements'
 
 function shortDate(iso: string): string {
@@ -44,17 +27,9 @@ interface SessionModalProps {
   onToggleBreak: (iso: string, on: boolean) => void
   onSaveSession: (record: SessionDraft) => Promise<Session>
   onDeleteSession: (id: string) => Promise<void>
-  testingResults?: TestingResult[]
-  onSaveTestingResult: (r: TestingResult) => Promise<TestingResult>
-  onDeleteTestingResult: (id: string) => void
-  // GiantFit capacity (post-cutover training cells): config + macro logs + handlers.
-  capacity?: CapacityConfig
-  capacityLogs?: CapacityLog[]
   // Giant Block accessory rep targets (Setup config, defaults merged).
   giantAccessory?: GiantAccessoryReps
-  onSaveCapacityLog?: (log: CapacityLogDraft) => Promise<CapacityLog>
-  onDeleteCapacityLog?: (sessionId: string) => Promise<void>
-  // Giant 2.0 Capability block: the athlete's movement library + this macro's
+  // The Capability block: the athlete's movement library + this macro's
   // Hypertrophy/Oly logs + save handlers.
   movements?: Movement[]
   hypertrophyLogs?: HypertrophyLog[]
@@ -76,14 +51,7 @@ export function SessionModal({
   onToggleBreak,
   onSaveSession,
   onDeleteSession,
-  testingResults = [],
-  onSaveTestingResult,
-  onDeleteTestingResult,
-  capacity,
-  capacityLogs = [],
   giantAccessory,
-  onSaveCapacityLog,
-  onDeleteCapacityLog,
   movements = [],
   hypertrophyLogs = [],
   olyLogs = [],
@@ -91,40 +59,31 @@ export function SessionModal({
   onSaveOlyLog,
   onClose,
 }: SessionModalProps) {
-  // Giant 2.0's deload week is a real, loggable session (fixed day->lift, no
-  // H/M/L Giant difficulty this week) — unlike GiantFit's, which has never
-  // had one and stays the static "nothing to log" cell below.
-  const giant2 = isGiant2Date(cell.date)
-  const isGiant2Deload = giant2 && cell.weekType === 'deload'
-  const isSpecial = cell.weekType === 'testing' || (cell.weekType === 'deload' && !giant2)
+  // The deload week is a real, loggable session (fixed day->lift, no H/M/L
+  // Giant difficulty that week — 'hard' below is purely the SCHEMES lookup).
+  // The weight LOOKUP uses a separate reference cycle (3, the last training
+  // cycle) since cell.meso is null on deload.
+  const isDeloadWeek = cell.weekType === 'deload'
   const dayType = cell.dayType
-  // 'hard' during Giant 2.0 deload is purely the SCHEMES lookup (fixed Hard
-  // rep scheme that week, same convention as Today.tsx) — there's no H/M/L
-  // Giant difficulty then. The weight LOOKUP also uses a separate reference
-  // cycle (3, the last training cycle) since cell.meso is null on deload.
-  const difficulty: Difficulty | null = isGiant2Deload ? 'hard' : cell.difficulty
-  const weightCycle = isGiant2Deload ? 3 : cell.meso
-  const base = !isSpecial && dayType && weightCycle != null && difficulty ? weights?.[weightCycle]?.[dayType]?.[difficulty] : null
+  const difficulty: Difficulty | null = isDeloadWeek ? 'hard' : cell.difficulty
+  const weightCycle = isDeloadWeek ? 3 : cell.meso
+  const base = dayType && weightCycle != null && difficulty ? weights?.[weightCycle]?.[dayType]?.[difficulty] : null
   const hasWeight = base != null
   const weekKey = `M${macroNumber}C${cell.meso}W${cell.week}`
-  const isDeload = !isSpecial && (cell.weekType === 'deload' || !!deloads[weekKey])
+  const isDeload = cell.weekType === 'deload' || !!deloads[weekKey]
   const top = base != null ? (isDeload ? deloadTop(base) : base) : null
-  // Giant 2.0 only: the Volume block's own difficulty (already computed by
-  // enumerateMacro/corePosition onto the cell) + its day-top off the SAME
-  // per-cycle cascade. Null on deload (no Volume block) and off-era.
+  // The Volume block's own difficulty (already computed by enumerateMacro/
+  // corePosition onto the cell) + its day-top off the SAME per-cycle cascade.
+  // Null on deload (no Volume block).
   const volumeDifficulty = cell.volumeDifficulty ?? null
   const volumeTop = volumeDifficulty && dayType && weightCycle != null ? weights?.[weightCycle]?.[dayType]?.[volumeDifficulty] ?? null : null
   const carryDefault = weightCycle != null && dayType ? accessory?.[weightCycle]?.[`carry_${dayType}`] ?? '' : ''
-  const secondaryItem = dayType ? SECONDARY_ITEM[dayType] : undefined
-  const secondaryDefault = weightCycle != null && secondaryItem ? accessory?.[weightCycle]?.[secondaryItem] ?? '' : ''
-  const pullupCell = dayType === 'dips' && weightCycle != null ? weights?.[weightCycle]?.pullup ?? null : null
-  // The day's anchored row/secondary cell — GiantFit's OHP/bench row lanes,
-  // reused unchanged for Giant 2.0's BB Row (OHP) / Pull-ups (bench).
-  const rowAnchorKey = dayType ? GIANTFIT_ROW[dayType] : undefined
-  const rowCell = rowAnchorKey && weightCycle != null ? weights?.[weightCycle]?.[rowAnchorKey] ?? null : null
+  // The day's secondary cell (db_row/pendlay_row lane — BB Row on OHP day, Pull-ups on bench day).
+  const laneKey = dayType ? SECONDARY_LANE[dayType] : undefined
+  const secondaryCell = laneKey && weightCycle != null ? weights?.[weightCycle]?.[laneKey] ?? null : null
   // The STORED record's cycle/week are the cell's own (null on deload) — only
   // the WEIGHT lookup above uses the reference cycle.
-  const cycle = isGiant2Deload ? null : cell.meso
+  const cycle = isDeloadWeek ? null : cell.meso
 
   const [draft, setDraft] = useState<SessionDraft>(
     () =>
@@ -156,13 +115,11 @@ export function SessionModal({
     setField('endedAt', new Date(startedMs + s * 1000).toISOString())
   }
 
-  // The stamped record for this cell (only valid on a normal training cell,
-  // where dayType/difficulty are set). Shared by Save and the capacity block's
-  // ensure-session-first save. Giant 2.0 ids drop the difficulty suffix (see
-  // buildBlankSession).
+  // The stamped record for this cell. Shared by Save and the Capability
+  // block's ensure-session-first save.
   const buildRecord = (): SessionDraft => ({
     ...draft,
-    id: giant2 ? `${cell.date}-${dayType}` : `${cell.date}-${dayType}-${difficulty![0].toUpperCase()}`,
+    id: `${cell.date}-${dayType}`,
     date: cell.date,
     macroId,
     cycle,
@@ -175,29 +132,12 @@ export function SessionModal({
     topWeight: top,
   })
 
-  // GiantFit capacity block for this cell: the capacity log's FK needs the
-  // session row, so its save upserts the cell's record first (idempotent).
-  // Never applies to Giant 2.0 (no Capacity block — cell.capacityVariant is
-  // already null there, capacityProp below short-circuits regardless).
-  const sessionId = dayType && difficulty ? (giant2 ? `${cell.date}-${dayType}` : `${cell.date}-${dayType}-${difficulty[0].toUpperCase()}`) : null
-  const capacityProp =
-    !isSpecial && sessionId && cell.capacityVariant && capacity && onSaveCapacityLog && onDeleteCapacityLog
-      ? {
-          variant: cell.capacityVariant,
-          config: capacity,
-          log: capacityLogs.find((l) => l.sessionId === sessionId) ?? null,
-          onSave: async (l: CapacityLogDraft) => {
-            await onSaveSession(buildRecord())
-            return onSaveCapacityLog(l)
-          },
-          onDelete: onDeleteCapacityLog,
-        }
-      : null
-
-  // Giant 2.0 Capability block: same FK-needs-the-session-row-first pattern.
-  // Absent on deload (cycle null — nothing renders for it there).
+  // The Capability block: same FK-needs-the-session-row-first pattern as
+  // every other sub-record save. Absent on deload (cycle null — nothing
+  // renders for it there).
+  const sessionId = dayType && difficulty ? `${cell.date}-${dayType}` : null
   const capabilityProp =
-    !isSpecial && sessionId && cycle != null && onSaveHypertrophyLog && onSaveOlyLog
+    sessionId && cycle != null && onSaveHypertrophyLog && onSaveOlyLog
       ? {
           movements,
           hypertrophyLogs: hypertrophyLogs.filter((l) => l.sessionId === sessionId),
@@ -264,12 +204,8 @@ export function SessionModal({
               {cell.meso ? ` · C${cell.meso} W${cell.week}` : ''}
             </div>
             <div id="session-modal-title" style={{ fontFamily: HEADING, fontSize: 22, letterSpacing: '0.04em' }}>
-              {isSpecial ? (
-                cell.weekType === 'testing' ? (
-                  cell.testRole === 'light' ? 'Light Session' : `Test: ${cell.testLift ? LIFT_LABEL[cell.testLift] : '—'}`
-                ) : (
-                  'Deload Session'
-                )
+              {isDeloadWeek ? (
+                'Deload Session'
               ) : (
                 <span>
                   {dayType ? LIFT_LABEL[dayType] : ''} <span style={{ color: pillColor(difficulty) }}>· {difficulty?.toUpperCase()}</span>
@@ -290,86 +226,53 @@ export function SessionModal({
           Mark this day as a break (exempt from missed + deload signals)
         </label>
 
-        {cell.weekType === 'testing' && cell.testRole === 'test' && cell.testLift ? (
-          // Same full-structure test view as the Today tab (shared component):
-          // computed off the C3 Hard anchor; testedOn = the cell's date (backfill-safe).
-          <TestingSessionView
-            macroId={macroId}
-            lift={cell.testLift}
-            c3Hard={weights?.[3]?.[cell.testLift]?.hard ?? null}
-            testedOn={cell.date}
-            results={testingResults}
-            onSave={onSaveTestingResult}
-            onDelete={(id) => {
-              onDeleteTestingResult(id)
-              onClose()
-            }}
-            // Calendar keys sessions by date, so the cell's `existing` IS the companion
-            // row on a test cell (id "{date}-{lift}-TEST").
-            companion={existing ?? null}
-            onSaveSession={onSaveSession}
-            onDeleteSession={onDeleteSession}
-          />
-        ) : isSpecial ? (
-          <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>
-            {cell.weekType === 'testing'
-              ? 'Optional light session between the two test days — keep it easy. Log in your notebook if you do it.'
-              : 'End-of-macro deload — Giant Block only at 50–60%. Nothing to log in detail here.'}
-          </div>
-        ) : (
-          <>
-            <SessionForm
-              dayType={dayType!}
-              difficulty={difficulty!}
-              top={top}
-              hasWeight={hasWeight}
-              isDeload={isDeload}
-              volumeDifficulty={volumeDifficulty}
-              volumeTop={volumeTop}
-              draft={draft}
-              setField={setField}
-              carryLoad={carryDefault}
-              secondaryLoad={secondaryDefault}
-              pullupCell={pullupCell}
-              rowCell={rowCell}
-              giantAccessory={giantAccessory}
-              capacity={capacityProp}
-              cycle={cycle}
-              weekInCycle={cell.week}
-              capability={capabilityProp}
-            />
-            {draft.startedAt && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
-                <div>
-                  <div style={{ fontSize: 10, letterSpacing: '0.16em', color: C.gold, textTransform: 'uppercase', marginBottom: 4 }}>Duration</div>
-                  <div style={{ fontFamily: HEADING, fontSize: 24, color: C.off, fontVariantNumeric: 'tabular-nums' }}>
-                    {durationMs != null ? fmtClock(durationMs) : '—'}
-                  </div>
-                  {autoEnded && <div style={{ fontSize: 11, color: C.red, marginTop: 4 }}>Auto-ended at 90 min</div>}
-                </div>
-                <div style={{ width: 110 }}>
-                  <label style={lbl}>Edit (min:sec)</label>
-                  <DurationEdit valueMs={durationMs} onCommit={setDurationSec} />
-                </div>
+        <Giant2SessionForm
+          dayType={dayType!}
+          difficulty={difficulty!}
+          volumeDifficulty={volumeDifficulty}
+          top={top}
+          volumeTop={volumeTop}
+          hasWeight={hasWeight}
+          isDeload={isDeload}
+          draft={draft}
+          setField={setField}
+          secondaryCell={secondaryCell}
+          giantAccessory={giantAccessory}
+          cycle={cycle}
+          weekInCycle={cell.week}
+          carryLoad={carryDefault}
+          capability={capabilityProp}
+        />
+        {draft.startedAt && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+            <div>
+              <div style={{ fontSize: 10, letterSpacing: '0.16em', color: C.gold, textTransform: 'uppercase', marginBottom: 4 }}>Duration</div>
+              <div style={{ fontFamily: HEADING, fontSize: 24, color: C.off, fontVariantNumeric: 'tabular-nums' }}>
+                {durationMs != null ? fmtClock(durationMs) : '—'}
               </div>
-            )}
-            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                style={{ flex: 1, background: C.gold, color: C.dark, border: 'none', borderRadius: 2, padding: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: 13, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}
-              >
-                {saving ? 'Saving…' : existing ? 'Update' : 'Log session'}
-              </button>
-              {existing && (
-                <button onClick={handleDelete} style={{ background: 'transparent', color: C.red, border: `1px solid ${C.red}`, borderRadius: 2, padding: '12px 16px', fontSize: 13, cursor: 'pointer' }}>
-                  Delete
-                </button>
-              )}
+              {autoEnded && <div style={{ fontSize: 11, color: C.red, marginTop: 4 }}>Auto-ended at 90 min</div>}
             </div>
-            {err && <div style={{ marginTop: 10, fontSize: 12, color: C.red }}>Couldn't save — {err}. Check your connection and try again.</div>}
-          </>
+            <div style={{ width: 110 }}>
+              <label style={lbl}>Edit (min:sec)</label>
+              <DurationEdit valueMs={durationMs} onCommit={setDurationSec} />
+            </div>
+          </div>
         )}
+        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{ flex: 1, background: C.gold, color: C.dark, border: 'none', borderRadius: 2, padding: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: 13, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}
+          >
+            {saving ? 'Saving…' : existing ? 'Update' : 'Log session'}
+          </button>
+          {existing && (
+            <button onClick={handleDelete} style={{ background: 'transparent', color: C.red, border: `1px solid ${C.red}`, borderRadius: 2, padding: '12px 16px', fontSize: 13, cursor: 'pointer' }}>
+              Delete
+            </button>
+          )}
+        </div>
+        {err && <div style={{ marginTop: 10, fontSize: 12, color: C.red }}>Couldn't save — {err}. Check your connection and try again.</div>}
       </div>
     </div>
   )

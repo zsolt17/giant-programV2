@@ -36,32 +36,9 @@ function devNow(): Date {
   }
   return new Date()
 }
-import type {
-  Macro,
-  Session,
-  SessionDraft,
-  WeightsByCycle,
-  AccessoryByCycle,
-  DeloadMap,
-  BreakDayMap,
-  TestingResult,
-  MacroBundle,
-  Run,
-  RunDraft,
-  RunTargetsByCycle,
-  CapacityConfig,
-  CapacityLog,
-  GiantAccessoryReps,
-  CapacityLogDraft,
-  Giant2DifficultyConfig,
-  HypertrophyLog,
-  HypertrophyLogDraft,
-  OlyLog,
-  OlyLogDraft,
-} from '../engine/types'
-import { defaultCapacityConfig } from '../engine/capacity'
+import type { Macro, Session, SessionDraft, WeightsByCycle, AccessoryByCycle, DeloadMap, BreakDayMap, MacroBundle, GiantAccessoryReps, Giant2DifficultyConfig, HypertrophyLog, HypertrophyLogDraft, OlyLog, OlyLogDraft } from '../engine/types'
 import type { Movement } from '../engine/movements'
-import { GIANTFIT_GB_DEFAULT_REPS, GIANT2_GIANT_DEFAULT_ROTATION } from '../engine/constants'
+import { GB_DEFAULT_REPS, GIANT2_GIANT_DEFAULT_ROTATION } from '../engine/constants'
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -110,12 +87,9 @@ export function App() {
   const [allSessions, setAllSessions] = useState<Session[] | null>(null) // all-macro sessions, loaded on first Data open
   const [allAccessory, setAllAccessory] = useState<Record<string, AccessoryByCycle>>({}) // macroId -> per-cycle accessory (Data summary)
   const [allWeights, setAllWeights] = useState<Record<string, WeightsByCycle>>({}) // macroId -> per-cycle anchors (Data summary: weighted pull-ups)
-  const [allTesting, setAllTesting] = useState<TestingResult[]>([]) // all-macro test results (Data list + copy)
   const [allDeloads, setAllDeloads] = useState<DeloadMap>({}) // all-macro deload week flags (Data labels)
-  const [allRuns, setAllRuns] = useState<Run[]>([]) // all-macro runs (Data list + runs CSV)
-  const [allCapacityLogs, setAllCapacityLogs] = useState<CapacityLog[]>([]) // all-macro capacity results (Data CSV + summaries)
-  const [allHypertrophyLogs, setAllHypertrophyLogs] = useState<HypertrophyLog[]>([]) // all-macro Giant 2.0 Hypertrophy results (Data CSV)
-  const [allOlyLogs, setAllOlyLogs] = useState<OlyLog[]>([]) // all-macro Giant 2.0 Oly results (Data CSV)
+  const [allHypertrophyLogs, setAllHypertrophyLogs] = useState<HypertrophyLog[]>([]) // all-macro Hypertrophy results (Data CSV)
+  const [allOlyLogs, setAllOlyLogs] = useState<OlyLog[]>([]) // all-macro Oly results (Data CSV)
   const [dataErr, setDataErr] = useState('')
   // Recovery (Tendon Health) — independent of macros, loaded on first Recovery open.
   const [recovery, setRecovery] = useState<{ protocol: RecoveryProtocol | null; logs: RecoveryLogMap } | null>(null)
@@ -132,12 +106,7 @@ export function App() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [deloads, setDeloads] = useState<DeloadMap>({})
   const [breakDays, setBreakDays] = useState<BreakDayMap>({})
-  const [testing, setTesting] = useState<TestingResult[]>([])
-  const [runs, setRuns] = useState<Run[]>([])
-  const [runTargets, setRunTargets] = useState<RunTargetsByCycle>({})
-  const [capacity, setCapacity] = useState<CapacityConfig>(() => defaultCapacityConfig())
-  const [capacityLogs, setCapacityLogs] = useState<CapacityLog[]>([])
-  const [giantAccessory, setGiantAccessory] = useState<GiantAccessoryReps>(() => ({ ...GIANTFIT_GB_DEFAULT_REPS }))
+  const [giantAccessory, setGiantAccessory] = useState<GiantAccessoryReps>(() => ({ ...GB_DEFAULT_REPS }))
   const [giant2Difficulty, setGiant2Difficulty] = useState<Giant2DifficultyConfig>(() => ({ ...GIANT2_GIANT_DEFAULT_ROTATION }))
   const [hypertrophyLogs, setHypertrophyLogs] = useState<HypertrophyLog[]>([])
   const [olyLogs, setOlyLogs] = useState<OlyLog[]>([])
@@ -168,12 +137,7 @@ export function App() {
     setSessions(snap.sessions || [])
     setDeloads(snap.deloads || {})
     setBreakDays(snap.breakDays || {})
-    setTesting(snap.testing || [])
-    setRuns(snap.runs || [])
-    setRunTargets(snap.runTargets || {})
-    setCapacity(snap.capacity || defaultCapacityConfig())
-    setCapacityLogs(snap.capacityLogs || [])
-    setGiantAccessory(snap.giantAccessory || { ...GIANTFIT_GB_DEFAULT_REPS })
+    setGiantAccessory(snap.giantAccessory || { ...GB_DEFAULT_REPS })
     setGiant2Difficulty(snap.giant2Difficulty || { ...GIANT2_GIANT_DEFAULT_ROTATION })
     setHypertrophyLogs(snap.hypertrophyLogs || [])
     setOlyLogs(snap.olyLogs || [])
@@ -200,12 +164,7 @@ export function App() {
             sessions: [],
             deloads: {},
             breakDays: {},
-            testing: [],
-            runs: [],
-            runTargets: {},
-            capacity: defaultCapacityConfig(),
-            capacityLogs: [],
-            giantAccessory: { ...GIANTFIT_GB_DEFAULT_REPS },
+            giantAccessory: { ...GB_DEFAULT_REPS },
             giant2Difficulty: { ...GIANT2_GIANT_DEFAULT_ROTATION },
             hypertrophyLogs: [],
             olyLogs: [],
@@ -218,27 +177,21 @@ export function App() {
       setSessions(b.sessions)
       setDeloads(b.deloads)
       setBreakDays(b.breakDays)
-      setTesting(b.testing)
-      setRuns(b.runs)
-      setRunTargets(b.runTargets)
-      setCapacity(b.capacity)
-      setCapacityLogs(b.capacityLogs)
       setGiantAccessory(b.giantAccessory)
       setGiant2Difficulty(b.giant2Difficulty)
       setHypertrophyLogs(b.hypertrophyLogs)
       setOlyLogs(b.olyLogs)
       // The movement library is user-scoped (independent of the macro).
       // syncSeedMovements seeds a fresh library AND backfills any new
-      // content added since (Giant 2.0's Hypertrophy/Oly/Primer movements
-      // reach an existing GiantFit library this way). Best-effort by design:
-      // a blocked dev write must never take down the whole load — degrade to
-      // whatever the library holds.
+      // content added since. Best-effort by design: a blocked dev write
+      // must never take down the whole load — degrade to whatever the
+      // library holds.
       try {
         setMovements(await repo.syncSeedMovements())
-        // The Giant 2.0 program version — seeded once, alongside the movement
-        // library. The Capability block (Phase 4) reads it; best-effort so a
-        // blocked dev write can never take down boot.
-        await repo.ensureSeedGiant2ProgramVersion()
+        // The program version — seeded once, alongside the movement
+        // library. The Capability block reads it; best-effort so a blocked
+        // dev write can never take down boot.
+        await repo.ensureSeedProgramVersion()
       } catch {
         try {
           setMovements(await repo.listMovements())
@@ -312,25 +265,12 @@ export function App() {
     if (tab !== 'data' || !user || allSessions) return
     let cancelled = false
     setDataErr('')
-    Promise.all([
-      repo.getAllSessions(),
-      repo.getAllAccessoryWeights(),
-      repo.getAllWorkingWeights(),
-      repo.getAllTestingResults(),
-      repo.getAllDeloads(),
-      repo.getAllRuns(),
-      repo.getAllCapacityLogs(),
-      repo.getAllHypertrophyLogs(),
-      repo.getAllOlyLogs(),
-    ])
-      .then(([s, acc, w, t, d, r, cl, hl, ol]) => {
+    Promise.all([repo.getAllSessions(), repo.getAllAccessoryWeights(), repo.getAllWorkingWeights(), repo.getAllDeloads(), repo.getAllHypertrophyLogs(), repo.getAllOlyLogs()])
+      .then(([s, acc, w, d, hl, ol]) => {
         if (cancelled) return
         setAllAccessory(acc)
         setAllWeights(w)
-        setAllTesting(t)
         setAllDeloads(d)
-        setAllRuns(r)
-        setAllCapacityLogs(cl)
         setAllHypertrophyLogs(hl)
         setAllOlyLogs(ol)
         setAllSessions(s)
@@ -397,49 +337,9 @@ export function App() {
   // optimistic offline writes, since those flow through state).
   useEffect(() => {
     if (status === 'ready' && user && macro) {
-      saveSnapshot({
-        macros,
-        viewedMacroId,
-        macro,
-        weights,
-        accessory,
-        sessions,
-        deloads,
-        breakDays,
-        testing,
-        runs,
-        runTargets,
-        capacity,
-        capacityLogs,
-        giantAccessory,
-        giant2Difficulty,
-        hypertrophyLogs,
-        olyLogs,
-        movements,
-      })
+      saveSnapshot({ macros, viewedMacroId, macro, weights, accessory, sessions, deloads, breakDays, giantAccessory, giant2Difficulty, hypertrophyLogs, olyLogs, movements })
     }
-  }, [
-    status,
-    user,
-    macro,
-    macros,
-    viewedMacroId,
-    weights,
-    accessory,
-    sessions,
-    deloads,
-    breakDays,
-    testing,
-    runs,
-    runTargets,
-    capacity,
-    capacityLogs,
-    giantAccessory,
-    giant2Difficulty,
-    hypertrophyLogs,
-    olyLogs,
-    movements,
-  ])
+  }, [status, user, macro, macros, viewedMacroId, weights, accessory, sessions, deloads, breakDays, giantAccessory, giant2Difficulty, hypertrophyLogs, olyLogs, movements])
 
   const onSaveSession = useCallback(async (record: SessionDraft): Promise<Session> => {
     const saved = await repo.saveSession(record)
@@ -454,24 +354,10 @@ export function App() {
   const onDeleteSession = useCallback(async (id: string) => {
     await repo.deleteSession(id)
     setSessions((prev) => prev.filter((s) => s.id !== id))
-    // The capacity log cascade-deletes with its session — mirror that in state.
-    setCapacityLogs((prev) => prev.filter((l) => l.sessionId !== id))
   }, [])
 
-  // GiantFit capacity-block results — one per session, upsert on sessionId.
-  const onSaveCapacityLog = useCallback(async (log: CapacityLogDraft): Promise<CapacityLog> => {
-    const saved = await repo.saveCapacityLog(log)
-    setCapacityLogs((prev) => prev.filter((l) => l.sessionId !== saved.sessionId).concat(saved))
-    return saved
-  }, [])
-
-  const onDeleteCapacityLog = useCallback(async (sessionId: string) => {
-    await repo.deleteCapacityLog(sessionId)
-    setCapacityLogs((prev) => prev.filter((l) => l.sessionId !== sessionId))
-  }, [])
-
-  // Giant 2.0 Capability block — one row PER MOVEMENT per session, upsert on
-  // (sessionId, movementId), unlike capacity's session-only key.
+  // Capability block — one row PER MOVEMENT per session, upsert on
+  // (sessionId, movementId).
   const onSaveHypertrophyLog = useCallback(async (log: HypertrophyLogDraft): Promise<HypertrophyLog> => {
     const saved = await repo.saveHypertrophyLog(log)
     setHypertrophyLogs((prev) => prev.filter((l) => !(l.sessionId === saved.sessionId && l.movementId === saved.movementId)).concat(saved))
@@ -500,33 +386,6 @@ export function App() {
     await repo.archiveMovement(id, archived)
     setMovements((prev) => prev.map((m) => (m.id === id ? { ...m, archived } : m)))
   }, [])
-
-  const onSaveRun = useCallback(async (record: RunDraft): Promise<Run> => {
-    const saved = await repo.saveRun(record)
-    setRuns((prev) => {
-      const next = prev.filter((r) => r.id !== saved.id).concat(saved)
-      next.sort((a, b) => (a.date < b.date ? 1 : -1))
-      return next
-    })
-    return saved
-  }, [])
-
-  const onDeleteRun = useCallback(async (id: string) => {
-    await repo.deleteRun(id)
-    setRuns((prev) => prev.filter((r) => r.id !== id))
-  }, [])
-
-  // TT confirm flow + Setup both set the Giant Run reference pace P (never silent
-  // from a save — always behind an explicit confirm tap).
-  const onSetRefPace = useCallback(
-    async (refPaceS: number | null) => {
-      if (!macro) return
-      const updated = await repo.setMacroRefPace(macro.id, refPaceS)
-      setMacro(updated)
-      setMacros((prev) => prev.map((m) => (m.id === updated.id ? updated : m)))
-    },
-    [macro]
-  )
 
   // Extend (or un-extend) the deload by one identical week — decided during the
   // deload itself, from the deload-week view.
@@ -563,20 +422,6 @@ export function App() {
     },
     [macro]
   )
-
-  const onSaveTestingResult = useCallback(
-    async (result: TestingResult): Promise<TestingResult> => {
-      const saved = await repo.saveTestingResult({ ...result, macroId: macro!.id })
-      setTesting((prev) => prev.filter((r) => r.id !== saved.id).concat(saved))
-      return saved
-    },
-    [macro]
-  )
-
-  const onDeleteTestingResult = useCallback(async (id: string) => {
-    await repo.deleteTestingResult(id)
-    setTesting((prev) => prev.filter((r) => r.id !== id))
-  }, [])
 
   const onSelectMacro = useCallback((id: string) => setViewedMacroId(id), [])
 
@@ -665,30 +510,16 @@ export function App() {
           sessions={sessions}
           deloads={deloads}
           breakDays={breakDays}
-          testingResults={testing}
-          runs={runs}
-          runTargets={runTargets}
-          refPaceS={macro.refPaceS}
-          macroWeeks={macro.weeks}
           deloadExtended={macro.deloadExtended}
           dateISO={isoLocal(devNow())}
-          capacity={capacity}
-          capacityLogs={capacityLogs}
           giantAccessory={giantAccessory}
           movements={movements}
           hypertrophyLogs={hypertrophyLogs}
           olyLogs={olyLogs}
           onSaveSession={onSaveSession}
-          onDeleteSession={onDeleteSession}
           onApplyDeload={onApplyDeload}
-          onSaveTestingResult={onSaveTestingResult}
-          onDeleteTestingResult={onDeleteTestingResult}
-          onSaveRun={onSaveRun}
-          onSaveCapacityLog={onSaveCapacityLog}
-          onDeleteCapacityLog={onDeleteCapacityLog}
           onSaveHypertrophyLog={onSaveHypertrophyLog}
           onSaveOlyLog={onSaveOlyLog}
-          onSetRefPace={onSetRefPace}
           onExtendDeload={onExtendDeload}
           onRunningChange={setSessionRunning}
         />
@@ -704,14 +535,8 @@ export function App() {
           sessions={sessions}
           deloads={deloads}
           breakDays={breakDays}
-          testingResults={testing}
-          runs={runs}
-          runTargets={runTargets}
-          refPaceS={macro.refPaceS}
           macroWeeks={macro.weeks}
           deloadExtended={macro.deloadExtended}
-          capacity={capacity}
-          capacityLogs={capacityLogs}
           giantAccessory={giantAccessory}
           giant2Difficulty={giant2Difficulty}
           movements={movements}
@@ -720,15 +545,8 @@ export function App() {
           onToggleBreak={onToggleBreak}
           onSaveSession={onSaveSession}
           onDeleteSession={onDeleteSession}
-          onSaveTestingResult={onSaveTestingResult}
-          onDeleteTestingResult={onDeleteTestingResult}
-          onSaveRun={onSaveRun}
-          onDeleteRun={onDeleteRun}
-          onSaveCapacityLog={onSaveCapacityLog}
-          onDeleteCapacityLog={onDeleteCapacityLog}
           onSaveHypertrophyLog={onSaveHypertrophyLog}
           onSaveOlyLog={onSaveOlyLog}
-          onSetRefPace={onSetRefPace}
         />
       )}
 
@@ -736,7 +554,7 @@ export function App() {
         <Setup
           key={macro?.id || 'new'}
           macro={macro}
-          bundle={{ weights, accessory, runTargets, capacity, giantAccessory, giant2Difficulty }}
+          bundle={{ weights, accessory, giantAccessory, giant2Difficulty }}
           macros={macros}
           movements={movements}
           onReload={load}
@@ -747,11 +565,9 @@ export function App() {
         />
       )}
 
-      {tab === 'history' && macro && (
-        <History sessions={sessions} testingResults={testing} macroNumber={macro.number} onDeleteSession={onDeleteSession} />
-      )}
+      {tab === 'history' && macro && <History sessions={sessions} macroNumber={macro.number} onDeleteSession={onDeleteSession} />}
 
-      {tab === 'deload' && macro && <Deload sessions={sessions} runs={runs} deloads={deloads} macroNumber={macro.number} startISO={macro.startISO} capacityLogs={capacityLogs} />}
+      {tab === 'deload' && macro && <Deload sessions={sessions} deloads={deloads} macroNumber={macro.number} startISO={macro.startISO} />}
 
       {tab === 'trends' &&
         (trendsErr ? (
@@ -773,10 +589,7 @@ export function App() {
             macros={macros}
             accessory={allAccessory}
             weights={allWeights}
-            testing={allTesting}
             deloads={allDeloads}
-            runs={allRuns}
-            capacityLogs={allCapacityLogs}
             giantAccessory={giantAccessory}
             movements={movements}
             hypertrophyLogs={allHypertrophyLogs}

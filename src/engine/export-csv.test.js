@@ -1,22 +1,23 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { sessionsToCsv, testingToCsv, capacityToCsv } from './export-csv'
+import { sessionsToCsv, hypertrophyToCsv, olyToCsv } from './export-csv'
 
 const macros = [
-  { id: 'm1', number: 1, startISO: '2026-01-05', weeks: 15, status: 'completed' },
-  { id: 'm2', number: 2, startISO: '2026-04-13', weeks: 15, status: 'active' },
+  { id: 'm1', number: 1, startISO: '2026-04-13', weeks: 13, status: 'completed' },
+  { id: 'm2', number: 2, startISO: '2026-08-10', weeks: 13, status: 'active' },
 ]
 
 function session(over = {}) {
   return {
-    id: '2026-06-22-squat-H',
+    id: '2026-08-10-squat',
     macroId: 'm2',
-    date: '2026-06-22',
-    cycle: 3,
-    week: 3,
+    date: '2026-08-10',
+    cycle: 1,
+    week: 1,
     weekType: 'training',
     dayType: 'squat',
     difficulty: 'hard',
+    volumeDifficulty: 'light',
     topReps: 2,
     topWeight: 145,
     rpe: 'R9.5',
@@ -27,13 +28,11 @@ function session(over = {}) {
     volRpe: 'R8',
     volSpeed: 'normal',
     pullupCluster: '',
-    dipsCluster: '',
     carrySkipped: false,
     carrySkipReason: '',
     carryRounds: 3,
     carryDistance: 30,
     carryRpe: 'R6',
-    pairWeight: null,
     notes: 'felt strong',
     startedAt: null,
     endedAt: null,
@@ -45,52 +44,42 @@ test('header row lists all columns in order', () => {
   const csv = sessionsToCsv([], macros)
   assert.equal(
     csv,
-    'date,macro,cycle,week,week_type,day_type,difficulty,volume_difficulty,top_weight,top_reps,rpe,bar_speed,cardio_cals,block_completion,vol_done,vol_rpe,vol_speed,pair_weight,pullup_cluster,dips_cluster,carry_skipped,carry_skip_reason,carry_rounds,carry_distance,carry_rpe,started_at,ended_at,notes,deload_week'
+    'date,macro,cycle,week,week_type,day_type,difficulty,volume_difficulty,top_weight,top_reps,rpe,bar_speed,cardio_cals,block_completion,vol_done,vol_rpe,vol_speed,pullup_cluster,carry_skipped,carry_skip_reason,carry_rounds,carry_distance,carry_rpe,started_at,ended_at,notes,deload_week'
   )
 })
 
 test('serializes a row, resolves macro number, collapses cardio, renders nulls as empty', () => {
   const csv = sessionsToCsv([session()], macros)
   const row = csv.split('\n')[1]
-  // Legacy row: pair_weight (GiantFit-only) stays an empty cell — export is a union.
   assert.equal(
     row,
-    '2026-06-22,2,3,3,training,squat,hard,,145,2,R9.5,up,15/14//15,completed,true,R8,normal,,,,false,,3,30,R6,,,felt strong,'
+    '2026-08-10,2,1,1,training,squat,hard,light,145,2,R9.5,up,15/14//15,completed,true,R8,normal,,false,,3,30,R6,,,felt strong,'
   )
 })
 
-test('GiantFit row: pair_weight fills its cell; legacy columns stay empty (union export)', () => {
-  const csv = sessionsToCsv(
-    [session({ id: '2026-08-03-bench-H', date: '2026-08-03', cycle: 1, week: 2, dayType: 'bench', pairWeight: 42.5, cardioCals: [null, null, null, null], carryRpe: '' })],
-    macros
-  )
-  const row = csv.split('\n')[1]
-  assert.match(row, /^2026-08-03,2,1,2,training,bench,hard,/)
-  assert.match(row, /,normal,42.5,,,false,/) // ...vol_speed,pair_weight,pullup_cluster,dips_cluster,carry_skipped...
+test('volume_difficulty column carries the Volume block\'s own (independent) difficulty', () => {
+  const s = session({ id: '2026-08-11-ohp', date: '2026-08-11', dayType: 'ohp', difficulty: 'hard', volumeDifficulty: 'light' })
+  const row = sessionsToCsv([s], macros).split('\n')[1]
+  const cols = row.split(',')
+  assert.equal(cols[6], 'hard') // difficulty
+  assert.equal(cols[7], 'light') // volume_difficulty — independent column
+})
+
+test('volume_difficulty is blank on a session with no Volume block (C3 week 4, or deload)', () => {
+  const s = session({ id: '2026-11-02-squat', date: '2026-11-02', weekType: 'deload', cycle: null, week: null, difficulty: null, volumeDifficulty: null })
+  const row = sessionsToCsv([s], macros).split('\n')[1]
+  const cols = row.split(',')
+  assert.equal(cols[7], '') // volume_difficulty blank
 })
 
 test('deload_week column: true/false from the deloads map, blank without week key', () => {
-  const deloads = { M2C3W3: true }
-  const rows = sessionsToCsv([session(), session({ cycle: 3, week: 2 }), session({ cycle: null, week: null, weekType: 'testing' })], macros, deloads)
+  const deloads = { M2C1W2: true }
+  const rows = sessionsToCsv([session(), session({ week: 2 }), session({ cycle: null, week: null, weekType: 'deload' })], macros, deloads)
     .split('\n')
     .slice(1)
-  assert.match(rows[0], /,true$/) // M2C3W3 flagged
-  assert.match(rows[1], /,false$/) // M2C3W2 not flagged
+  assert.match(rows[0], /,false$/) // M2C1W1 not flagged
+  assert.match(rows[1], /,true$/) // M2C1W2 flagged
   assert.match(rows[2], /,$/) // no computable week key -> blank
-})
-
-test('testingToCsv: header + rows sorted by date, macro number resolved', () => {
-  const csv = testingToCsv(
-    [
-      { macroId: 'm2', lift: 'deadlift', weight: 180, reps: 2, notes: 'clean, 1 RIR', testedOn: '2026-07-06' },
-      { macroId: 'm2', lift: 'dips', weight: 12.5, reps: 3, notes: '', testedOn: '2026-07-10' },
-    ],
-    macros
-  )
-  const lines = csv.split('\n')
-  assert.equal(lines[0], 'tested_on,macro,lift,weight,reps,notes')
-  assert.equal(lines[1], '2026-07-06,2,deadlift,180,2,"clean, 1 RIR"')
-  assert.equal(lines[2], '2026-07-10,2,dips,12.5,3,')
 })
 
 test('escapes fields containing commas, quotes, or newlines', () => {
@@ -104,71 +93,28 @@ test('unknown macroId yields a blank macro cell, not a crash', () => {
   assert.equal(csv.split('\n')[1].split(',')[1], '') // macro column blank
 })
 
-// ---- runsToCsv (Giant Run) ----------------------------------------------------
-import { runsToCsv } from './export-csv'
+// ---- Capability block (Hypertrophy / Oly) -----------------------------------
 
-test('runsToCsv: header, derived pace column, date-sorted, escaping intact', () => {
-  const runs = [
-    { id: 'b', macroId: 'm2', date: '2026-07-16', cycle: 1, week: 2, weekType: 'training', runType: 'quality', distanceKm: 3, durationS: 1000, avgHr: null, completion: 'felt_heavy', notes: 'hills, wind' },
-    { id: 'a', macroId: 'm2', date: '2026-07-14', cycle: 1, week: 2, weekType: 'training', runType: 'easy', distanceKm: 5.2, durationS: 1980, avgHr: 148, completion: 'completed', notes: '' },
-  ]
-  const csv = runsToCsv(runs, macros)
-  const lines = csv.split('\n')
-  assert.equal(lines[0], 'date,macro,cycle,week,week_type,run_type,terrain,distance_km,duration_s,pace_s_per_km,avg_hr,completion,bulletproof,notes')
-  // Sorted oldest first; pace derived (1980/5.2 = 380.8 → 381).
-  // Terrain defaults to road when the fixture doesn't set it (legacy rows).
-  assert.equal(lines[1], '2026-07-14,2,1,2,training,easy,road,5.2,1980,381,148,completed,false,')
-  // 1000/3 = 333.3 → 333; comma-bearing notes are quoted.
-  assert.equal(lines[2], '2026-07-16,2,1,2,training,quality,road,3,1000,333,,felt_heavy,false,"hills, wind"')
-})
-
-test('capacityToCsv: positioned via the session join, per_round_s derived, sorted by date', () => {
-  const sessions = [
-    session({ id: '2026-08-03-bench-H', date: '2026-08-03', cycle: 1, week: 2, dayType: 'bench' }),
-    session({ id: '2026-07-27-deadlift-M', date: '2026-07-27', cycle: 1, week: 1, dayType: 'deadlift', difficulty: 'medium' }),
-  ]
-  const logs = [
-    { sessionId: '2026-08-03-bench-H', variant: 'B', roundsCompleted: 3, totalTimeSeconds: 702, calories: 27, rpe: 'R7', completion: 'cut_short_fatigue', notes: '' },
-    // A legacy (pre-0021) log: the mapper reads its NULL as 'completed'.
-    { sessionId: '2026-07-27-deadlift-M', variant: 'A', roundsCompleted: 3, totalTimeSeconds: 300, calories: null, rpe: 'R8', completion: 'completed', notes: 'smooth' },
-  ]
-  const lines = capacityToCsv(logs, sessions, macros).split('\n')
-  assert.equal(lines[0], 'date,macro,cycle,week,day_type,difficulty,variant,rounds_completed,total_time_seconds,per_round_s,calories,rpe,completion,notes')
-  assert.equal(lines[1], '2026-07-27,2,1,1,deadlift,medium,A,3,300,100,,R8,completed,smooth')
-  assert.equal(lines[2], '2026-08-03,2,1,2,bench,hard,B,3,702,234,27,R7,cut_short_fatigue,')
-})
-
-// ---- Giant 2.0 -----------------------------------------------------------
-import { hypertrophyToCsv, olyToCsv } from './export-csv'
-
-const g2Movements = [
+const movements = [
   { id: 'mv-1', key: 'walking_lunge', name: 'Walking Lunge', loadType: 'recorded', countType: 'reps_per_side', defaultReps: 12, repUnit: '/leg', note: null, archived: false },
   { id: 'mv-2', key: 'oly_muscle_snatch', name: 'Muscle Snatch', loadType: 'recorded', countType: 'reps', defaultReps: 5, repUnit: null, note: '3×5, unloaded', archived: false },
 ]
 
-test('sessionsToCsv: volume_difficulty column carries the Volume block\'s own (independent) difficulty', () => {
-  const s = session({ id: '2026-08-14-ohp-H', date: '2026-08-14', cycle: 1, week: 1, dayType: 'ohp', difficulty: 'hard', volumeDifficulty: 'light' })
-  const row = sessionsToCsv([s], macros).split('\n')[1]
-  const cols = row.split(',')
-  assert.equal(cols[6], 'hard') // difficulty
-  assert.equal(cols[7], 'light') // volume_difficulty — independent column
-})
-
 test('hypertrophyToCsv: one row per movement, positioned via its session, movement name resolved from the library', () => {
-  const sessions = [session({ id: '2026-08-10-squat-H', date: '2026-08-10', cycle: 1, week: 1, dayType: 'squat' })]
-  const logs = [{ sessionId: '2026-08-10-squat-H', movementId: 'mv-1', weight: 30, repsDone: 12, notes: 'felt good' }]
-  const lines = hypertrophyToCsv(logs, sessions, g2Movements, macros).split('\n')
+  const sessions = [session({ id: '2026-08-10-squat', date: '2026-08-10' })]
+  const logs = [{ sessionId: '2026-08-10-squat', movementId: 'mv-1', weight: 30, repsDone: 12, notes: 'felt good' }]
+  const lines = hypertrophyToCsv(logs, sessions, movements, macros).split('\n')
   assert.equal(lines[0], 'date,macro,cycle,week,day_type,movement,weight,reps_done,notes')
   assert.equal(lines[1], '2026-08-10,2,1,1,squat,Walking Lunge,30,12,felt good')
 })
 
 test('olyToCsv: logs a quality mark, not RPE; unresolved movement falls back to its id', () => {
-  const sessions = [session({ id: '2026-09-07-squat-H', date: '2026-09-07', cycle: 2, week: 1, dayType: 'squat' })]
+  const sessions = [session({ id: '2026-09-07-squat', date: '2026-09-07', cycle: 2 })]
   const logs = [
-    { sessionId: '2026-09-07-squat-H', movementId: 'mv-2', weight: 40, quality: 'Q3', notes: '' },
-    { sessionId: '2026-09-07-squat-H', movementId: 'mv-unknown', weight: 20, quality: 'Q1', notes: '' },
+    { sessionId: '2026-09-07-squat', movementId: 'mv-2', weight: 40, quality: 'Q3', notes: '' },
+    { sessionId: '2026-09-07-squat', movementId: 'mv-unknown', weight: 20, quality: 'Q1', notes: '' },
   ]
-  const lines = olyToCsv(logs, sessions, g2Movements, macros).split('\n')
+  const lines = olyToCsv(logs, sessions, movements, macros).split('\n')
   assert.equal(lines[0], 'date,macro,cycle,week,day_type,movement,weight,quality,notes')
   assert.equal(lines[1], '2026-09-07,2,2,1,squat,Muscle Snatch,40,Q3,')
   assert.equal(lines[2], '2026-09-07,2,2,1,squat,mv-unknown,20,Q1,')

@@ -3,60 +3,35 @@ import type { CSSProperties } from 'react'
 import { C, cardStyle, inp, lbl, pillColor } from './theme'
 import { Card, BlockTitle } from './components'
 import * as repo from '../data/repository'
-import { computePosition, totalWeeksOf, parseLocalDate, mondayOf, isoLocal, isGiant2Date } from '../engine/date-engine'
-import { SET_LADDER, VOLUME_PCT, PACE_ROUND_S, ANCHOR_LIFTS, ANCHOR_LABEL, ANCHOR_NOTE, GIANTFIT_ACC_ITEMS, GIANTFIT_CARRY_DEFAULTS, GIANTFIT_GB_ACCESSORY, GIANTFIT_GB_DEFAULT_REPS, LIFT_SHORT, GIANT2_GIANT_DEFAULT_ROTATION, GIANT2_SECONDARY } from '../engine/constants'
+import { computePosition, totalWeeksOf, parseLocalDate, mondayOf, isoLocal } from '../engine/date-engine'
+import { SET_LADDER, VOLUME_PCT, ANCHOR_LIFTS, ANCHOR_LABEL, ANCHOR_NOTE, ACC_ITEMS, CARRY_DEFAULTS, GB_ACCESSORY, GB_DEFAULT_REPS, LIFT_SHORT, GIANT2_GIANT_DEFAULT_ROTATION } from '../engine/constants'
 import { expandDayTops, giantSets, volumeWeight } from '../engine/loading'
-import { CAPACITY_MOVEMENTS, CAPACITY_VARIANTS, CAPACITY_ROUNDS_OPTIONS } from '../engine/capacity'
-import { runMode, easyPace, qualityRange, fmtPace, parseClock } from '../engine/runs'
 import { LOAD_TYPES, COUNT_TYPES, LOAD_TYPE_LABEL, COUNT_TYPE_LABEL, formatCount, slugify } from '../engine/movements'
 import type { Movement, LoadType, CountType } from '../engine/movements'
 import { errMsg } from './controls'
-import type { Macro, WeightsByCycle, AccessoryByCycle, RunTargetsByCycle, RunSlotKey, CapacityConfig, CapacityVariant, Difficulty, GiantAccessoryReps, Lift, Giant2DifficultyConfig } from '../engine/types'
+import type { Macro, WeightsByCycle, AccessoryByCycle, Difficulty, GiantAccessoryReps, Lift, Giant2DifficultyConfig } from '../engine/types'
 
-// Anchor rows in the weights card: the GiantFit anchors (DL/OHP/Squat/Bench +
-// DB Row / Pendlay Row — the rows cascade identically off their own anchor).
-// Legacy dips/pull-up anchors are read-only history — never shown or written here.
+// Anchor rows in the weights card: Squat/Bench/Deadlift/OHP + BB Row / Pull-ups
+// (db_row/pendlay_row — the rows cascade identically off their own anchor).
 const ANCHORS = ANCHOR_LIFTS
 const DIFFS: Difficulty[] = ['hard', 'medium', 'light']
 const CYCLES: number[] = [1, 2, 3]
-// The db_row/pendlay_row LANES are unchanged from GiantFit to Giant 2.0 — only
-// the occupant's display name changes (BB Row / Pull-ups), per whether the
-// macro being edited is Giant2-era. ANCHOR_LABEL itself stays GiantFit's
-// (it's still live for any GiantFit macro/history).
-function anchorLabel(lift: string, giant2: boolean): string {
-  if (giant2) {
-    if (lift === 'db_row') return GIANT2_SECONDARY.ohp!.name
-    if (lift === 'pendlay_row') return GIANT2_SECONDARY.bench!.name
-  }
-  return ANCHOR_LABEL[lift]
-}
-// GiantFit accessories = the four per-day carries (DL Farmers · OHP Overhead ·
-// Squat Bearhug · Bench Suitcase). Paired rows are logged per session (free
-// weight entry) — no recorded secondary weights anymore. Legacy items
-// (lunge/RDL/row, carry_dips) stay in the DB for pre-cutover history but are
-// no longer shown or written here.
+
+// The four per-day carries.
 const ACC_LABEL: Record<string, string> = {
   carry_deadlift: "Farmer's Carry — DL day",
   carry_ohp: 'Overhead Carry — OHP day',
   carry_squat: 'Bearhug Carry — Squat day',
   carry_bench: 'Suitcase Carry — Bench day',
 }
-const ACC_ITEMS = GIANTFIT_ACC_ITEMS
 
-// Giant Block accessory rows render in day order (DL/OHP/Squat/Bench).
-const GB_ACC_DAYS: Lift[] = ['deadlift', 'ohp', 'squat', 'bench']
+// Giant Block accessory rows render in day order (Squat/Bench/Deadlift/OHP —
+// the fixed weekday order).
+const GB_ACC_DAYS: Lift[] = ['squat', 'bench', 'deadlift', 'ohp']
 
-// Giant 2.0 weekly Giant-difficulty rotation grid — Mon/Tue/Thu/Fri day order.
-const GIANT2_ROTATION_DAYS: Lift[] = ['squat', 'bench', 'deadlift', 'ohp']
-const GIANT2_ROTATION_WEEKS: number[] = [1, 2, 3]
-
-// Giant Run distance-target slots (guidance only, per cycle, seeded like SEED_ITEMS).
-const RUN_SLOTS: RunSlotKey[] = ['easy', 'quality', 'long']
-const RUN_SLOT_LABEL: Record<RunSlotKey, string> = {
-  easy: 'Tue — Easy run',
-  quality: 'Thu — Quality run',
-  long: 'Sat — Long easy run',
-}
+// Weekly Giant-difficulty rotation grid — Mon/Tue/Thu/Fri day order.
+const ROTATION_DAYS: Lift[] = ['squat', 'bench', 'deadlift', 'ohp']
+const ROTATION_WEEKS: number[] = [1, 2, 3]
 
 // Native <input type="date"> on iOS keeps an intrinsic width and overflows its
 // container; -webkit-appearance:none strips that so it respects width:100%.
@@ -66,8 +41,6 @@ const DATE_INPUT: CSSProperties = { ...inp, WebkitAppearance: 'none', appearance
 type WeightCell = { hard: number | string; medium: number | string; light: number | string }
 type EditWeights = Record<number, Record<string, WeightCell>>
 type EditAcc = Record<number, Record<string, number | string>>
-type EditRunTargets = Record<number, Record<RunSlotKey, number | string>>
-type EditCapacity = Record<CapacityVariant, Record<string, { reps: number | string; weight: number | string }>>
 
 // Build editable state: every cycle/anchor-lift present, blank if unset.
 function initWeights(loaded?: WeightsByCycle): EditWeights {
@@ -85,39 +58,9 @@ function initAcc(loaded?: AccessoryByCycle): EditAcc {
   const a: EditAcc = {}
   for (const c of CYCLES) {
     a[c] = {}
-    for (const it of ACC_ITEMS) a[c][it] = loaded?.[c]?.[it] ?? GIANTFIT_CARRY_DEFAULTS[it] ?? ''
+    for (const it of ACC_ITEMS) a[c][it] = loaded?.[c]?.[it] ?? CARRY_DEFAULTS[it] ?? ''
   }
   return a
-}
-
-// Run distance targets: same shape + forward seeding as the recorded accessories.
-function initRunTargets(loaded?: RunTargetsByCycle): EditRunTargets {
-  const t = {} as EditRunTargets
-  for (const c of CYCLES) {
-    t[c] = { easy: '', quality: '', long: '' }
-    for (const s of RUN_SLOTS) t[c][s] = loaded?.[c]?.[s] ?? ''
-  }
-  const blank = (v: number | string) => v === '' || v == null
-  for (const s of RUN_SLOTS) {
-    for (const c of CYCLES) {
-      if (c > 1 && blank(t[c][s]) && !blank(t[c - 1][s])) t[c][s] = t[c - 1][s]
-    }
-  }
-  return t
-}
-
-// Capacity config arrives with app defaults already merged (repo read); weight
-// null = unset → blank input.
-function initCapacity(loaded?: CapacityConfig): EditCapacity {
-  const out = {} as EditCapacity
-  for (const v of CAPACITY_VARIANTS) {
-    out[v] = {}
-    for (const m of CAPACITY_MOVEMENTS[v]) {
-      const s = loaded?.movements?.[v]?.[m.key]
-      out[v][m.key] = { reps: s?.reps ?? m.reps, weight: s?.weight ?? '' }
-    }
-  }
-  return out
 }
 
 interface SetupProps {
@@ -125,8 +68,6 @@ interface SetupProps {
   bundle: {
     weights: WeightsByCycle
     accessory: AccessoryByCycle
-    runTargets: RunTargetsByCycle
-    capacity: CapacityConfig
     giantAccessory: GiantAccessoryReps
     giant2Difficulty?: Giant2DifficultyConfig
   }
@@ -182,54 +123,17 @@ function CascadePreview({ anchor }: { anchor: number | string }) {
   )
 }
 
-// Read-only live preview of the pace cascade from the reference-pace text —
-// mirrors CascadePreview: computed via the engine, never stored. Talk-test mode
-// (blank) explains itself; unparseable text shows the expected format.
-function PacePreview({ pace }: { pace: string }) {
-  const t = pace.trim()
-  if (t === '' || runMode(parseClock(t)) === 'talk') {
-    const invalid = t !== '' && parseClock(t) == null
-    return (
-      <div style={{ fontSize: 11, color: invalid ? C.red : C.muted, fontStyle: 'italic', marginTop: 4 }}>
-        {invalid ? 'Enter as min:sec per km — 5:35, 5.35 or 535 all work.' : 'Talk-test mode — prescriptions show run type + distance only.'}
-      </div>
-    )
-  }
-  const P = parseClock(t) as number
-  const [qMin, qMax] = qualityRange(P)
-  return (
-    <div style={{ marginTop: 6, background: 'rgba(0,0,0,0.18)', border: `1px solid ${C.border}`, borderRadius: 2, padding: 10, fontSize: 12, color: C.off }}>
-      Easy <strong style={{ color: C.gold }}>{fmtPace(easyPace(P))}</strong> /km · Quality{' '}
-      <strong style={{ color: C.gold }}>
-        {fmtPace(qMin)}–{fmtPace(qMax)}
-      </strong>{' '}
-      /km · Time trial: no prescribed pace
-    </div>
-  )
-}
-
 export function Setup({ macro, bundle, macros = [], movements = [], onReload, onSelectMacro, onRollMacro, onSaveMovement, onArchiveMovement }: SetupProps) {
-  const [startISO, setStartISO] = useState(macro?.startISO || '2026-04-13')
-  // Whether the macro being edited/created is Giant 2.0 — the db_row/pendlay_row
-  // anchor rows keep their lane but display BB Row/Pull-ups instead of
-  // GiantFit's DB Row/Pendlay Row for it (anchorLabel above).
-  const isGiant2Macro = isGiant2Date(startISO)
+  const [startISO, setStartISO] = useState(macro?.startISO || '2026-08-10')
   const [number, setNumber] = useState(macro?.number || 1)
   const [cycle, setCycle] = useState(1)
   const [weights, setWeights] = useState<EditWeights>(() => initWeights(bundle?.weights))
   const [acc, setAcc] = useState<EditAcc>(() => initAcc(bundle?.accessory))
-  const [runT, setRunT] = useState<EditRunTargets>(() => initRunTargets(bundle?.runTargets))
-  // Capacity block: per-movement rep/weight edits, the viewed variant, and rounds.
-  const [cap, setCap] = useState<EditCapacity>(() => initCapacity(bundle?.capacity))
-  const [capVariant, setCapVariant] = useState<CapacityVariant>('A')
-  const [capRounds, setCapRounds] = useState<number>(bundle?.capacity?.rounds ?? 3)
   // Giant Block accessory rep targets (rep-only; defaults merged on load).
-  const [gbAcc, setGbAcc] = useState<Record<string, number | string>>(() => ({ ...GIANTFIT_GB_DEFAULT_REPS, ...(bundle?.giantAccessory || {}) }))
-  // Giant 2.0 weekly Giant-difficulty rotation (weeks 1-3; week 4 collapses in
-  // code, never edited here). Defaults already merged in by the mapper.
+  const [gbAcc, setGbAcc] = useState<Record<string, number | string>>(() => ({ ...GB_DEFAULT_REPS, ...(bundle?.giantAccessory || {}) }))
+  // Weekly Giant-difficulty rotation (weeks 1-3; week 4 collapses in code,
+  // never edited here). Defaults already merged in by the mapper.
   const [giant2Diff, setGiant2Diff] = useState<Giant2DifficultyConfig>(() => bundle?.giant2Difficulty || { ...GIANT2_GIANT_DEFAULT_ROTATION })
-  // Reference pace P held as min:sec text; parsed (never rounded) on save.
-  const [pace, setPace] = useState(() => (macro?.refPaceS != null ? fmtPace(macro.refPaceS) : ''))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [err, setErr] = useState('')
@@ -258,39 +162,27 @@ export function Setup({ macro, bundle, macros = [], movements = [], onReload, on
   const setW = (c: number, l: string, d: Difficulty, v: string) =>
     setWeights((p) => ({ ...p, [c]: { ...p[c], [l]: { ...p[c][l], [d]: v } } }) as EditWeights)
   const setA = (c: number, it: string, v: string) => setAcc((p) => ({ ...p, [c]: { ...p[c], [it]: v } }) as EditAcc)
-  const setR = (c: number, s: RunSlotKey, v: string) => setRunT((p) => ({ ...p, [c]: { ...p[c], [s]: v } }) as EditRunTargets)
-  const setCapField = (v: CapacityVariant, key: string, field: 'reps' | 'weight', val: string) =>
-    setCap((p) => ({ ...p, [v]: { ...p[v], [key]: { ...p[v][key], [field]: val } } }))
 
   const pos = computePosition(startISO, number, new Date(), macro ? { weeks: macro.weeks, deloadExtended: macro.deloadExtended } : {})
   const posText = pos.beforeStart
     ? 'Before macro start'
     : pos.complete
       ? 'Macro complete'
-      : pos.weekType === 'testing'
-        ? `Testing week (wk ${pos.displayWeekGlobal}/${pos.totalWeeks})`
-        : pos.weekType === 'deload'
-          ? `Deload week (wk ${pos.displayWeekGlobal}/${pos.totalWeeks})`
-          : `M${pos.macro} · C${pos.meso} · W${pos.week}  (wk ${pos.displayWeekGlobal}/${pos.totalWeeks})`
+      : pos.weekType === 'deload'
+        ? `Deload week (wk ${pos.displayWeekGlobal}/${pos.totalWeeks})`
+        : `M${pos.macro} · C${pos.meso} · W${pos.week}  (wk ${pos.displayWeekGlobal}/${pos.totalWeeks})`
 
   async function save() {
     setSaving(true)
     setErr('')
     try {
-      // Reference pace: blank = talk-test mode (null); otherwise must parse as m:ss.
-      const paceText = pace.trim()
-      const refPaceS = paceText === '' ? null : parseClock(paceText)
-      if (paceText !== '' && refPaceS == null) throw new Error('Reference pace must be min:sec per km, e.g. 5:35')
       let m = macro
       if (!m) m = await repo.createMacro({ number, startISO })
-      await repo.updateMacro(m.id, { number, startISO, refPaceS })
+      await repo.updateMacro(m.id, { number, startISO })
       for (const c of CYCLES) {
         await repo.saveWorkingWeights(m.id, c, weights[c])
         await repo.saveAccessoryWeights(m.id, c, acc[c])
-        await repo.saveRunTargets(m.id, c, runT[c])
       }
-      for (const v of CAPACITY_VARIANTS) await repo.saveCapacityConfig(v, cap[v])
-      await repo.setCapacityRounds(capRounds)
       await repo.saveGiantAccessoryConfig(gbAcc)
       await repo.saveGiant2DifficultyConfig(giant2Diff)
       setSaved(true)
@@ -388,14 +280,14 @@ export function Setup({ macro, bundle, macros = [], movements = [], onReload, on
           <div key={lift} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${C.border}` }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: 8, alignItems: 'center' }}>
               <label htmlFor={`hard-${cycle}-${lift}`} style={{ fontSize: 13, color: C.off, fontWeight: 600 }}>
-                {anchorLabel(lift, isGiant2Macro)} <span style={{ color: pillColor('hard') }}>· Hard top</span>
+                {ANCHOR_LABEL[lift]} <span style={{ color: pillColor('hard') }}>· Hard top</span>
                 {ANCHOR_NOTE[lift] && <span style={{ fontSize: 10, color: C.muted, fontWeight: 400 }}> · {ANCHOR_NOTE[lift]}</span>}
               </label>
               <input
                 id={`hard-${cycle}-${lift}`}
                 data-lift={lift}
                 data-diff="hard"
-                aria-label={`${anchorLabel(lift, isGiant2Macro)} Hard top, cycle ${cycle} (kg)`}
+                aria-label={`${ANCHOR_LABEL[lift]} Hard top, cycle ${cycle} (kg)`}
                 style={{ ...inp, padding: '6px', textAlign: 'center' }}
                 type="number"
                 step="2.5"
@@ -411,15 +303,15 @@ export function Setup({ macro, bundle, macros = [], movements = [], onReload, on
 
       {/* Giant Block bodyweight accessories — rep-only targets (no load, no cycle) */}
       <Card>
-        <BlockTitle tag="giantfit">Giant Block Accessories</BlockTitle>
+        <BlockTitle tag="giant 2.0">Giant Block Accessories</BlockTitle>
         <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>
           The bodyweight movement each Giant Block carries alongside the lift — rep target only, no load. Same target
           on every difficulty and cycle.
         </div>
         {GB_ACC_DAYS.map((day) => {
-          const m = GIANTFIT_GB_ACCESSORY[day]!
+          const m = GB_ACCESSORY[day]!
           return (
-            <div key={m.key} style={{ display: 'grid', gridTemplateColumns: '1fr 64px', gap: 8, alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            <div key={day} style={{ display: 'grid', gridTemplateColumns: '1fr 64px', gap: 8, alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
               <span style={{ fontSize: 13, color: C.off }}>
                 {m.name} <span style={{ fontSize: 10, color: C.muted }}>— {LIFT_SHORT[day]} day</span>
               </span>
@@ -438,9 +330,9 @@ export function Setup({ macro, bundle, macros = [], movements = [], onReload, on
         })}
       </Card>
 
-      {/* Giant 2.0 — weekly Giant-difficulty rotation (weeks 1-3 of every cycle;
-          week 4 collapses to one difficulty for the whole cycle, computed in
-          code, not edited here). Not yet read by any session view (Phase 1). */}
+      {/* Weekly Giant-difficulty rotation (weeks 1-3 of every cycle; week 4
+          collapses to one difficulty for the whole cycle, computed in code,
+          not edited here). */}
       <Card>
         <BlockTitle tag="giant 2.0">Giant Difficulty Rotation</BlockTitle>
         <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>
@@ -450,15 +342,15 @@ export function Setup({ macro, bundle, macros = [], movements = [], onReload, on
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '48px repeat(4, 1fr)', gap: 8, alignItems: 'center' }}>
           <span />
-          {GIANT2_ROTATION_DAYS.map((day) => (
+          {ROTATION_DAYS.map((day) => (
             <span key={day} style={{ fontSize: 10, color: C.muted, textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               {LIFT_SHORT[day]}
             </span>
           ))}
-          {GIANT2_ROTATION_WEEKS.map((week) => (
+          {ROTATION_WEEKS.map((week) => (
             <Fragment key={week}>
               <span style={{ fontSize: 12, color: C.off, fontWeight: 600 }}>W{week}</span>
-              {GIANT2_ROTATION_DAYS.map((day) => (
+              {ROTATION_DAYS.map((day) => (
                 <select
                   key={day}
                   data-giant2-diff={`${week}-${day}`}
@@ -478,122 +370,6 @@ export function Setup({ macro, bundle, macros = [], movements = [], onReload, on
               ))}
             </Fragment>
           ))}
-        </div>
-      </Card>
-
-      {/* GiantFit capacity block — two circuit variants, editable targets */}
-      <Card>
-        <BlockTitle tag="giantfit">Capacity</BlockTitle>
-        <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>
-          Two circuit variants, 8 movements each, done top to bottom for the set number of rounds. Rep targets are
-          editable; loaded movements also take a weight (kg). Blank weight = choose on the day.
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-          <span style={{ ...lbl, marginBottom: 0 }}>Rounds</span>
-          <div style={{ display: 'flex', gap: 8 }} role="group" aria-label="Capacity rounds">
-            {CAPACITY_ROUNDS_OPTIONS.map((r) => (
-              <button
-                key={r}
-                data-cap-rounds={r}
-                onClick={() => setCapRounds(r)}
-                aria-pressed={capRounds === r}
-                style={{
-                  flex: 1,
-                  background: capRounds === r ? C.gold : 'transparent',
-                  color: capRounds === r ? C.dark : C.muted,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 2,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  padding: '8px 4px',
-                  cursor: 'pointer',
-                }}
-              >
-                {r}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }} role="group" aria-label="Capacity variant">
-          {CAPACITY_VARIANTS.map((v) => (
-            <button
-              key={v}
-              data-cap-variant={v}
-              onClick={() => setCapVariant(v)}
-              aria-pressed={capVariant === v}
-              style={{
-                flex: 1,
-                background: capVariant === v ? C.gold : 'transparent',
-                color: capVariant === v ? C.dark : C.muted,
-                border: `1px solid ${C.border}`,
-                borderRadius: 2,
-                fontSize: 12,
-                fontWeight: 600,
-                padding: '8px 4px',
-                cursor: 'pointer',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-              }}
-            >
-              Variant {v}
-            </button>
-          ))}
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 64px 74px', gap: 8, alignItems: 'center', marginBottom: 2 }}>
-          <span />
-          <span style={{ fontSize: 9.5, color: C.muted, textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Reps</span>
-          <span style={{ fontSize: 9.5, color: C.muted, textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.04em' }}>kg</span>
-        </div>
-        {CAPACITY_MOVEMENTS[capVariant].map((m, i) => (
-          <div
-            key={m.key}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 64px 74px',
-              gap: 8,
-              alignItems: 'center',
-              padding: '6px 0',
-              borderBottom: '1px solid rgba(255,255,255,0.04)',
-            }}
-          >
-            <span style={{ fontSize: 13, color: C.off }}>
-              <span style={{ color: C.muted, fontVariantNumeric: 'tabular-nums' }}>{i + 1}. </span>
-              {m.name}
-              {(m.note || m.repUnit) && (
-                <span style={{ fontSize: 10, color: C.muted }}>
-                  {' '}
-                  {[m.repUnit, m.note].filter(Boolean).join(' · ')}
-                </span>
-              )}
-            </span>
-            <input
-              data-cap-reps={m.key}
-              aria-label={`${m.name} rep target, variant ${capVariant}`}
-              style={{ ...inp, padding: '6px', textAlign: 'center' }}
-              type="number"
-              step="1"
-              inputMode="numeric"
-              value={cap[capVariant][m.key].reps}
-              onChange={(e) => setCapField(capVariant, m.key, 'reps', e.target.value)}
-            />
-            {m.loaded ? (
-              <input
-                data-cap-weight={m.key}
-                aria-label={`${m.name} weight, variant ${capVariant} (kg)`}
-                style={{ ...inp, padding: '6px', textAlign: 'center' }}
-                type="number"
-                step="0.5"
-                inputMode="decimal"
-                value={cap[capVariant][m.key].weight}
-                onChange={(e) => setCapField(capVariant, m.key, 'weight', e.target.value)}
-              />
-            ) : (
-              <span style={{ fontSize: 11, color: C.muted, textAlign: 'center' }}>—</span>
-            )}
-          </div>
-        ))}
-        <div style={{ fontSize: 9.5, color: C.muted, marginTop: 6, textAlign: 'right' }}>
-          logged as one block — timer &amp; logging arrive with the session views
         </div>
       </Card>
 
@@ -630,67 +406,6 @@ export function Setup({ macro, bundle, macros = [], movements = [], onReload, on
         ))}
       </Card>
 
-      {/* The Giant Run — reference pace anchor + per-cycle distance targets */}
-      <Card>
-        <BlockTitle tag="single anchor">Running</BlockTitle>
-        <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 12 }}>
-          One <strong style={{ color: C.off }}>reference pace P</strong> per macro (typically your latest 5k time-trial
-          pace). Easy (P+75s) and Quality (P+15–40s) paces compute off it, rounded to {PACE_ROUND_S} s/km — P itself is
-          never rounded. Leave blank for <strong style={{ color: C.off }}>talk-test mode</strong> (no paces shown — the
-          mesocycle-1 state). Distance targets are guidance per cycle; the log records actual distance.
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px', gap: 8, alignItems: 'center', marginBottom: 4 }}>
-          <label htmlFor="ref-pace" style={{ fontSize: 13, color: C.off, fontWeight: 600 }}>
-            Reference pace P <span style={{ fontSize: 10, color: C.muted, fontWeight: 400 }}>(min:sec / km · blank = talk test)</span>
-          </label>
-          <input
-            id="ref-pace"
-            data-run-pace
-            aria-label="Reference pace P (min:sec per km)"
-            style={{ ...inp, padding: '6px', textAlign: 'center' }}
-            type="text"
-            // decimal keypad: iOS's numeric pad has no colon — "." works as the
-            // separator (5.35 = 5:35), and bare digits parse too (535 = 5:35).
-            inputMode="decimal"
-            placeholder="5:35"
-            value={pace}
-            onChange={(e) => setPace(e.target.value)}
-          />
-        </div>
-        <PacePreview pace={pace} />
-        <div style={{ borderTop: `1px solid ${C.border}`, margin: '12px 0' }} />
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>{CYCLES.map(cycleBtn)}</div>
-        {RUN_SLOTS.map((s) => (
-          <div
-            key={s}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 110px',
-              gap: 8,
-              alignItems: 'center',
-              padding: '6px 0',
-              borderBottom: '1px solid rgba(255,255,255,0.04)',
-            }}
-          >
-            <span style={{ fontSize: 13, color: C.off }}>
-              {RUN_SLOT_LABEL[s]}
-              {s === 'quality' && <span style={{ fontSize: 10, color: C.muted }}> (runs easy in C1)</span>}
-            </span>
-            <input
-              data-run-target={s}
-              aria-label={`${RUN_SLOT_LABEL[s]} target, cycle ${cycle} (km)`}
-              style={{ ...inp, padding: '6px', textAlign: 'center' }}
-              type="number"
-              step="0.5"
-              inputMode="decimal"
-              value={runT[cycle][s]}
-              onChange={(e) => setR(cycle, s, e.target.value)}
-            />
-          </div>
-        ))}
-        <div style={{ fontSize: 9.5, color: C.muted, marginTop: 6, textAlign: 'right' }}>km · target, not prescription</div>
-      </Card>
-
       {err && (
         <div style={{ ...cardStyle, border: `1px solid ${C.red}`, color: C.red, fontSize: 13 }}>{err}</div>
       )}
@@ -721,7 +436,7 @@ export function Setup({ macro, bundle, macros = [], movements = [], onReload, on
           <BlockTitle tag="archive">Start Next Macro</BlockTitle>
           <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 10 }}>
             Completes Macro {macro.number} and starts Macro {macro.number + 1}, carrying this macro's <strong>C3 weights forward
-            as the new C1</strong> (cleans + carries too). Macro {macro.number}'s history stays viewable via the picker above.
+            as the new C1</strong> (carries too). Macro {macro.number}'s history stays viewable via the picker above.
           </div>
           <label style={lbl}>New macro start (Monday)</label>
           <input style={DATE_INPUT} type="date" value={nextStart} onChange={(e) => setNextStart(e.target.value)} />

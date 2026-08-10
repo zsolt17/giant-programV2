@@ -2,19 +2,20 @@ import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { parseRpe, toTrendSessions, toCarrySessions } from './trends'
 
-const MACROS = [{ id: 'm2', number: 2, startISO: '2026-04-13', weeks: 15, status: 'active' }]
+const MACROS = [{ id: 'm2', number: 2, startISO: '2026-08-10', weeks: 13, status: 'active' }]
 
-// Minimal session factory (training, dips-ish defaults overridable).
+// Minimal session factory.
 function S(over = {}) {
   return {
     id: 'x',
     macroId: 'm2',
-    date: '2026-04-13',
+    date: '2026-08-10',
     cycle: 1,
     week: 1,
     weekType: 'training',
-    dayType: 'deadlift',
+    dayType: 'squat',
     difficulty: 'hard',
+    volumeDifficulty: 'light',
     topReps: 2,
     topWeight: 160,
     rpe: '',
@@ -44,9 +45,7 @@ test('parseRpe handles R-notation, half-points, blanks', () => {
 
 test('toTrendSessions maps day/weight/spd and derives signals like deload-rule', () => {
   const rows = toTrendSessions(
-    [
-      S({ rpe: 'R9.5', barSpeed: 'down', volDone: false, carrySkipped: true, carrySkipReason: 'fatigue', topWeight: 160, dayType: 'ohp', cardioCals: [15, 14, null, 15] }),
-    ],
+    [S({ rpe: 'R9.5', barSpeed: 'down', volDone: false, carrySkipped: true, carrySkipReason: 'fatigue', topWeight: 160, dayType: 'ohp', cardioCals: [15, 14, null, 15] })],
     MACROS,
     {}
   )
@@ -63,6 +62,15 @@ test('toTrendSessions maps day/weight/spd and derives signals like deload-rule',
   assert.deepEqual(r.sets, [15, 14, 15]) // nulls dropped
 })
 
+test('toTrendSessions: S2 never fires on a session with no Volume block (C3 week 4, or deload)', () => {
+  const c3w4 = S({ id: '2026-10-26-squat', date: '2026-10-26', volDone: false, volumeDifficulty: null })
+  const rows = toTrendSessions([c3w4], MACROS, {})
+  assert.equal(rows[0].S2, 0)
+  // A normal session (Volume block present) still fires it.
+  const normal = S({ volDone: false, volumeDifficulty: 'light' })
+  assert.equal(toTrendSessions([normal], MACROS, {})[0].S2, 1)
+})
+
 test('toTrendSessions marks deload-week status from the deloads map', () => {
   const clean = toTrendSessions([S()], MACROS, {})
   assert.equal(clean[0].status, 'done')
@@ -71,94 +79,19 @@ test('toTrendSessions marks deload-week status from the deloads map', () => {
 })
 
 test('toTrendSessions ignores non-training weeks', () => {
-  assert.equal(toTrendSessions([S({ weekType: 'testing' })], MACROS, {}).length, 0)
+  assert.equal(toTrendSessions([S({ weekType: 'deload', cycle: null, week: null })], MACROS, {}).length, 0)
 })
 
 test('toCarrySessions joins per-cycle accessory weight with logged distance', () => {
-  const accessory = { m2: { 1: { carry_deadlift: 60 } } }
-  const rows = toCarrySessions([S({ dayType: 'deadlift', carryDistance: 40 })], MACROS, accessory)
+  const accessory = { m2: { 1: { carry_squat: 68 } } }
+  const rows = toCarrySessions([S({ dayType: 'squat', carryDistance: 40 })], MACROS, accessory)
   assert.equal(rows.length, 1)
-  assert.equal(rows[0].type, 'Farmer') // deadlift day = farmer's carry (final reassignment)
-  assert.equal(rows[0].weight, 60)
+  assert.equal(rows[0].type, 'Sandbag') // squat day = sandbag bear hug
+  assert.equal(rows[0].weight, 68)
   assert.equal(rows[0].distance, 40)
 })
 
 test('toCarrySessions skips carries with no logged distance or skipped', () => {
   assert.equal(toCarrySessions([S({ carryDistance: null })], MACROS, {}).length, 0)
   assert.equal(toCarrySessions([S({ carryDistance: 40, carrySkipped: true })], MACROS, {}).length, 0)
-})
-
-// ---- toRunTrend (Giant Run pace trend) ----------------------------------------
-import { toRunTrend } from './trends'
-
-test('toRunTrend: derives pace, drops paceless runs, sorts oldest first', () => {
-  const macros = [{ id: 'm2', number: 2, startISO: '2026-04-13', weeks: 15, status: 'active', refPaceS: null }]
-  const runs = [
-    { id: 'b', macroId: 'm2', date: '2026-07-16', cycle: 1, week: 2, weekType: 'training', runType: 'quality', distanceKm: 3, durationS: 1000, avgHr: null, completion: 'completed', notes: '' },
-    { id: 'a', macroId: 'm2', date: '2026-07-14', cycle: 1, week: 2, weekType: 'training', runType: 'easy', distanceKm: 5, durationS: 1800, avgHr: 148, completion: 'completed', notes: '' },
-    { id: 'c', macroId: 'm2', date: '2026-07-18', cycle: 1, week: 2, weekType: 'training', runType: 'long', distanceKm: null, durationS: 1800, avgHr: null, completion: 'completed', notes: '' },
-  ]
-  const t = toRunTrend(runs, macros)
-  assert.equal(t.length, 2) // the paceless long run is dropped
-  assert.deepEqual(t.map((r) => r.date), ['2026-07-14', '2026-07-16'])
-  assert.equal(t[0].paceS, 360)
-  assert.equal(t[0].macro, 'M2')
-  assert.equal(t[1].type, 'quality')
-})
-
-// ---- toCapacityTrend (GiantFit capacity view) -------------------------------
-import { toCapacityTrend } from './trends'
-
-test('toCapacityTrend: joins logs to sessions, derives per-round, drops incomplete, sorts by date', () => {
-  const macros = [{ id: 'm3', number: 3, startISO: '2026-07-27', weeks: 13, status: 'active' }]
-  const sess = (id, date) => ({ id, macroId: 'm3', date, weekType: 'training', cycle: 1, week: 1, dayType: 'deadlift' })
-  const sessions = [sess('b', '2026-07-29'), sess('a', '2026-07-27')]
-  const logs = [
-    { sessionId: 'b', variant: 'B', roundsCompleted: 3, totalTimeSeconds: 702, calories: 27, rpe: 'R7', notes: '' },
-    { sessionId: 'a', variant: 'A', roundsCompleted: 2, totalTimeSeconds: 300, calories: null, rpe: '', notes: '' },
-    { sessionId: 'a', variant: 'A', roundsCompleted: 0, totalTimeSeconds: 300, calories: null, rpe: '', notes: '' }, // unusable -> dropped
-    { sessionId: 'ghost', variant: 'A', roundsCompleted: 3, totalTimeSeconds: 300, calories: null, rpe: '', notes: '' }, // no session -> dropped
-  ]
-  const pts = toCapacityTrend(logs, sessions, macros)
-  assert.equal(pts.length, 2)
-  assert.deepEqual(pts.map((p) => [p.date, p.variant, p.perRoundS, p.rounds, p.calories, p.rpe]), [
-    ['2026-07-27', 'A', 150, 2, null, null], // short session normalizes per round
-    ['2026-07-29', 'B', 234, 3, 27, 7],
-  ])
-  assert.equal(pts[0].macro, 'M3')
-})
-
-test('toCapacityTrend: the per-round series is UNAFFECTED by the S6 replacement', () => {
-  // The time-based S6 was retired on 2026-07-31, but the chart it fed stays.
-  // Same inputs, same series — and the new completion field changes nothing.
-  const macros = [{ id: 'm3', number: 3, startISO: '2026-07-27', weeks: 13, status: 'active' }]
-  const sess = (id, date) => ({ id, macroId: 'm3', date, weekType: 'training', cycle: 1, week: 1, dayType: 'deadlift' })
-  const sessions = [sess('a', '2026-07-27'), sess('b', '2026-07-29'), sess('c', '2026-07-31')]
-  const base = { calories: null, rpe: '', notes: '' }
-  const logs = [
-    { sessionId: 'a', variant: 'A', roundsCompleted: 3, totalTimeSeconds: 300, ...base, completion: 'completed' },
-    { sessionId: 'b', variant: 'B', roundsCompleted: 3, totalTimeSeconds: 600, ...base, completion: 'cut_short_fatigue' },
-    { sessionId: 'c', variant: 'A', roundsCompleted: 2, totalTimeSeconds: 300, ...base, completion: undefined },
-  ]
-  const pts = toCapacityTrend(logs, sessions, macros)
-  // Chronological, per-round derived, one point per usable log — regardless of
-  // how each session was attributed.
-  assert.deepEqual(pts.map((p) => [p.date, p.variant, p.perRoundS]), [
-    ['2026-07-27', 'A', 100],
-    ['2026-07-29', 'B', 200],
-    ['2026-07-31', 'A', 150],
-  ])
-  // Dropping the completion field entirely yields the identical series.
-  const withoutCompletion = toCapacityTrend(logs.map(({ completion, ...l }) => l), sessions, macros)
-  assert.deepEqual(withoutCompletion, pts)
-})
-
-test('toTrendSessions: S2 mirrors deload-rule.ts exactly — never fires on a Giant 2.0 C3 week 4 session', () => {
-  const g2macro = [{ id: 'm4', number: 4, startISO: '2026-08-10', weeks: 13, status: 'active' }]
-  const c3w4 = S({ macroId: 'm4', id: '2026-10-26-squat', date: '2026-10-26', dayType: 'squat', volDone: false, volumeDifficulty: null })
-  const rows = toTrendSessions([c3w4], g2macro, {})
-  assert.equal(rows[0].S2, 0)
-  // A normal Giant 2.0 training session (Volume block present) still fires it.
-  const normal = S({ macroId: 'm4', id: '2026-08-10-squat', date: '2026-08-10', dayType: 'squat', volDone: false, volumeDifficulty: 'light' })
-  assert.equal(toTrendSessions([normal], g2macro, {})[0].S2, 1)
 })

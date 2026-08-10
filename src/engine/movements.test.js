@@ -1,12 +1,21 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { SEED_MOVEMENTS, SEED_CAPACITY_KEYS, formatCount, validateOccupant, slugify, seedByKey, LOAD_TYPES, COUNT_TYPES } from './movements'
-import { ANCHOR_LIFTS, ANCHOR_LABEL, GIANTFIT_GB_ACCESSORY, GIANTFIT_ACC_ITEMS, GIANTFIT_ACTIVATION, BULLETPROOF_ITEMS, DAY_META } from './constants'
-import { CAPACITY_MOVEMENTS, CAPACITY_VARIANTS } from './capacity'
+import {
+  SEED_MOVEMENTS,
+  SEED_PRIMER_KEYS,
+  SEED_HYPERTROPHY_KEYS,
+  SEED_OLY_KEYS,
+  formatCount,
+  validateOccupant,
+  slugify,
+  seedByKey,
+  LOAD_TYPES,
+  COUNT_TYPES,
+} from './movements'
+import { ANCHOR_LABEL, GB_ACCESSORY, ACC_ITEMS, DAY_META, GIANT2_SECONDARY } from './constants'
+import { SEED_LANE_KEYS, SEED_CARRY_KEYS, ANCHORED_LANES, PROGRAM_DAYS } from './program'
 
 // ---- formatCount: character-for-character parity with today's rendering ------
-// The rule lives in two places today (CapacityBlock's desc line and Setup's
-// label); both join '/'-prefixed units tight and word units with one space.
 
 test('formatCount: reproduces the current display join rule exactly', () => {
   assert.equal(formatCount(4, { repUnit: '/side' }), '4/side')
@@ -22,81 +31,71 @@ test('formatCount: reproduces the current display join rule exactly', () => {
   assert.equal(formatCount(undefined, { repUnit: null }), '—')
 })
 
-test('formatCount matches what the capacity block renders for every seeded capacity movement', () => {
-  for (const v of CAPACITY_VARIANTS) {
-    for (const def of CAPACITY_MOVEMENTS[v]) {
-      const seed = seedByKey(def.key)
-      assert.ok(seed, `seed missing for capacity movement ${def.key}`)
-      // The live rendering rule, inlined from CapacityBlock.tsx.
-      const live = `${def.reps}${def.repUnit ? (def.repUnit.startsWith('/') ? def.repUnit : ` ${def.repUnit}`) : ''}`
-      assert.equal(formatCount(seed.defaultReps, seed), live, `display drift for ${def.key}`)
-    }
-  }
-})
+// ---- the seed must cover every movement the constants/program reference ------
 
-// ---- the seed must cover every movement the constants reference --------------
-// This is the test that stops the seed drifting from the hardcoded content.
-
-test('seed covers every currently-referenced movement, with no duplicate keys', () => {
+test('seed covers every anchored lane, with no duplicate keys', () => {
   const keys = SEED_MOVEMENTS.map((m) => m.key)
   assert.equal(new Set(keys).size, keys.length, 'duplicate seed keys')
 
-  // Anchored lifts (ANCHOR_LIFTS) — same keys, same labels.
-  for (const lift of ANCHOR_LIFTS) {
-    const seed = seedByKey(lift)
-    assert.ok(seed, `seed missing anchor lift ${lift}`)
+  // Every anchored lane (working_weights.lift) resolves to a seeded movement
+  // via SEED_LANE_KEYS — the lane key and the movement key are NOT the same
+  // string for the two secondary lanes (db_row -> bb_row, pendlay_row -> pullup).
+  for (const lane of ANCHORED_LANES) {
+    const movementKey = SEED_LANE_KEYS[lane]
+    const seed = seedByKey(movementKey)
+    assert.ok(seed, `seed missing for lane ${lane} (movement key ${movementKey})`)
     assert.equal(seed.loadType, 'anchored')
-    assert.equal(seed.name, ANCHOR_LABEL[lift], `label drift for ${lift}`)
+    assert.equal(seed.name, ANCHOR_LABEL[lane], `label drift for lane ${lane}`)
   }
+})
 
-  // Giant Block accessories — key, name and default reps all carried over.
-  for (const day of Object.keys(GIANTFIT_GB_ACCESSORY)) {
-    const acc = GIANTFIT_GB_ACCESSORY[day]
+test('seed covers every Giant Block accessory, primer, hypertrophy, oly, and carry movement', () => {
+  for (const day of Object.keys(GB_ACCESSORY)) {
+    const acc = GB_ACCESSORY[day]
     const seed = seedByKey(acc.key)
     assert.ok(seed, `seed missing GB accessory ${acc.key}`)
-    assert.equal(seed.name, acc.name)
+    // Ab-Roll (Squat/Deadlift) reuses the ab_rollout movement inherited from
+    // GiantFit's own seed, which keeps its original name "Ab Rollout" in the
+    // library — GB_ACCESSORY's own label is what the live UI actually
+    // renders (it reads the constant directly, never the library), so
+    // identity (the key) is the real parity contract, not the name.
     assert.equal(seed.defaultReps, acc.reps)
     assert.equal(seed.loadType, 'bodyweight')
   }
 
-  // Capacity: every movement of both variants, with matching reps + unit.
-  for (const v of CAPACITY_VARIANTS) {
-    for (const def of CAPACITY_MOVEMENTS[v]) {
-      const seed = seedByKey(def.key)
-      assert.ok(seed, `seed missing capacity movement ${def.key}`)
-      assert.equal(seed.name, def.name, `name drift for ${def.key}`)
-      assert.equal(seed.defaultReps, def.reps, `reps drift for ${def.key}`)
-      assert.equal(seed.loadType, def.loaded ? 'recorded' : 'bodyweight', `load type drift for ${def.key}`)
+  for (const dayType of ['upper', 'lower']) {
+    for (const key of SEED_PRIMER_KEYS[dayType]) {
+      assert.ok(seedByKey(key), `seed missing primer movement ${key}`)
     }
-    // ...and the seeded circuit order matches the live one exactly.
-    assert.deepEqual(SEED_CAPACITY_KEYS[v], CAPACITY_MOVEMENTS[v].map((m) => m.key), `circuit order drift in variant ${v}`)
   }
 
-  // The four carries: one seeded implement per GIANTFIT_ACC_ITEMS lane, named
-  // as DAY_META names it (the lane key is carry_<day>; the occupant is the implement).
-  assert.equal(GIANTFIT_ACC_ITEMS.length, 4)
+  for (const day of PROGRAM_DAYS) {
+    for (const key of SEED_HYPERTROPHY_KEYS[day] || []) {
+      assert.ok(seedByKey(key), `seed missing hypertrophy movement ${key}`)
+    }
+    for (const key of SEED_OLY_KEYS[day] || []) {
+      assert.ok(seedByKey(key), `seed missing oly movement ${key}`)
+    }
+  }
+
+  // The four carries: one seeded implement per ACC_ITEMS lane, named as
+  // DAY_META names it (the lane key is carry_<day>; the occupant is the implement).
+  assert.equal(ACC_ITEMS.length, 4)
   const carryNames = new Set(SEED_MOVEMENTS.filter((m) => m.key.startsWith('carry_')).map((m) => m.name))
   assert.equal(carryNames.size, 4)
-  for (const item of GIANTFIT_ACC_ITEMS) {
+  for (const item of ACC_ITEMS) {
     const day = item.replace('carry_', '')
     assert.ok(carryNames.has(DAY_META[day].carry.name), `no seeded implement named ${DAY_META[day].carry.name}`)
+    const carryKey = SEED_CARRY_KEYS[day]
+    assert.ok(seedByKey(carryKey), `seed missing carry movement ${carryKey}`)
   }
 
-  // Activation: names carried over, and every dose recomposes character-for-character.
-  for (const a of GIANTFIT_ACTIVATION) {
-    const seed = SEED_MOVEMENTS.find((m) => m.name === a.name)
-    assert.ok(seed, `seed missing activation item ${a.name}`)
-    assert.equal(seed.loadType, 'none')
-    assert.equal(`×${formatCount(seed.defaultReps, seed)}`, a.dose, `dose drift for ${a.name}`)
-  }
-
-  // Bulletproof: compound doses can't compose from one number, so they're carried
-  // verbatim in `note` — assert byte parity with the live strings.
-  for (const b of BULLETPROOF_ITEMS) {
-    const seed = SEED_MOVEMENTS.find((m) => m.name === b.name)
-    assert.ok(seed, `seed missing bulletproof item ${b.name}`)
-    assert.equal(seed.loadType, 'none')
-    assert.equal(seed.note, b.dose, `dose drift for ${b.name}`)
+  // The secondary display names match GIANT2_SECONDARY exactly (bb_row/pullup).
+  for (const day of Object.keys(GIANT2_SECONDARY)) {
+    const sec = GIANT2_SECONDARY[day]
+    const seed = seedByKey(sec.key)
+    assert.ok(seed, `seed missing secondary ${sec.key}`)
+    assert.equal(seed.name, sec.name)
   }
 })
 
@@ -118,7 +117,7 @@ const CONTRACT = { label: 'Giant Block main', loadTypes: ['anchored'], countType
 test('validateOccupant: accepts a satisfying movement, names the reason otherwise', () => {
   assert.equal(validateOccupant(CONTRACT, seedByKey('deadlift')), null)
   // Wrong load capability.
-  const bad = validateOccupant(CONTRACT, { ...seedByKey('pullups'), archived: false })
+  const bad = validateOccupant(CONTRACT, { ...seedByKey('walking_lunge'), archived: false })
   assert.match(bad, /needs Anchored/)
   // Archived movements can't occupy anything.
   assert.match(validateOccupant(CONTRACT, { ...seedByKey('deadlift'), archived: true }), /archived/)
@@ -130,9 +129,9 @@ test('validateOccupant: accepts a satisfying movement, names the reason otherwis
 test('validateOccupant: count capability is checked when the contract constrains it', () => {
   const repsOnly = { label: 'Accessory', loadTypes: ['bodyweight', 'none'], countTypes: ['reps'] }
   assert.equal(validateOccupant(repsOnly, seedByKey('ab_rollout')), null)
-  assert.match(validateOccupant(repsOnly, seedByKey('bike')), /counted in/)
+  assert.match(validateOccupant(repsOnly, seedByKey('rope_flow')), /counted in/)
   // No countTypes on the contract = any count is fine.
-  assert.equal(validateOccupant({ label: 'Capacity', loadTypes: ['bodyweight'] }, seedByKey('bike')), null)
+  assert.equal(validateOccupant({ label: 'Hypertrophy', loadTypes: ['recorded'] }, seedByKey('walking_lunge')), null)
 })
 
 test('slugify: stable auto-key from a name (create-time only)', () => {

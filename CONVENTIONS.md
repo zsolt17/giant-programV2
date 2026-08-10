@@ -23,51 +23,37 @@ src/
     offline-queue.ts / cache.ts  offline write queue + last-known snapshot (PWA)
   engine/          pure domain logic, framework-agnostic, unit-tested
     types.ts       shared domain types (Difficulty, Lift, Position, Session, SessionDraft, …)
-    constants.ts   GIANTFIT_START_DATE (the GiantFit cutover) + GIANT2_START_DATE (the Giant 2.0
-                   cutover, 2026-08-10), GIANTFIT_ROTATION, GIANTFIT_ROW/GIANTFIT_ROW_REPS (the anchored
-                   rows) + GIANTFIT_GB_ACCESSORY/GIANTFIT_GB_DEFAULT_REPS (Giant Block accessories),
-                   ANCHOR_LIFTS/ANCHOR_LABEL/ANCHOR_NOTE (six anchors), SCHEMES, DAY_SPREAD/SET_LADDER/
-                   VOLUME_PCT (anchor cascade), GIANTFIT_ACC_ITEMS (carries), DAY_META, BLOCK_COMPLETION,
-                   CAPACITY_COMPLETION/isCapacityFatigue (the S6 input), SIGNALS, MACRO_WEEKS + legacy
-                   render constants (ROTATION, GIANTFIT_PAIRING, SECONDARY_ITEM, PULLUP, TESTING_SCHEDULE)
-                   + all Giant 2.0 domain content (GIANT2_DAY_LIFT, GIANT2_GIANT_DEFAULT_ROTATION,
-                   GIANT2_WEEK4_DIFFICULTY, GIANT2_VOLUME_DIFFICULTY_BY_CYCLE, GIANT2_CAPABILITY_BY_CYCLE,
-                   GIANT2_SECONDARY, GIANT2_GB_ACCESSORY, GIANT2_PRIMER_*, OLY_QUALITY — see
-                   `ARCHITECTURE.md` §2 for what each means)
-    date-engine.ts position math from the macro start date (see §7); isGiantFitDate/isGiant2Date pick
-                   the era per DATE, never a stored flag
+    constants.ts   the program's domain content: GIANT2_DAY_LIFT (fixed weekday->lift),
+                   GIANT2_GIANT_DEFAULT_ROTATION/GIANT2_WEEK4_DIFFICULTY (Giant difficulty),
+                   GIANT2_VOLUME_DIFFICULTY_BY_CYCLE (Volume difficulty), GIANT2_CAPABILITY_BY_CYCLE
+                   (Hypertrophy/Oly/Carries dispatch), ANCHOR_LIFTS/ANCHOR_LABEL (six anchors), SCHEMES,
+                   DAY_SPREAD/SET_LADDER/VOLUME_PCT (anchor cascade), DAY_META (carries), BLOCK_COMPLETION,
+                   SIGNALS, MACRO_WEEKS, GIANT2_SECONDARY/SECONDARY_LANE/SECONDARY_REPS, GB_ACCESSORY,
+                   GIANT2_PRIMER_*, OLY_QUALITY — see `ARCHITECTURE.md` §2 for what each means
+    date-engine.ts position math from the macro start date (see §7); one program, no era branching —
+                   corePosition computes the fixed Mon/Tue/Thu/Fri schedule unconditionally
     loading.ts     single-anchor cascade (dayTop/expandDayTops/giantSets/volumeWeight), uniform 2.5 kg rounding, fmt
-    capacity.ts    GiantFit capacity block: static A/B movement definitions + defaults, config merge helpers
     movements.ts / program.ts  modular content system (movements library, program_versions/
                    program_slots, resolveProgram) — built for future content-driven session views;
-                   Giant 2.0 seeds a program_versions row into it but still renders off the hardcoded
-                   GIANT2_* constants like every other era, so this stays unwired from any live view
-    runs.ts        Giant Run: Tue/Thu/Sat schedule (via corePosition), two-mode pace engine
-                   (talk-test vs P+offset cascade), pace/duration parse+format, run signals R1/R2/R3
-    deload-rule.ts reactive-deload signals + trigger (lift signals + pooled run signals); one Giant2-only
-                   gate on S2 (no Volume block in C3 week 4 → can't be incomplete)
-    trends.ts      pure derivations: Session/capacity/carry/deload -> Trends chart view-models, across
-                   all three eras (columns/series render only where the viewed era has data)
-    export-csv.ts  pure -> CSV strings (Data page): sessions / capacity / runs / hypertrophy / oly /
-                   legacy testing — a UNION of every era's columns, never rewritten for older rows
-    session-summary.ts  pure Session -> plain-text share summary (Data page "Copy"); branches per era
+                   the app seeds a program_versions row into it but still renders off the hardcoded
+                   GIANT2_* constants, so this stays unwired from any live view
+    deload-rule.ts reactive-deload signals + trigger; one explicit gate on S2 (no Volume block in
+                   C3 week 4, or any deload week, → can't be incomplete)
+    trends.ts      pure derivations: Session -> Trends chart view-models
+    export-csv.ts  pure -> CSV strings (Data page): sessions / hypertrophy / oly
+    session-summary.ts  pure Session -> plain-text share summary (Data page "Copy")
     recovery-content.ts  static Recovery content (joints/tendons/exercises + 64x64 SVGs, PHASE_DOSE)
     recovery.ts    local-date phase/day helpers for Recovery (suggestedPhase/effectivePhase/protocolDay)
-    pullups.ts     phase-1 cluster parsing/totals
+    pullups.ts     cluster parsing/totals
     *.test.js      Vitest unit tests (node:assert), colocated with each module
   ui/              React components (presentational + container)
     App.tsx        shell: auth gate, top-level state, tab routing, all handlers
     Today.tsx, Calendar.tsx, History.tsx, Deload.tsx, Setup.tsx, Trends.tsx, Data.tsx, Recovery.tsx, Auth.tsx
-    SessionForm.tsx     shared prescription + log fields (Today + SessionModal); dispatches to
-                        Giant2SessionForm via isGiant2Date(draft.date), else renders the GiantFit/legacy form
-    Giant2SessionForm.tsx  the Giant 2.0 session view (Primer → Giant → Volume → Capability), deliberately
-                        separate from SessionForm.tsx rather than another era-branch inside it
-    CapabilityBlock.tsx    HypertrophyBlock/OlyBlock — Giant 2.0's per-cycle Capability sub-blocks
-    CapacityBlock.tsx   GiantFit capacity block: variant prescription + count-up stopwatch + capacity_logs save
-    SessionModal.tsx    calendar-cell overlay wrapping SessionForm / TestingSessionView
-    TestingSession.tsx  full-structure test-day view (shared by Today + SessionModal)
-    RunForm.tsx         Giant Run shared prescription + log fields + SetPaceChip (Today + RunModal)
-    RunModal.tsx        calendar run-cell overlay wrapping RunForm (log/edit/delete + break toggle)
+    SessionForm.tsx     `buildBlankSession` — the shared blank-draft builder used by Today + SessionModal
+    Giant2SessionForm.tsx  the session view (Primer → Giant → Volume → Capability), rendered directly
+                        by Today and SessionModal — no era dispatch, there's only the one program
+    CapabilityBlock.tsx    HypertrophyBlock/OlyBlock — the per-cycle Capability sub-blocks
+    SessionModal.tsx    calendar-cell overlay wrapping Giant2SessionForm
     Trends.tsx      charts/analytics tab (recharts); renders engine/trends.ts view-models
     nav.tsx         BottomNav + MenuDrawer + inline SVG icon set
     components.tsx  shared shell bits (Shell, Card, BlockTitle, Center, Spinner)
@@ -172,11 +158,11 @@ Per-cycle weights map to nested shapes: `rowsToWeights` → `{ [cycle]: { [lift]
 - **Per-cycle weights** are keyed by `(macro_id, cycle, lift)`; writes use
   `upsert(rows, { onConflict: 'macro_id,cycle,lift' })` (accessory: `...,item`). This
   is the relational fix for the per-cycle bug — a session reads its own cycle's grid.
-- **Sessions use upsert-by-id**: the id is the human-readable
-  `` `${date}-${dayType}-${difficulty[0].toUpperCase()}` `` (e.g. `2026-06-22-squat-H`),
-  so logging is idempotent — `saveSession` does `upsert(row, { onConflict: 'id' })`.
+- **Sessions use upsert-by-id**: the id is the human-readable `` `${date}-${dayType}` ``
+  (e.g. `2026-08-10-squat` — day→lift is fixed, so date+lift is already unique), so logging
+  is idempotent — `saveSession` does `upsert(row, { onConflict: 'id' })`.
 - `loadMacroBundle(macroId)` fetches weights/accessory/sessions/deloads/breakDays/
-  testing in one `Promise.all` for app boot.
+  giantAccessory/giant2Difficulty/hypertrophyLogs/olyLogs in one `Promise.all` for app boot.
 - `rollToNextMacro(...)` archives a macro: completes the current one, creates the
   next, and carries C3 working+accessory weights forward as the new C1.
 - Reads return mapped app objects; `getBreakDays` is user-scoped (RLS via `user_id`),
@@ -196,14 +182,15 @@ mutation meant to work offline must be idempotent and routed through this queue.
 
 All app state lives in **`App.tsx`** (no external state library, no context):
 `user`, `tab`, `macros` (list) + `viewedMacroId`, the active `macro`, and the loaded
-bundle pieces (`weights`, `accessory`, `sessions`, `deloads`, `breakDays`, `testing`).
+bundle pieces (`weights`, `accessory`, `sessions`, `deloads`, `breakDays`, `giantAccessory`,
+`giant2Difficulty`, `hypertrophyLogs`, `olyLogs`).
 
 - **Boot:** `getUser()` + `onAuthChange` gate on auth → `Auth` screen if logged out.
   Once authed, `load()` fetches macros, picks the viewed/active macro, and loads its
   bundle. `load` depends on `viewedMacroId`, so selecting another macro re-loads.
 - **Writes are optimistic-after-persist:** handlers (e.g. `onSaveSession`,
-  `onApplyDeload`, `onToggleBreak`, `onSaveTestingResult`, `onRollMacro`) call the
-  repository, then update local state from the returned object — no full reload per write.
+  `onApplyDeload`, `onToggleBreak`, `onSaveHypertrophyLog`, `onSaveOlyLog`, `onRollMacro`) call
+  the repository, then update local state from the returned object — no full reload per write.
 - **Data flows down as props; updates flow up via handler callbacks.** Leaf
   components are controlled and never call the repository themselves.
 - `computePosition(macro.startISO, macro.number, new Date())` is computed in `App`
@@ -332,49 +319,24 @@ in `.env.production`; blank = off, tree-shaken out). Keep it a no-op when unconf
 
 ## 7. Domain rules encoded in code
 
-See `ARCHITECTURE.md` §2–§6 for the full domain. **The app implements Giant 2.0; GiantFit and
-the Giant Program v7 are both retired** — three eras, decided strictly **per session date**,
-never a stored flag: dates before `GIANTFIT_START_DATE` (2026-07-27) render with the legacy
-Giant v7 logic as read-only History, dates from there up to `GIANT2_START_DATE` (2026-08-10)
-render GiantFit, dates from the Giant 2.0 cutover on render Giant 2.0 — including an in-flight
-macro that started under an older era, which flips to the new era's rules mid-macro using its
-own week/meso clock the moment the calendar crosses the cutover. In code:
+See `ARCHITECTURE.md` §2–§6 for the full domain. **The app runs one program** — there is no era
+branching, no cutover date, no macro-type flag anywhere in the engine. Two earlier programs
+(Giant v7, then GiantFit) ran in this codebase before; both were retired outright on
+2026-08-10 — code deleted, schema dropped, data deleted (`ARCHITECTURE.md` §11,
+`specification.md`'s 2026-08-10 entry) — so nothing below needs to special-case them. In code:
 
-**REMOVED — do not reintroduce** (legacy render paths only, never scheduling/Setup/new-session
-logic): the dips anchor + two-mode dips/pull-up engine (`liftMode` is render-only), 0.5 kg
-rounding (`LOAD_INCREMENT` is gone — `round(w)` is uniform 2.5), the clean block, the
-secondary/core circuit slots, **the free per-session row weight** (`sessions.pair_weight` +
-`GIANTFIT_PAIRING` — retired 2026-07-30 when the rows became anchors; both are read-only
-render paths for pre-revision sessions now), testing weeks + the testing-day view (reachable
-only via legacy weeks=15 macros), skill days, and any macro-type selector (the era is decided
-per DATE — never add a per-macro program flag).
-
-**Untouched across every migration** (don't "modernize" them as part of era work): the Giant
-Run engine/views, Recovery → Tendon Health, and the session timer.
-
-**Giant 2.0 note:** nothing was deleted for this cutover — the Capacity block (`capacity.ts`,
-`CapacityBlock.tsx`, the S6 signal) simply has **no Giant 2.0 equivalent**: it stays fully live
-for GiantFit-era dates and never renders/fires for Giant2-era dates, purely because no
-`capacity_logs` row is ever created for a Giant2 session. Treat "no block" as an era gate, not
-a removal — don't add a Giant2-specific `if` to `capacity.ts` itself.
+**Do not reintroduce:** per-lift rotation of the day→lift mapping, a single shared difficulty
+covering both the Giant and Volume blocks, or any macro-type selector — the program is fixed
+and singular by design (`ARCHITECTURE.md` §2.12).
 
 - **Date engine — `src/engine/date-engine.ts`.** Position is computed strictly from
   the macro start date, never set manually, and is **weeks-driven**: every entry
   point takes the macro's `{ weeks, deloadExtended }` (defaults 13 / false).
-  Training is always weeks 0–11; the deload is the final week (+1 when extended);
-  a 12..deload gap exists only on legacy weeks=15 macros and keeps the dormant
-  testing logic so lived history renders. **GiantFit cutover:** `isGiantFitDate`
-  (vs `GIANTFIT_START_DATE`) picks the era per DATE inside `corePosition` —
-  `GIANTFIT_ROTATION` + the C1W1D1 Medium-deadlift override + `capacityVariant`
-  (A/B by `strengthSlotIndex` parity since the cutover) post-cutover, legacy
-  `ROTATION` before. **Giant 2.0 cutover:** `isGiant2Date` (vs `GIANT2_START_DATE`) is checked
-  first inside `corePosition` and, when true, branches to fixed Mon/Tue/Thu/Fri lift days
-  (`GIANT2_DAY_LIFT`, no rotation) with two independent difficulty lookups
+  Training is always weeks 0–11; the deload is the final week (+1 when extended).
+  `corePosition` computes the fixed Mon/Tue/Thu/Fri lift days (`GIANT2_DAY_LIFT`, no rotation)
+  unconditionally, with two independent difficulty lookups
   (`giant2GiantDifficultyFor`/`giant2VolumeDifficultyFor`) and a per-cycle Capability program
-  (`capabilityProgramFor`); GiantFit's rotation/capacity logic never runs for Giant2 dates.
-  UI never derives a day's lift from a rotation table directly:
-  render `computed.dayType` (it carries the override) and use `rotationLiftFor`
-  only for difficulty PEEKS. **Critical:** `corePosition` does the
+  (`capabilityProgramFor`). **Critical:** `corePosition` does the
   position math only and never computes the next session. `computePosition` and
   `nextSessionFrom` both call `corePosition`. **Do not make them call each other** —
   that caused infinite recursion and was deliberately split. Dates are computed in
@@ -385,73 +347,33 @@ a removal — don't add a Giant2-specific `if` to `capacity.ts` itself.
   for all days, `VOLUME_PCT` = 0.80) — no magic numbers at call sites. `dayTop(anchor, difficulty)`
   → a day's top; `expandDayTops(anchor)` → the three day tops; `giantSets(dayTop, difficulty)`
   uses `SET_LADDER` (reps still per-difficulty from `SCHEMES`); `volumeWeight`, `set1Weight`,
-  `warmupSets`; `round(w)` at the uniform **2.5 kg** (`DEFAULT_INCREMENT` — GiantFit retired the
-  per-lift `LOAD_INCREMENT`/0.5 kg increment; the anchor itself is never rounded); `deloadTop`
-  (70%). The GiantFit anchor set is `ANCHOR_LIFTS` (**six**: DL/OHP/Squat/Bench + `db_row`/
-  `pendlay_row`, `constants.ts`) — Setup, the mappers' anchor expansion, and `rollToNextMacro`
-  are all generic over it, so **an anchor is added by extending that list, never by branching**;
-  `ANCHOR_NOTE` carries display-only hints (DB Row = per hand). The **anchored rows** use the
-  identical cascade off their OWN anchor — `GIANTFIT_ROW` maps day → row anchor and
-  `GIANTFIT_ROW_REPS` holds its fixed Giant Block reps (H8/M9/L10); never derive a row's load
-  from the day's main lift. Legacy `dips`/`pullup` anchor rows only ever load. `liftMode(anchor)`
-  is **LEGACY** (Giant-era two-mode) — kept solely so old dips-day sessions render; never use it in
-  Setup or new-session logic. The computed grid is **never persisted** — `mappers.rowsToWeights`
-  expands the stored anchor on every read (so Today/Calendar consumers are unchanged), and
-  `weightsToRows` writes only `hard`. `fmt` is null-safe (returns `—`).
-- **GiantFit capacity — `src/engine/capacity.ts`.** Movement definitions (A/B, ordered, which are
-  loaded, default rep targets) are **static app content** — only the user's numbers persist
-  (`capacity_config` per-movement rep/weight, `capacity_settings` rounds), with
-  `mergeCapacityConfig` overlaying stored values on `defaultCapacityConfig()` at read time
-  (unknown stored keys ignored, null reps fall back to the default). Capacity logs are
-  one-per-session (`capacity_logs`, upsert on `session_id`, cascade-deletes with the session),
-  and carry a categorical `completion` — the S6 deload input (`CAPACITY_COMPLETION`). The
-  per-round series (`buildCapacityPoints` / `perRoundSeconds`) is a **Trends readout only**:
-  since 2026-07-31 nothing in the deload rule reads it, so there is no shared-series contract
-  to preserve.
-  **This is the pattern for evolving prescription content:** retire a movement by deleting it
-  from the list — stored rows for it are dropped on read, and because logs never reference a
-  movement key, no migration and no historical result is touched. The Giant Block's
-  bodyweight accessories follow the same shape (`GIANTFIT_GB_ACCESSORY` content +
-  `giant_accessory_config` rep targets, merged in `mappers.rowsToGiantAccessory`) — they are
-  **prescription config, not per-session logs**; don't add session columns for them.
-- **The Giant Run — `src/engine/runs.ts` (single-anchor, two-mode — mirrors the lift engine).**
-  `runSlotFor`/`runSlotsForWeek` compute the Tue/Thu/Sat schedule strictly through
-  `corePosition` (never duplicate the position math): Tue easy · Thu quality (easy in meso 1) ·
-  Sat long; testing Sat = 5k TT; W15 optional short easy. One anchor per macro — the reference
-  pace P (`macros.ref_pace_s`, s/km): `runMode` (null/0 = talk-test, no paces anywhere),
-  `easyPace` (P+75), `qualityRange` (P+15…P+40), all derived paces `roundPace`d to 5 s/km —
-  **P itself is never rounded** (the TT confirm stores whole seconds only because the column is
-  int). Logged pace is always **derived** (`derivedPaceS` = duration/distance), never stored.
-  Run ids are `{date}-run-{E|Q|L|T}` (idempotent upsert; any new run mutation must stay
-  offline-queue-safe). Distance targets are the accessory model — recorded per cycle
-  (`run_targets`), seeded forward in Setup, never computed. Run signals (R1 cut-fatigue,
-  R2 felt-heavy, R3 pace-at-HR degraded — skipped without HR data) pool into
-  `computeWeekSignals(sessions, runs, priorRuns)`; keep the additive signature so lift-only
-  callers/tests stay valid. Optional run days (testing Tue/Thu, W15) are never marked missed.
-- **Reactive deload — `src/engine/deload-rule.ts`.** The revised rule (brief §5,
-  supersedes the v7 book): `computeWeekSignals(weekSessions, weekRuns, priorRuns,
-  weekCapacityLogs)` — S1 R9.5+, S2 volume incomplete, S3 carry skipped for fatigue,
-  S5 bar-speed down in 2+ sessions, **S6 capacity not completed as prescribed (fatigue)**
-  — one occurrence per capacity log in the week whose `completion` is a `*_fatigue`
-  value — S7 giant block not completed (the Giant-era S6, renumbered); S4 retired. All
-  trailing params default empty — keep the signature additive. Narrow the macro's logs to
-  the week with `capacityLogsForSessions(logs, weekSessions)`; the firing rule itself is
-  `isCapacityFatigue` in `constants.ts` — **express it there, never by listing values at a
-  call site**, so adding an option forces a decision about attribution. **S6 reads nothing
-  time-derived** (the capacity TIME trend was retired 2026-07-31 — see `ARCHITECTURE.md`
-  §11; do not reinstate it). Trigger = 3+ occurrences across ≥2 sessions.
-  `shouldRecommendDeload` adds the cap/already-deloaded/break-coming exemptions.
-  Advise-and-confirm, never auto-forced; `WeekSignals.s6Dates` carries the offending dates
-  for the card.
-- **Constants — `src/engine/constants.ts`.** GiantFit: `GIANTFIT_START_DATE` (the cutover),
-  `GIANTFIT_ROTATION`, `GIANTFIT_PAIRING`, `GIANTFIT_ACTIVATION` (warm-up list),
-  `GIANTFIT_CARRY_DEFAULTS` (Setup seed: Suitcase 50), `ANCHOR_LIFTS`/`ANCHOR_LABEL`,
-  `GIANTFIT_ACC_ITEMS`, `DAY_META`, `MACRO_WEEKS = 13` (default shape; the engine reads the
-  macro's stored `weeks`). Legacy render-only: `ROTATION`, `SECONDARY_ITEM`, `PULLUP`,
-  `TESTING_SCHEDULE` (dormant — renders 15-week macros' lived testing weeks). Capacity
-  circuit content lives in `engine/capacity.ts` (`CAPACITY_MOVEMENTS`); capacity ADHERENCE
-  (`CAPACITY_COMPLETION` + `isCapacityFatigue`, the S6 input) lives here beside
-  `BLOCK_COMPLETION`, which it mirrors.
+  `warmupSets`; `round(w)` at the uniform **2.5 kg** (`DEFAULT_INCREMENT` — the anchor itself is
+  never rounded); `deloadTop` (70%). The anchor set is `ANCHOR_LIFTS` (**six**: DL/OHP/Squat/Bench
+  + `db_row`/`pendlay_row`, `constants.ts`) — Setup, the mappers' anchor expansion, and
+  `rollToNextMacro` are all generic over it, so **an anchor is added by extending that list,
+  never by branching**. The two secondary lanes use the identical cascade off their OWN anchor
+  — `SECONDARY_LANE` maps day → lane and `SECONDARY_REPS` holds the fixed Giant Block reps
+  (H8/M9/L10); never derive a secondary's load from the day's main lift. `liftMode(anchor)`
+  picks bodyweight vs weighted Pull-ups purely from the `pendlay_row` anchor value — a live
+  Setup-writable switch, not a render-only relic. The computed grid is **never persisted** —
+  `mappers.rowsToWeights` expands the stored anchor on every read (so Today/Calendar consumers
+  are unchanged), and `weightsToRows` writes only `hard`. `fmt` is null-safe (returns `—`).
+- **Reactive deload — `src/engine/deload-rule.ts`.** `computeWeekSignals(weekSessions)` —
+  S1 R9.5+, S2 volume incomplete (skipped on any session with no Volume block — C3 week 4 or a
+  deload), S3 carry skipped for fatigue, S5 bar-speed down in 2+ sessions, S7 giant block not
+  completed. There is no S4 or S6 — both were signals tied to mechanisms this app no longer has
+  (a legacy set-1 RPE read and the old Capacity block), and the survivors keep their original
+  ids rather than being renumbered. Trigger = 3+ occurrences across ≥2 sessions.
+  `shouldRecommendDeload` adds the cap/already-deloaded/break-coming exemptions. Advise-and-confirm,
+  never auto-forced.
+- **Constants — `src/engine/constants.ts`.** `GIANT2_DAY_LIFT`/`GIANT2_SESSION_DAYS` (fixed
+  weekday→lift), `GIANT2_GIANT_DEFAULT_ROTATION`/`GIANT2_WEEK4_DIFFICULTY` (Giant difficulty),
+  `GIANT2_VOLUME_DIFFICULTY_BY_CYCLE` (Volume difficulty), `GIANT2_CAPABILITY_BY_CYCLE`
+  (Hypertrophy/Oly/Carries dispatch), `ANCHOR_LIFTS`/`ANCHOR_LABEL`, `SCHEMES`,
+  `DAY_SPREAD`/`SET_LADDER`/`VOLUME_PCT`, `DAY_META` (carries), `CARRY_DEFAULTS` (Setup seed:
+  Suitcase 50), `BLOCK_COMPLETION`, `SIGNALS`, `MACRO_WEEKS = 13` (default shape; the engine
+  reads the macro's stored `weeks`), plus the Capability-block content (`GIANT2_SECONDARY`,
+  `GB_ACCESSORY`, `GIANT2_PRIMER_*`, `OLY_QUALITY`).
 - **Elapsed time / timers (session timer, `Today.tsx`).** Store **timestamps**
   (`started_at` / `ended_at`, `timestamptz`), never a duration — duration is always
   *derived* (`ended − started`). The live display is **recomputed from `started_at`
@@ -463,11 +385,7 @@ a removal — don't add a Giant2-specific `if` to `capacity.ts` itself.
   passed), and keep a manual override (edit duration → recompute the end timestamp).
   Hold a **screen wake lock only while the timer runs** (`useWakeLock`, Screen Wake
   Lock API) — re-acquire on visibility regain, no-op if unsupported/denied; never
-  hold it app-wide (battery). The **capacity stopwatch** (`CapacityBlock.tsx`) follows
-  the same timestamp rule: elapsed = accumulated + (now − startTs), recomputed per
-  tick, so backgrounding never loses time; only the FINISHED total (seconds) is
-  persisted (`capacity_logs.total_time_seconds`), and its save upserts the session
-  row first so the FK always holds.
+  hold it app-wide (battery).
 
 ---
 
@@ -500,8 +418,8 @@ switch, pass state + handlers as props.
 A change isn't done until verified. In order of cost:
 
 1. **Engine unit tests — `npm test`** (Vitest, `node:assert`, colocated `*.test.js`). The date
-   engine has **known-correct outputs that must stay green**:
-   `13 Apr 2026 → M2 C1 W1 Deadlift Hard`, `22 Jun 2026 → M2 C3 W3 Squat Hard`.
+   engine has a **known-correct output that must stay green**: a macro started Monday
+   2026-08-10 → C1 W1, Monday = Squat Hard / Volume Light (`date-engine.test.js`).
    Add/adjust tests when changing engine logic.
 2. **Build — `npm run build`** catches JSX/import errors fast.
 3. **Data layer — `npm run smoke`** runs full CRUD against live Supabase (needs

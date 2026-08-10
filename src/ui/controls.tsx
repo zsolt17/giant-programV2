@@ -1,10 +1,30 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { C, HEADING, cardStyle, inp, lbl, pillColor } from './theme'
-import { LIFT_LABEL, PULLUP } from '../engine/constants'
-import { rotationLiftFor } from '../engine/date-engine'
-import { parseClock } from '../engine/runs'
-import type { Difficulty, DayMeta, Position } from '../engine/types'
+import { LIFT_LABEL } from '../engine/constants'
+import type { Position } from '../engine/types'
+
+// Parse a min:sec duration typed on an iOS decimal keypad (no colon), so all
+// these forms work: "42.30" / "42,30" / "4230" = 42:30, bare "42" = 42 whole
+// minutes. Returns whole seconds, or null when unparseable.
+function parseClock(text: string | null | undefined): number | null {
+  const t = (text || '').trim().replace(/[.,]/g, ':')
+  if (!t) return null
+  if (/^\d+$/.test(t)) {
+    if (t.length <= 2) return Number(t) * 60 // bare minutes
+    const sec = Number(t.slice(-2))
+    if (sec > 59) return null
+    const rest = t.slice(0, -2)
+    if (rest.length <= 2) return Number(rest) * 60 + sec
+    const min = Number(rest.slice(-2))
+    if (min > 59) return null
+    return Number(rest.slice(0, -2)) * 3600 + min * 60 + sec
+  }
+  if (!/^\d+(:[0-5]?\d){1,2}$/.test(t)) return null
+  const parts = t.split(':').map(Number)
+  if (parts.length === 2) return parts[0] * 60 + parts[1]
+  return parts[0] * 3600 + parts[1] * 60 + parts[2]
+}
 
 export function speedArrow(s: string): string {
   return s === 'up' ? '↑' : s === 'down' ? '↓' : '→'
@@ -45,14 +65,6 @@ export function errMsg(e: unknown): string {
 export function fmtClock(ms: number | null | undefined): string {
   const total = Math.max(0, Math.floor((ms ?? 0) / 1000))
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
-}
-
-export function secondaryDesc(type: DayMeta['secondaryType'], diff: Difficulty): string {
-  if (type === 'pullup') return `${PULLUP[diff]} reps/round (clusters ok)`
-  if (type === 'rdl') return '8 reps / leg'
-  if (type === 'lunge') return '8 reps / leg'
-  if (type === 'dbrow') return '10 reps / arm'
-  return ''
 }
 
 export function blockTitle(title: ReactNode, tag?: string) {
@@ -168,32 +180,10 @@ export function LogRpe({
   )
 }
 
-// Position header for Today. Optional difficulty "peek" lets you preview another
-// difficulty's prescription on a session day without changing your real position.
-export function PositionHeader({
-  computed,
-  viewDiff,
-  setViewDiff,
-  label,
-}: {
-  computed: Position
-  viewDiff?: Difficulty | null
-  setViewDiff?: (d: Difficulty | null) => void
-  label?: string
-}) {
-  const shownDiff = viewDiff || computed.difficulty
-  const isPeeking = viewDiff && viewDiff !== computed.difficulty
-  // Not peeking → the position's own lift (carries the GiantFit C1 override);
-  // peeking → the era's rotation lift for the previewed difficulty. Giant 2.0
-  // has no rotation to peek across (day->lift is fixed) — the toggle is
-  // hidden entirely below, but guard here too in case viewDiff is ever passed
-  // in some other way for a Giant 2.0 date.
-  const shownLift =
-    computed.weekType === 'training' && computed.week && shownDiff
-      ? isPeeking && !computed.giant2
-        ? rotationLiftFor(computed.week, shownDiff, !!computed.giantfit)
-        : computed.dayType ?? null
-      : null
+// Position header for Today.
+export function PositionHeader({ computed, label }: { computed: Position; label?: string }) {
+  const diff = computed.difficulty
+  const lift = computed.weekType === 'training' && computed.week ? computed.dayType ?? null : null
   return (
     <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <div>
@@ -203,46 +193,18 @@ export function PositionHeader({
           {computed.week ? ` · W${computed.week}` : ''} · wk {computed.displayWeekGlobal}/{computed.totalWeeks}
         </div>
         <div style={{ fontFamily: HEADING, fontSize: 26, letterSpacing: '0.05em' }}>
-          {label ? label : shownLift ? LIFT_LABEL[shownLift] : '—'}
-          {shownLift && <span style={{ color: pillColor(shownDiff) }}> · {shownDiff?.toUpperCase()}</span>}
-          {isPeeking && (
-            <span style={{ fontSize: 11, color: C.muted, marginLeft: 8, fontFamily: 'inherit', letterSpacing: 0 }}>(preview)</span>
-          )}
+          {label ? label : lift ? LIFT_LABEL[lift] : '—'}
+          {lift && <span style={{ color: pillColor(diff) }}> · {diff?.toUpperCase()}</span>}
         </div>
       </div>
-      {computed.weekType === 'training' && computed.isSessionDay && !computed.giant2 && setViewDiff && (
-        <div role="group" aria-label="Preview difficulty" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          {(['hard', 'medium', 'light'] as Difficulty[]).map((d) => (
-            <button
-              key={d}
-              onClick={() => setViewDiff(d === computed.difficulty ? null : d)}
-              aria-label={`Preview ${d} prescription`}
-              aria-pressed={shownDiff === d}
-              style={{
-                background: shownDiff === d ? pillColor(d) : 'transparent',
-                color: shownDiff === d ? C.dark : C.muted,
-                border: `1px solid ${pillColor(d)}`,
-                borderRadius: 2,
-                fontSize: 10,
-                fontWeight: 600,
-                padding: '4px 7px',
-                cursor: 'pointer',
-                textTransform: 'uppercase',
-              }}
-            >
-              {d[0]}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   )
 }
 
-// Adherence control, shared by the Giant Block (S7) and the Capacity block (S6).
-// One tap says "as prescribed"; unticking reveals the categorical reason. The
-// reason is what the deload rule reads — attribution is the athlete's, captured
-// at log time, never inferred. `options[0]` is the default fail reason.
+// Giant Block adherence control (drives deload signal S7). One tap says "as
+// prescribed"; unticking reveals the categorical reason. The reason is what
+// the deload rule reads — attribution is the athlete's, captured at log
+// time, never inferred. `options[0]` is the default fail reason.
 export function CompletionPick({
   label,
   options,
