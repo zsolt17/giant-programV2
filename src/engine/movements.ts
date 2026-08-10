@@ -50,6 +50,9 @@ export interface Movement {
   // = standalone. Generic: not tied to any one slot/cycle/block, so a future
   // program revision can reuse it without a new migration.
   supersetGroup?: string | null
+  // True = a required-field check may skip the weight/load for this movement
+  // (e.g. Hip/Back Extension) — reps are still required. Default false.
+  weightOptional?: boolean
 }
 
 // The code-side seed: what a fresh user's library starts as. Derived 1:1 from
@@ -163,7 +166,7 @@ const PRIMER: MovementSeed[] = [
 const HYPERTROPHY: MovementSeed[] = [
   { key: 'walking_lunge', name: 'Walking Lunge', loadType: 'recorded', countType: 'reps_per_side', defaultReps: 12, repUnit: '/leg', note: null, supersetGroup: 'A' },
   { key: 'lying_hamstring_curl', name: 'Lying Hamstring Curl', loadType: 'recorded', countType: 'reps', defaultReps: 12, repUnit: null, note: null, supersetGroup: 'A' },
-  { key: 'hip_back_extension', name: 'Hip/Back Extension', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: 'weight optional', supersetGroup: 'B' },
+  { key: 'hip_back_extension', name: 'Hip/Back Extension', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: 'weight optional', supersetGroup: 'B', weightOptional: true },
   { key: 'standing_calf_raise', name: 'Standing Calf Raise', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: null, supersetGroup: 'B' },
   { key: 'seated_db_press', name: 'Seated DB Press', loadType: 'recorded', countType: 'reps', defaultReps: 12, repUnit: null, note: null, supersetGroup: 'A' },
   { key: 'one_arm_row', name: 'One-Arm Row', loadType: 'recorded', countType: 'reps_per_side', defaultReps: 12, repUnit: '/side', note: null, supersetGroup: 'A' },

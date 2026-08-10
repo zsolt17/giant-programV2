@@ -67,6 +67,36 @@ export function fmtClock(ms: number | null | undefined): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
 }
 
+// The generic per-card completion control (Today redesign) — every card's
+// button says "Done", never block-specific text. Disabled until the card's
+// own required-field check (engine/session-progress.ts) passes.
+export function DoneButton({ ready, saving, onClick }: { ready: boolean; saving: boolean; onClick: () => void }) {
+  return (
+    <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+      <button
+        onClick={onClick}
+        disabled={saving || !ready}
+        style={{
+          flex: 1,
+          background: 'transparent',
+          color: ready ? C.gold : C.muted,
+          border: `1px solid ${ready ? C.gold : C.border}`,
+          borderRadius: 2,
+          padding: 10,
+          fontSize: 12,
+          fontWeight: 600,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+          cursor: saving ? 'wait' : ready ? 'pointer' : 'not-allowed',
+          opacity: saving ? 0.7 : 1,
+        }}
+      >
+        {saving ? 'Saving…' : 'Done'}
+      </button>
+    </div>
+  )
+}
+
 export function blockTitle(title: ReactNode, tag?: string) {
   return (
     <div

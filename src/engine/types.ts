@@ -137,6 +137,10 @@ export interface Session {
   volSpeed: string
   // Bench day's two-mode secondary (Pull-ups, bodyweight mode): final-round cluster, e.g. "6+4".
   pullupCluster: string
+  // Primer card completion (Today redesign) — the block is a checklist, not
+  // numeric log entries, so this single flag IS the persisted "done" signal;
+  // which individual items were checked is UI-only local state, never stored.
+  primerDone: boolean
   carrySkipped: boolean
   carrySkipReason: string
   carryRounds: number | null
@@ -185,6 +189,7 @@ export interface HypertrophyLog {
   id?: string
   sessionId: string
   movementId: string
+  setNumber: number // 1..GIANT2_HYPERTROPHY_SETS — one row per set, not per movement
   weight: number | null
   repsDone: number | null
   notes: string

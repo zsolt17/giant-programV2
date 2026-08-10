@@ -540,7 +540,12 @@ function SessionEditor({
     }
   }
 
-  async function persist(record: SessionDraft, flashSaved: boolean) {
+  // `rethrow`: card-level saves need to know if the write actually landed —
+  // Giant2SessionForm only collapses a card on a SUCCESSFUL save, so a failed
+  // Done doesn't silently discard an edit behind a card that looks complete.
+  // The main Start/End/Update buttons don't check their own promise, so they
+  // keep the original swallow-and-show-inline-error behavior (rethrow=false).
+  async function persist(record: SessionDraft, flashSaved: boolean, rethrow = false) {
     setSaving(true)
     setErr('')
     try {
@@ -552,6 +557,7 @@ function SessionEditor({
       }
     } catch (e) {
       setErr(errMsg(e))
+      if (rethrow) throw e
     } finally {
       setSaving(false)
     }
@@ -559,6 +565,12 @@ function SessionEditor({
 
   const handleEnd = () => persist({ ...draft, ...stamp, endedAt: new Date().toISOString() }, true)
   const handleSave = () => persist({ ...draft, ...stamp }, true)
+
+  // A card's "Done" press — persists the draft (optionally patched, e.g.
+  // Primer's primerDone) so the card's completion survives a reload; no
+  // "Saved ✓" flash since the card collapsing IS the feedback. Rethrows on
+  // failure so the card stays open instead of collapsing over a lost edit.
+  const saveCard = (patch?: Partial<SessionDraft>) => persist({ ...draft, ...patch, ...stamp }, false, true)
 
   // Manual duration edit (completed/auto-ended): recompute ended_at from
   // started_at. Takes SECONDS (DurationEdit parses min:sec text).
@@ -616,6 +628,8 @@ function SessionEditor({
         draft={draft}
         setField={setField}
         locked={notStarted}
+        onSaveCard={saveCard}
+        saving={saving}
         secondaryCell={secondaryCell}
         giantAccessory={giantAccessory}
         cycle={cycle}

@@ -118,13 +118,14 @@ async function main() {
       id: sid, macroId: id, date: '2099-01-04', cycle: 1, week: 1, weekType: 'training',
       dayType: 'squat', difficulty: 'hard', volumeDifficulty: 'light', topReps: 2, topWeight: 160, rpe: 'R8', barSpeed: 'normal',
       cardioCals: [15, 14, '', 15], blockCompletion: 'stopped_fatigue',
-      volDone: true, volRpe: '', volSpeed: '', pullupCluster: '',
+      volDone: true, volRpe: '', volSpeed: '', pullupCluster: '', primerDone: true,
       carrySkipped: false, carrySkipReason: '', carryRounds: 3, carryDistance: 40, carryRpe: '', notes: 'smoke test',
       startedAt: '2099-01-04T08:00:00Z', endedAt: '2099-01-04T08:45:00Z',
     })
     ok('session saved, topWeight = 160', saved.topWeight === 160, saved.topWeight)
     ok('timer fields round-trip', !!saved.startedAt && !!saved.endedAt, { s: saved.startedAt, e: saved.endedAt })
     ok('volumeDifficulty round-trips = light', saved.volumeDifficulty === 'light', saved.volumeDifficulty)
+    ok('primerDone round-trips = true (Today card redesign)', saved.primerDone === true, saved.primerDone)
 
     // Extra logging fields round-trip (per-round cardio cals, carry rounds+distance).
     ok('blockCompletion round-trips = stopped_fatigue', saved.blockCompletion === 'stopped_fatigue', saved.blockCompletion)
@@ -204,16 +205,19 @@ async function main() {
       seededAgain.versions.length === seeded.versions.length && seededAgain.slots.length === seeded.slots.length,
       { before: seeded.slots.length, after: seededAgain.slots.length })
 
-    console.log('Capability logs (Hypertrophy + Oly — one row per movement per session)')
+    console.log('Capability logs (Hypertrophy — one row PER SET per movement per session; Oly — one row per movement)')
     const movementId = lib.find((m) => m.key === 'walking_lunge')?.id
     ok('walking_lunge resolves in the seeded library', !!movementId)
     if (movementId) {
-      const hLog = await repo.saveHypertrophyLog({ sessionId: sid, movementId, weight: 30, repsDone: 12, notes: 'smoke' })
-      ok('hypertrophy log saved', hLog.weight === 30 && hLog.repsDone === 12, hLog)
-      await repo.saveHypertrophyLog({ ...hLog, weight: 32.5 })
+      const hLog1 = await repo.saveHypertrophyLog({ sessionId: sid, movementId, setNumber: 1, weight: 30, repsDone: 12, notes: 'smoke' })
+      ok('hypertrophy log (set 1) saved', hLog1.weight === 30 && hLog1.repsDone === 12 && hLog1.setNumber === 1, hLog1)
+      await repo.saveHypertrophyLog({ sessionId: sid, movementId, setNumber: 2, weight: 32.5, repsDone: 12, notes: '' })
+      await repo.saveHypertrophyLog({ ...hLog1, weight: 31 })
       const hLogs = await repo.getHypertrophyLogs(id)
-      ok('hypertrophy log upserts on (session,movement) -> 32.5', hLogs.find((l) => l.movementId === movementId)?.weight === 32.5)
-      ok('no duplicate hypertrophy log row', hLogs.filter((l) => l.movementId === movementId).length === 1)
+      const setsForMovement = hLogs.filter((l) => l.movementId === movementId)
+      ok('two distinct set rows exist for the same movement', setsForMovement.length === 2, setsForMovement)
+      ok('hypertrophy log upserts on (session,movement,set_number) -> set 1 now 31', setsForMovement.find((l) => l.setNumber === 1)?.weight === 31)
+      ok('set 2 untouched by the set-1 upsert -> still 32.5', setsForMovement.find((l) => l.setNumber === 2)?.weight === 32.5)
       ok('getAllHypertrophyLogs spans macros (includes throwaway log)', (await repo.getAllHypertrophyLogs()).some((l) => l.sessionId === sid))
     }
     const olyMovementId = lib.find((m) => m.key === 'oly_muscle_snatch')?.id

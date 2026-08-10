@@ -98,7 +98,12 @@ I. Primer → II. Giant Block → III. Volume Block → IV. Capability Block
   | Dead Bug | Bird Dogs |
   | Support Scap-Dip | Shallow Lateral Lunge |
 - Then the barbell build-up (+ the secondary's own build-up when it's weighted) — see §2.2.
-- No RPE, no completion control — tracked as prescription only.
+- No RPE, no numeric log entries — checkbox-style completion only (Rope flow, band
+  activation, each of the four ramp movements individually, plus one aggregate "barbell
+  build-up done" checkbox, one more for the secondary's build-up when it applies). Which
+  items are checked is local UI state, never persisted per-item; `sessions.primer_done` (a
+  single boolean) is the one thing that's actually saved — set once every item is checked
+  and the Today card is marked Done (§8).
 
 ### 2.4 Giant Block composition (per day)
 | Day | Giant Block contents |
@@ -161,13 +166,18 @@ The block's *shape itself* varies by cycle — decided purely by `GIANT2_CAPABIL
 (cycle → program), never by week or session:
 
 **C1 — Hypertrophy.** Day-specific accessory list, 3 sets fixed regardless of week, logged
-per-exercise (weight × reps, `hypertrophy_logs` — one row per movement per session):
-| Day | Exercises |
-|---|---|
-| Squat | Walking Lunge · Lying Hamstring Curl · Hip/Back Extension (3×15) · Standing Calf Raise (3×15) |
-| Bench | Seated DB Press · One-Arm Row · Bicep Curl (3×15) · Skull Crusher (3×15) · Serratus Anterior Raise |
-| Deadlift | Front-Foot-Elevated Split Squat · Hip Thrust (3×15) · Leg Extension (3×15) |
-| OHP | Flat DB Bench · Lat Pulldown (supinated) · Lateral Raise (3×15) · Rope Face Pull (seated, to top of head, 3×15) |
+**per SET** (weight × reps per set, `hypertrophy_logs` — one row per movement PER SET per
+session, `unique(session_id, movement_id, set_number)`; no RPE field). Certain pairs are
+supersets (alternate between the two rather than straight sequential sets) per a generic,
+nullable `movements.superset_group` column (not scoped to Hypertrophy — any future block can
+reuse it); a movement can also be flagged `weight_optional` (a real boolean column, not the
+free-text `note`) when only reps matter — Hip/Back Extension is the current example:
+| Day | Exercises | Supersets |
+|---|---|---|
+| Squat | Walking Lunge · Lying Hamstring Curl · Hip/Back Extension (3×15, weight optional) · Standing Calf Raise (3×15) | Walking Lunge+Lying Hamstring Curl · Hip/Back Ext+Standing Calf Raise |
+| Bench | Seated DB Press · One-Arm Row · Bicep Curl (3×15) · Skull Crusher (3×15) · Serratus Anterior Raise | Seated DB Press+One-Arm Row · Bicep Curl+Skull Crusher |
+| Deadlift | Front-Foot-Elevated Split Squat · Hip Thrust (3×15) · Leg Extension (3×15) | Hip Thrust+Leg Extension |
+| OHP | Flat DB Bench · Lat Pulldown (supinated) · Lateral Raise (3×15) · Rope Face Pull (seated, to top of head, 3×15) | Flat DB Bench+Lat Pulldown · Lateral Raise+Rope Face Pull |
 
 **C2 — Oly.** Technical work, loaded to a per-lane "technical ceiling found by feel" — **not**
 a percentage of a tested max, and **not RPE** — logged with a **quality mark** instead
@@ -379,11 +389,19 @@ deload signals. Deload cells open a real session editor (Giant block only, ~70%)
 The full rebuild is shipped and deployed to GitHub Pages
 (https://zsolt17.github.io/giant-programV2/). Capabilities, in domain terms:
 
-- **Today** — date-computed position; the full session (Primer, Giant Block + secondary +
-  bodyweight accessory, Volume off its own independent difficulty, Capability dispatched by
-  cycle) + logging, with an optional session timer. The deload week is a real logger too (§2.9).
+- **Today** — date-computed position; the session renders as four independent expandable
+  `SessionCard`s (A. Primer / B. Giant / C. Volume / D. Capability, always this order — only
+  D's label/content changes by cycle). Pre-start all four are expanded and locked; Start
+  Session collapses them and auto-expands Primer; each card's Done button (disabled until
+  that block's own required fields are filled, `engine/session-progress.ts`) collapses it to
+  a `✓ Done` summary and auto-expands the next card in sequence; a done card can be reopened
+  to fix a mislogged entry without disturbing whichever card is currently active. The deload
+  week is a real logger too (§2.9). Bodyweight accessory, Volume off its own independent
+  difficulty, Capability dispatched by cycle — same content as before, just card-wrapped.
+  Optional session timer unchanged.
 - **Calendar** — the program-week × 4-column grid (§7); log/edit/delete any session; mark
-  breaks.
+  breaks. The session modal uses the same four cards in a simpler free-toggle mode (no lock,
+  no sequence — every card starts expanded, headers freely open/close regardless of done state).
 - **History** — latest top sets (all four lifts), recent-session feed, pull-up cluster trend.
 - **Deload** — per-week fatigue signals + reactive-deload recommend/apply (§5).
 - **Setup** — per-cycle (C1/C2/C3) Hard-top anchors for all six lanes (Squat/Bench/Deadlift/OHP
@@ -411,9 +429,13 @@ and `0025_prune_empty_secondary_lanes.sql` (2026-08-10) retired everything speci
 two earlier programs — dropped tables (`capacity_logs`, `capacity_config`, `capacity_settings`,
 `runs`, `run_targets`, `testing_results`), dropped columns (`sessions.pair_weight`,
 `macros.ref_pace_s`), narrowed several CHECK constraints to the surviving value sets, and pruned
-retired `movements`/`program_slots` rows. Earlier migrations (`0001`–`0023`) built up the schema
-this left behind; see `specification.md` for that dated history. See `supabase/MIGRATIONS.md` for
-how migrations are applied and the DB kept reproducible. Tables:
+retired `movements`/`program_slots` rows. `0026_movement_superset_group.sql` added
+`movements.superset_group`; `0027_today_cards.sql` added `sessions.primer_done` and
+`movements.weight_optional`, and moved `hypertrophy_logs` to one row per (session, movement,
+SET) — all three land the Today-tab card redesign (§8), see `specification.md`. Earlier
+migrations (`0001`–`0025`) built up the schema this left behind; see `specification.md` for
+that dated history. See `supabase/MIGRATIONS.md` for how migrations are applied and the DB
+kept reproducible. Tables:
 
 ```sql
 -- Macros: each macrocycle the athlete runs
@@ -480,6 +502,9 @@ sessions (
   vol_speed     text,
   -- bodyweight-mode Pull-ups final-round cluster (bench day), e.g. "6+4"
   pullup_cluster text,
+  -- Today's Primer card: the checklist itself is UI-only local state (never
+  -- persisted per-item); this single flag is what the card's Done saves.
+  primer_done   boolean not null default false,
   -- carry
   carry_skipped boolean default false,
   carry_skip_reason text,                  -- fatigue | schedule
@@ -560,16 +585,18 @@ giant2_giant_difficulty (
   unique (user_id, week_in_cycle, lift)
 )
 
--- Capability block — C1 Hypertrophy. One row PER MOVEMENT per session.
+-- Capability block — C1 Hypertrophy. One row PER MOVEMENT PER SET per session
+-- (GIANT2_HYPERTROPHY_SETS, currently 3) — no RPE field.
 hypertrophy_logs (
   id            uuid primary key default gen_random_uuid(),
   session_id    text references sessions on delete cascade not null,
   movement_id   uuid references movements not null,
+  set_number    int not null default 1,       -- 1..GIANT2_HYPERTROPHY_SETS, check (set_number > 0)
   weight        numeric,
   reps_done     int,
   notes         text,
   updated_at    timestamptz default now(),
-  unique (session_id, movement_id)
+  unique (session_id, movement_id, set_number)
 )
 
 -- Capability block — C2 Oly. Same per-movement shape as hypertrophy_logs, but
@@ -600,6 +627,13 @@ movements (
   rep_unit      text,
   note          text,
   archived      boolean not null default false,
+  -- Pairs two movements as a superset (alternate between them) when both
+  -- share a non-null value on the same day. Generic — not tied to any one
+  -- block/cycle, so a future revision can reuse it without a new migration.
+  superset_group text,
+  -- True = a required-field check may skip this movement's weight (reps are
+  -- still required) — e.g. Hip/Back Extension.
+  weight_optional boolean not null default false,
   created_at    timestamptz default now(),
   unique (user_id, key)
 )

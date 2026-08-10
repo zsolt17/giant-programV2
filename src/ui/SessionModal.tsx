@@ -165,6 +165,24 @@ export function SessionModal({
       setSaving(false)
     }
   }
+  // A card's "Done" press — persists immediately (optionally patched, e.g.
+  // Primer's primerDone) but does NOT close the modal, unlike the main Save
+  // button below. Rethrows on failure so the card stays open instead of
+  // collapsing over a lost edit.
+  async function saveCard(patch?: Partial<SessionDraft>) {
+    setSaving(true)
+    setErr('')
+    try {
+      const record = { ...buildRecord(), ...patch }
+      await onSaveSession(record)
+      setDraft((p) => ({ ...p, ...patch }))
+    } catch (e) {
+      setErr(errMsg(e))
+      throw e
+    } finally {
+      setSaving(false)
+    }
+  }
   async function handleDelete() {
     setErr('')
     try {
@@ -236,6 +254,9 @@ export function SessionModal({
           isDeload={isDeload}
           draft={draft}
           setField={setField}
+          onSaveCard={saveCard}
+          sequential={false}
+          saving={saving}
           secondaryCell={secondaryCell}
           giantAccessory={giantAccessory}
           cycle={cycle}

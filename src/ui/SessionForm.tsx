@@ -44,6 +44,7 @@ export function buildBlankSession({ date, macroId, cycle, week, weekType, dayTyp
     volRpe: '',
     volSpeed: '',
     pullupCluster: '',
+    primerDone: false,
     carrySkipped: false,
     carrySkipReason: '',
     carryRounds: 3,

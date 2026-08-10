@@ -54,17 +54,25 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
   block's own difficulty, which is fixed for the whole cycle (light C1 / medium C2 / hard C3,
   except C3 week 4 which drops the Volume block entirely).
 - **Sessions** — Primer (rope flow + day-typed band activation — Crossover Symmetry upper /
-  Hip Halo lower — + a 1-2-3 ascending bodyweight ramp, no load/RPE tracked) → Giant Block
-  (the lift's ladder + a day's paired **secondary** — BB Row on OHP day, Pull-ups on bench day
-  — + a bodyweight accessory; squat and deadlift train alone) → Volume (80%, gated off on C3
-  week 4 and during any deload) → **Capability**, whose content is a property of the CYCLE, not
-  the week: **Hypertrophy** in C1 (per-movement weight/reps, 3 fixed sets), **Olympic lifting**
-  in C2 (per-movement weight + a Q1/Q2/Q3 quality mark, position wave copy by week), **Carries**
-  in C3 (day→implement mapping, flat RPE-6 guidance) — all suppressed during any deload,
-  reactive or scheduled.
-- **Today** — date-computed position; full session prescription and logging. **Optional
-  session timer:** Start → live timer → End, duration derived from `started_at`/`ended_at`,
-  90-min auto-end safeguard, manual duration edit.
+  Hip Halo lower — + a 1-2-3 ascending bodyweight ramp, checkbox-style completion, no load/RPE)
+  → Giant Block (the lift's ladder + a day's paired **secondary** — BB Row on OHP day, Pull-ups
+  on bench day — + a bodyweight accessory; squat and deadlift train alone) → Volume (80%, gated
+  off on C3 week 4 and during any deload) → **Capability**, whose content is a property of the
+  CYCLE, not the week: **Hypertrophy** in C1 (per-movement per-SET weight/reps, 3 fixed sets,
+  superset pairing where the source sheet groups two exercises, a movement can be flagged
+  weight-optional), **Olympic lifting** in C2 (per-movement weight + a Q1/Q2/Q3 quality mark,
+  position wave copy by week), **Carries** in C3 (day→implement mapping, flat RPE-6 guidance) —
+  all suppressed during any deload, reactive or scheduled.
+- **Today** — date-computed position; the session renders as **four independent expandable
+  cards** (A. Primer / B. Giant / C. Volume / D. Capability, always this order). Pre-start, all
+  four are expanded with fields locked; Start Session collapses them and auto-expands Primer,
+  unlocked. Each card's Done button (disabled until that block's own required fields are
+  filled) collapses it to a one-line `✓ Done` summary and auto-expands the next card in
+  sequence; tapping a done card reopens it to fix a mislogged entry without disturbing whatever
+  card is currently active. Calendar's session modal gets the same four cards in a simpler
+  free-toggle mode (no lock, no sequence). **Optional session timer:** Start → live timer →
+  End, duration derived from `started_at`/`ended_at`, 90-min auto-end safeguard, manual
+  duration edit.
 - **Calendar** — program-week grid, **4 columns (Mon/Tue/Thu/Fri)**, 13 weeks (14 with an
   extended deload); log/edit/delete any session; mark breaks.
 - **History** — latest top sets, recent-session feed, pull-up cluster trend.
@@ -99,6 +107,53 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ---
 
 ## Change log
+
+## 2026-08-10 (Today tab — sequential expandable cards)
+- `feat`: **Today redesigned as four independent SessionCards** (A. Primer, B. Giant,
+  C. Volume, D. Capability — always this order; only D's label/content changes by cycle).
+  Pre-start: all four render expanded with fields locked, same as before. Start Session
+  collapses all four to one-line summaries and auto-expands Primer, unlocked. Each card's
+  "Done" button — plain "Done" everywhere, never block-specific text — is disabled until
+  that block's own required fields are filled (`engine/session-progress.ts`:
+  `isPrimerDone`/`isGiantDone`/`isVolumeDone`/`isCarriesDone`/`isHypertrophyDone`/`isOlyDone`,
+  each reading the block's real schema, not a generic "every visible field" rule). On Done
+  the card collapses to `[Letter]. [Name] — [context] ✓ Done` and the next card in sequence
+  auto-expands. Tapping a `✓ Done` card reopens it for peek-and-fix without disturbing
+  whichever card is currently active further down the sequence; Done again re-collapses it.
+  A card only collapses on a *successful* save — `onSaveCard` now rethrows on failure
+  (`Today.tsx`/`SessionModal.tsx`) so a blocked/failed write leaves the card open with the
+  edit intact instead of silently discarding it behind a card that looks complete.
+- `feat`: **Calendar's SessionModal gets the same four cards**, in a simpler "free" mode —
+  no lock, no sequence: every card starts expanded and its header freely toggles open/closed
+  regardless of done state (`Giant2SessionForm`'s new `sequential` prop, default `true` for
+  Today, `false` for the modal).
+- `feat`: **Hypertrophy moves to real per-SET logging** (`GIANT2_HYPERTROPHY_SETS` = 3 rows
+  per exercise, each with its own Reps/Load — RPE shown as a static "–", not a field). Schema
+  change: `hypertrophy_logs` gets a `set_number` column and its unique constraint becomes
+  `(session_id, movement_id, set_number)` (migration `0027`; table was empty in prod, no
+  backfill needed). A movement can be flagged `weight_optional` (new real boolean column on
+  `movements`, not the free-text `note`) so its Done-check only requires reps — `movements.ts`
+  sets this on `hip_back_extension`. Giant/Volume/Oly/Carries deliberately keep today's
+  existing aggregate fields as their Done-gate (RPE+bar-speed+block-completion for Giant;
+  RPE+bar-speed for Volume; quality-mark-only for Oly, no weight requirement — several Oly
+  primer movements are legitimately unloaded; rounds+distance+RPE, or just a reason if
+  skipped, for Carries) — a deliberate, narrower scope than "every prescribed set" read
+  literally, since the Giant/Volume ladder is auto-computed off the anchor, never user-entered
+  per set, and extending per-set entry there would cut against the single-anchor design
+  principle in `ARCHITECTURE.md`.
+- `feat`: **Primer becomes checkbox-style** (rope flow, band activation, the four day-typed
+  ramp movements, and an aggregate "barbell build-up done" + optional secondary build-up
+  checkbox) instead of pure prescription. Which items are checked is local/ephemeral UI
+  state, never persisted per-item; `sessions.primer_done` (new boolean column, migration
+  `0027`) is the one thing Done actually saves — reopening a done Primer shows every item
+  pre-checked rather than trying to recall which ones (nothing meaningful to "fix" per-item
+  on a warm-up checklist anyway).
+- `chore`: new `SessionCard` component (`ui/SessionCard.tsx`) — the generic collapse/expand
+  shell (locked/pending/active/done visual states, collapsed summary row, click-to-toggle
+  header in both expanded and collapsed form) used by all four cards in both Today and the
+  Calendar modal. New shared `DoneButton` (`controls.tsx`). 12 new unit tests
+  (`session-progress.test.js`); smoke test extended to cover the per-set upsert and
+  `primer_done` round-trip (71/71 passing).
 
 ## 2026-08-10 (Primer copy fix + Hypertrophy superset grouping)
 - `fix`: **Primer — reps/rounds text was duplicated.** The bodyweight-ramp block header

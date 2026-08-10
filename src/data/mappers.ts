@@ -76,6 +76,7 @@ export interface SessionRow {
   vol_rpe: string | null
   vol_speed: string | null
   pullup_cluster: string | null
+  primer_done: boolean | null
   carry_skipped: boolean | null
   carry_skip_reason: string | null
   carry_rounds: number | null
@@ -179,6 +180,7 @@ export function rowToSession(r: SessionRow): Session {
     volRpe: r.vol_rpe || '',
     volSpeed: r.vol_speed || '',
     pullupCluster: r.pullup_cluster || '',
+    primerDone: !!r.primer_done,
     carrySkipped: !!r.carry_skipped,
     carrySkipReason: r.carry_skip_reason || '',
     carryRounds: r.carry_rounds ?? null,
@@ -211,6 +213,7 @@ export function sessionToRow(s: SessionDraft): SessionRow {
     vol_rpe: blankToNull(s.volRpe),
     vol_speed: blankToNull(s.volSpeed),
     pullup_cluster: blankToNull(s.pullupCluster),
+    primer_done: !!s.primerDone,
     carry_skipped: !!s.carrySkipped,
     carry_skip_reason: blankToNull(s.carrySkipReason),
     carry_rounds: toNum(s.carryRounds),
@@ -250,6 +253,7 @@ export interface MovementRow {
   note: string | null
   archived?: boolean
   superset_group?: string | null
+  weight_optional?: boolean
 }
 export function rowToMovement(r: MovementRow): Movement {
   return {
@@ -263,6 +267,7 @@ export function rowToMovement(r: MovementRow): Movement {
     note: blankToNull(r.note),
     archived: !!r.archived,
     supersetGroup: blankToNull(r.superset_group ?? null),
+    weightOptional: !!r.weight_optional,
   }
 }
 // user_id defaults to auth.uid() at the DB (break_days pattern). The key is the
@@ -279,6 +284,7 @@ export function movementToRow(m: Movement | MovementSeed): MovementRow {
     note: blankToNull(m.note),
     archived: 'archived' in m ? !!m.archived : false,
     superset_group: m.supersetGroup ?? null,
+    weight_optional: !!m.weightOptional,
   }
 }
 
@@ -384,6 +390,7 @@ export interface HypertrophyLogRow {
   id?: string
   session_id: string
   movement_id: string
+  set_number: number
   weight: number | null
   reps_done: number | null
   notes: string | null
@@ -394,6 +401,7 @@ export function rowToHypertrophyLog(r: HypertrophyLogRow): HypertrophyLog {
     id: r.id,
     sessionId: r.session_id,
     movementId: r.movement_id,
+    setNumber: r.set_number,
     weight: toNum(r.weight),
     repsDone: toNum(r.reps_done),
     notes: r.notes || '',
@@ -404,6 +412,7 @@ export function hypertrophyLogToRow(l: HypertrophyLogDraft): HypertrophyLogRow {
   const row: HypertrophyLogRow = {
     session_id: l.sessionId,
     movement_id: l.movementId,
+    set_number: l.setNumber,
     weight: toNum(l.weight),
     reps_done: toNum(l.repsDone),
     notes: blankToNull(l.notes),

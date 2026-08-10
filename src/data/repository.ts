@@ -353,13 +353,13 @@ export async function getHypertrophyLogs(macroId: string): Promise<HypertrophyLo
 export async function saveHypertrophyLog(log: HypertrophyLogDraft): Promise<HypertrophyLog> {
   assertWritable()
   const row = M.hypertrophyLogToRow(log)
-  const dedupeId = `hyp-${row.session_id}-${row.movement_id}`
+  const dedupeId = `hyp-${row.session_id}-${row.movement_id}-${row.set_number}`
   if (isOffline()) {
     queue.enqueue({ kind: 'saveHypertrophyLog', payload: { id: dedupeId, row } })
     return M.rowToHypertrophyLog(row)
   }
   try {
-    const { data, error } = await supabase.from('hypertrophy_logs').upsert(row, { onConflict: 'session_id,movement_id' }).select().single()
+    const { data, error } = await supabase.from('hypertrophy_logs').upsert(row, { onConflict: 'session_id,movement_id,set_number' }).select().single()
     if (error) throw error
     return M.rowToHypertrophyLog(data)
   } catch (e) {
@@ -412,7 +412,7 @@ const QUEUE_EXECUTORS: QueueExecutors = {
     if (error) throw error
   },
   async saveHypertrophyLog({ row }) {
-    const { error } = await supabase.from('hypertrophy_logs').upsert(row, { onConflict: 'session_id,movement_id' })
+    const { error } = await supabase.from('hypertrophy_logs').upsert(row, { onConflict: 'session_id,movement_id,set_number' })
     if (error) throw error
   },
   async saveOlyLog({ row }) {

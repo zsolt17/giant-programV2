@@ -39,6 +39,10 @@ src/
                    GIANT2_* constants, so this stays unwired from any live view
     deload-rule.ts reactive-deload signals + trigger; one explicit gate on S2 (no Volume block in
                    C3 week 4, or any deload week, → can't be incomplete)
+    session-progress.ts  Today card completion: isPrimerDone/isGiantDone/isVolumeDone/
+                   isCarriesDone/isHypertrophyDone/isOlyDone — each reads that block's own
+                   real schema (not "every visible field"); shared by the card UI and the
+                   Hypertrophy/Oly Done-button gate so they can't disagree
     trends.ts      pure derivations: Session -> Trends chart view-models
     export-csv.ts  pure -> CSV strings (Data page): sessions / hypertrophy / oly
     session-summary.ts  pure Session -> plain-text share summary (Data page "Copy")
@@ -50,10 +54,18 @@ src/
     App.tsx        shell: auth gate, top-level state, tab routing, all handlers
     Today.tsx, Calendar.tsx, History.tsx, Deload.tsx, Setup.tsx, Trends.tsx, Data.tsx, Recovery.tsx, Auth.tsx
     SessionForm.tsx     `buildBlankSession` — the shared blank-draft builder used by Today + SessionModal
-    Giant2SessionForm.tsx  the session view (Primer → Giant → Volume → Capability), rendered directly
-                        by Today and SessionModal — no era dispatch, there's only the one program
-    CapabilityBlock.tsx    HypertrophyBlock/OlyBlock — the per-cycle Capability sub-blocks
-    SessionModal.tsx    calendar-cell overlay wrapping Giant2SessionForm
+    Giant2SessionForm.tsx  the session view — Primer/Giant/Volume/Capability, each wrapped in a
+                        SessionCard. `sequential` prop: true (Today) = pre-start lock + auto-
+                        advance through the sequence; false (SessionModal) = no lock, every
+                        card freely toggles. Rendered directly by Today and SessionModal — no
+                        era dispatch, there's only the one program
+    SessionCard.tsx     the collapse/expand shell one card uses (locked/pending/active/done
+                        visual states, collapsed `[Letter]. [Name] — [context] ✓ Done` row,
+                        clickable header in both expanded and collapsed form)
+    CapabilityBlock.tsx    HypertrophyBlock (per-SET Reps/Load table, GIANT2_HYPERTROPHY_SETS
+                        rows per exercise, RPE shown as a static "–") / OlyBlock — the per-cycle
+                        Capability sub-blocks; own Done button + save, call `onDone` on success
+    SessionModal.tsx    calendar-cell overlay wrapping Giant2SessionForm in free (non-sequential) mode
     Trends.tsx      charts/analytics tab (recharts); renders engine/trends.ts view-models
     nav.tsx         BottomNav + MenuDrawer + inline SVG icon set
     components.tsx  shared shell bits (Shell, Card, BlockTitle, Center, Spinner)
@@ -247,7 +259,8 @@ missed → red, today → gold, upcoming → muted, break → blue.
 - `nav.tsx`: `BottomNav` (fixed bottom icon nav) + `MenuDrawer` (right slide-in) + the
   inline SVG icon set.
 - `controls.tsx`: `Row` (label/desc/value line), `SpeedPick` (↑→↓), `LogRpe`
-  (RPE + bar-speed), `PositionHeader` (M·C·W header with difficulty peek),
+  (RPE + bar-speed), `PositionHeader` (M·C·W header with difficulty peek), `DoneButton`
+  (the generic per-card completion control — every card says "Done", gated on a `ready` prop),
   `blockTitle`, `speedArrow`, `antagDesc`, `fmtClock`, `errMsg` (unknown→message).
 - `theme.ts`: `cardStyle`, `btnPrimary`, `inp`, `lbl`, `pillColor` (all `CSSProperties`).
 - `useFocusTrap.ts` / `useWakeLock.ts`: dialog focus-trap + screen wake-lock hooks.
