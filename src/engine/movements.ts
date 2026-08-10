@@ -45,6 +45,11 @@ export interface Movement {
   repUnit: string | null
   note: string | null
   archived: boolean
+  // Pairs two movements as a superset (alternate between them rather than
+  // straight sequential sets) — same non-null value + same day = paired; null
+  // = standalone. Generic: not tied to any one slot/cycle/block, so a future
+  // program revision can reuse it without a new migration.
+  supersetGroup?: string | null
 }
 
 // The code-side seed: what a fresh user's library starts as. Derived 1:1 from
@@ -152,24 +157,26 @@ const PRIMER: MovementSeed[] = [
 ]
 
 // Capability block, C1 — Hypertrophy accessories. Sets are fixed at 3
-// (GIANT2_HYPERTROPHY_SETS); defaultReps is the per-set target.
+// (GIANT2_HYPERTROPHY_SETS); defaultReps is the per-set target. `supersetGroup`
+// pairs two per day (alternate between them) per the source sheet's colour
+// groups — see Movement.supersetGroup.
 const HYPERTROPHY: MovementSeed[] = [
-  { key: 'walking_lunge', name: 'Walking Lunge', loadType: 'recorded', countType: 'reps_per_side', defaultReps: 12, repUnit: '/leg', note: null },
-  { key: 'lying_hamstring_curl', name: 'Lying Hamstring Curl', loadType: 'recorded', countType: 'reps', defaultReps: 12, repUnit: null, note: null },
-  { key: 'hip_back_extension', name: 'Hip/Back Extension', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: 'weight optional' },
-  { key: 'standing_calf_raise', name: 'Standing Calf Raise', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: null },
-  { key: 'seated_db_press', name: 'Seated DB Press', loadType: 'recorded', countType: 'reps', defaultReps: 12, repUnit: null, note: null },
-  { key: 'one_arm_row', name: 'One-Arm Row', loadType: 'recorded', countType: 'reps_per_side', defaultReps: 12, repUnit: '/side', note: null },
-  { key: 'bicep_curl', name: 'Bicep Curl', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: null },
-  { key: 'skull_crusher', name: 'Skull Crusher', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: null },
+  { key: 'walking_lunge', name: 'Walking Lunge', loadType: 'recorded', countType: 'reps_per_side', defaultReps: 12, repUnit: '/leg', note: null, supersetGroup: 'A' },
+  { key: 'lying_hamstring_curl', name: 'Lying Hamstring Curl', loadType: 'recorded', countType: 'reps', defaultReps: 12, repUnit: null, note: null, supersetGroup: 'A' },
+  { key: 'hip_back_extension', name: 'Hip/Back Extension', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: 'weight optional', supersetGroup: 'B' },
+  { key: 'standing_calf_raise', name: 'Standing Calf Raise', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: null, supersetGroup: 'B' },
+  { key: 'seated_db_press', name: 'Seated DB Press', loadType: 'recorded', countType: 'reps', defaultReps: 12, repUnit: null, note: null, supersetGroup: 'A' },
+  { key: 'one_arm_row', name: 'One-Arm Row', loadType: 'recorded', countType: 'reps_per_side', defaultReps: 12, repUnit: '/side', note: null, supersetGroup: 'A' },
+  { key: 'bicep_curl', name: 'Bicep Curl', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: null, supersetGroup: 'B' },
+  { key: 'skull_crusher', name: 'Skull Crusher', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: null, supersetGroup: 'B' },
   { key: 'serratus_raise', name: 'Serratus Anterior Raise', loadType: 'recorded', countType: 'reps', defaultReps: 12, repUnit: null, note: null },
   { key: 'ffe_split_squat', name: 'Front-Foot-Elevated Split Squat', loadType: 'recorded', countType: 'reps_per_side', defaultReps: 12, repUnit: '/leg', note: null },
-  { key: 'hip_thrust', name: 'Hip Thrust', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: null },
-  { key: 'leg_extension', name: 'Leg Extension', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: null },
-  { key: 'flat_db_bench', name: 'Flat DB Bench', loadType: 'recorded', countType: 'reps', defaultReps: 12, repUnit: null, note: null },
-  { key: 'lat_pulldown_sup', name: 'Lat Pulldown (supinated)', loadType: 'recorded', countType: 'reps', defaultReps: 12, repUnit: null, note: null },
-  { key: 'lateral_raise', name: 'Lateral Raise', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: null },
-  { key: 'rope_face_pull', name: 'Rope Face Pull', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: 'seated, to top of head' },
+  { key: 'hip_thrust', name: 'Hip Thrust', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: null, supersetGroup: 'A' },
+  { key: 'leg_extension', name: 'Leg Extension', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: null, supersetGroup: 'A' },
+  { key: 'flat_db_bench', name: 'Flat DB Bench', loadType: 'recorded', countType: 'reps', defaultReps: 12, repUnit: null, note: null, supersetGroup: 'A' },
+  { key: 'lat_pulldown_sup', name: 'Lat Pulldown (supinated)', loadType: 'recorded', countType: 'reps', defaultReps: 12, repUnit: null, note: null, supersetGroup: 'A' },
+  { key: 'lateral_raise', name: 'Lateral Raise', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: null, supersetGroup: 'B' },
+  { key: 'rope_face_pull', name: 'Rope Face Pull', loadType: 'recorded', countType: 'reps', defaultReps: 15, repUnit: null, note: 'seated, to top of head', supersetGroup: 'B' },
 ]
 
 // Capability block, C2 — Oly technical work. `note` carries the cluster

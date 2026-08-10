@@ -100,6 +100,24 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-08-10 (Primer copy fix + Hypertrophy superset grouping)
+- `fix`: **Primer — reps/rounds text was duplicated.** The bodyweight-ramp block header
+  ("Bodyweight ramp — 1-2-3 reps, 3 rounds:") repeated verbatim under every one of the four
+  day-typed exercise rows. Header now reads "Bodyweight ramp — 1-2-3, 10 minutes"; the per-row
+  description is cleared to name-only (`Giant2SessionForm.tsx`).
+- `feat`: **Hypertrophy (C1) — superset pairing.** Added a generic, nullable `superset_group`
+  column on `movements` (migration `0026`, deliberately not scoped to Hypertrophy/C1 — any
+  future block can reuse it) so two accessories on the same day sharing a group alternate
+  rather than render as one flat list. Backfilled per the source sheet's pairing: Squat
+  (Walking Lunge+Lying Hamstring Curl / Hip-Back Extension+Standing Calf Raise), Bench (Seated
+  DB Press+One-Arm Row / Bicep Curl+Skull Crusher, Serratus Anterior Raise standalone),
+  Deadlift (Hip Thrust+Leg Extension, Front-Foot-Elevated Split Squat standalone), OHP (Flat DB
+  Bench+Lat Pulldown / Lateral Raise+Rope Face Pull). `CapabilityBlock.tsx`'s `HypertrophyBlock`
+  clusters adjacent same-group items into a bordered "Superset — alternate" group; standalone
+  items render unchanged. **Logging flow unchanged, deliberately** — Hypertrophy logging was
+  already one aggregate weight+reps entry per movement (not per-set), so pairing two movements
+  for display doesn't change what gets captured; grouping is display-only.
+
 ## 2026-08-10 (Single-program cleanup — retire Giant v7 + GiantFit, remove Giant Run)
 - `chore`: **Phase 0 — backup.** Full schema+data dump taken before any destructive change
   (`giant_schema_2026-08-09.sql` / `giant_data_2026-08-09.sql`, outside the repo); row counts

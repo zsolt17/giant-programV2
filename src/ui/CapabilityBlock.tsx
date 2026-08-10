@@ -21,6 +21,27 @@ function resolveItems(keys: string[], movements: Movement[]) {
   return keys.map((key) => ({ key, seed: seedByKey(key), movementId: movements.find((m) => m.key === key)?.id }))
 }
 
+type ResolvedItem = ReturnType<typeof resolveItems>[number]
+
+// Clusters adjacent items sharing a non-null supersetGroup into a pair
+// (alternate between them); everything else stays standalone. Movements that
+// pair are always adjacent in the seed key order, so a single linear pass
+// is enough — no need to search the whole list for a matching group.
+function groupBySuperset(items: ResolvedItem[]): ResolvedItem[][] {
+  const groups: ResolvedItem[][] = []
+  for (let i = 0; i < items.length; i++) {
+    const cur = items[i]
+    const next = items[i + 1]
+    if (cur.seed?.supersetGroup && next?.seed?.supersetGroup === cur.seed.supersetGroup) {
+      groups.push([cur, next])
+      i++
+    } else {
+      groups.push([cur])
+    }
+  }
+  return groups
+}
+
 interface HypertrophyBlockProps {
   letter: string
   dayType: Lift
@@ -45,6 +66,7 @@ export function HypertrophyBlock({ letter, dayType, sessionId, movements, logs, 
   const [err, setErr] = useState('')
 
   const setRow = (key: string, field: 'weight' | 'reps', v: string) => setRows((p) => ({ ...p, [key]: { ...p[key], [field]: v } }))
+  const groups = groupBySuperset(items)
 
   async function save() {
     setSaving(true)
@@ -69,34 +91,58 @@ export function HypertrophyBlock({ letter, dayType, sessionId, movements, logs, 
   return (
     <Card>
       {blockTitle(`${letter}. Hypertrophy`, `${GIANT2_HYPERTROPHY_SETS} sets`)}
-      {items.map((it) => (
-        <div key={it.key} style={{ display: 'grid', gridTemplateColumns: '1fr 64px 56px', gap: 8, alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-          <span style={{ fontSize: 13, color: C.off }}>
-            {it.seed?.name}
-            {it.seed?.note && <span style={{ fontSize: 10, color: C.muted }}> · {it.seed.note}</span>}
-          </span>
-          <input
-            aria-label={`${it.seed?.name} weight (kg)`}
-            style={{ ...inp, padding: '6px', textAlign: 'center' }}
-            type="number"
-            step="2.5"
-            inputMode="decimal"
-            placeholder="kg"
-            value={rows[it.key]?.weight ?? ''}
-            onChange={(e) => setRow(it.key, 'weight', e.target.value)}
-          />
-          <input
-            aria-label={`${it.seed?.name} reps`}
-            style={{ ...inp, padding: '6px', textAlign: 'center' }}
-            type="number"
-            step="1"
-            inputMode="numeric"
-            placeholder="reps"
-            value={rows[it.key]?.reps ?? ''}
-            onChange={(e) => setRow(it.key, 'reps', e.target.value)}
-          />
-        </div>
-      ))}
+      {groups.map((group) => {
+        const rowsEls = group.map((it, i) => (
+          <div
+            key={it.key}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 64px 56px',
+              gap: 8,
+              alignItems: 'center',
+              padding: '6px 0',
+              borderBottom: group.length > 1 && i < group.length - 1 ? `1px dashed ${C.border}` : '1px solid rgba(255,255,255,0.04)',
+            }}
+          >
+            <span style={{ fontSize: 13, color: C.off }}>
+              {it.seed?.name}
+              {it.seed?.note && <span style={{ fontSize: 10, color: C.muted }}> · {it.seed.note}</span>}
+            </span>
+            <input
+              aria-label={`${it.seed?.name} weight (kg)`}
+              style={{ ...inp, padding: '6px', textAlign: 'center' }}
+              type="number"
+              step="2.5"
+              inputMode="decimal"
+              placeholder="kg"
+              value={rows[it.key]?.weight ?? ''}
+              onChange={(e) => setRow(it.key, 'weight', e.target.value)}
+            />
+            <input
+              aria-label={`${it.seed?.name} reps`}
+              style={{ ...inp, padding: '6px', textAlign: 'center' }}
+              type="number"
+              step="1"
+              inputMode="numeric"
+              placeholder="reps"
+              value={rows[it.key]?.reps ?? ''}
+              onChange={(e) => setRow(it.key, 'reps', e.target.value)}
+            />
+          </div>
+        ))
+        if (group.length === 1) return rowsEls
+        return (
+          <div
+            key={group[0].key}
+            style={{ borderLeft: `2px solid ${C.gold}`, paddingLeft: 8, marginBottom: 2 }}
+          >
+            <div style={{ fontSize: 10, color: C.gold, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '4px 0' }}>
+              Superset — alternate
+            </div>
+            {rowsEls}
+          </div>
+        )
+      })}
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
         <button
           onClick={save}

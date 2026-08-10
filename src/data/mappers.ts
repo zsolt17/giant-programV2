@@ -249,6 +249,7 @@ export interface MovementRow {
   rep_unit: string | null
   note: string | null
   archived?: boolean
+  superset_group?: string | null
 }
 export function rowToMovement(r: MovementRow): Movement {
   return {
@@ -261,6 +262,7 @@ export function rowToMovement(r: MovementRow): Movement {
     repUnit: blankToNull(r.rep_unit),
     note: blankToNull(r.note),
     archived: !!r.archived,
+    supersetGroup: blankToNull(r.superset_group ?? null),
   }
 }
 // user_id defaults to auth.uid() at the DB (break_days pattern). The key is the
@@ -276,6 +278,7 @@ export function movementToRow(m: Movement | MovementSeed): MovementRow {
     rep_unit: blankToNull(m.repUnit),
     note: blankToNull(m.note),
     archived: 'archived' in m ? !!m.archived : false,
+    superset_group: m.supersetGroup ?? null,
   }
 }
 

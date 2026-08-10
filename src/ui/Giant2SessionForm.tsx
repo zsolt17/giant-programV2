@@ -137,10 +137,10 @@ export function Giant2SessionForm({
         <Row a={GIANT2_ROPE_FLOW.name} b={GIANT2_ROPE_FLOW.dose} c="" cls={C.muted} />
         <Row a={band.name} b={band.dose} c="" cls={C.muted} />
         <div style={{ fontSize: 12, color: C.muted, fontStyle: 'italic', margin: '8px 0' }}>
-          Bodyweight ramp — {GIANT2_PRIMER_RAMP_ROUNDS.join('-')} reps, {GIANT2_PRIMER_RAMP_ROUNDS.length} rounds:
+          Bodyweight ramp — {GIANT2_PRIMER_RAMP_ROUNDS.join('-')}, 10 minutes:
         </div>
         {ramp.map((name) => (
-          <Row key={name} a={name} b={`${GIANT2_PRIMER_RAMP_ROUNDS.join('-')} reps · ${GIANT2_PRIMER_RAMP_ROUNDS.length} rounds`} c="" cls={C.muted} />
+          <Row key={name} a={name} b="" c="" cls={C.muted} />
         ))}
         <div style={{ fontSize: 12, color: C.muted, fontStyle: 'italic', margin: '8px 0' }}>Then barbell build-up:</div>
         {WU_PCT.map((p, i) => (
