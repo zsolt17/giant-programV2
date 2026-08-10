@@ -108,6 +108,42 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-08-10 (Copy Session Summary — data bugs + collapsed-by-default list)
+- `fix`: **Volume Block weight was wrong whenever the Volume difficulty differs from the
+  Giant block's.** `session-summary.ts` computed the main lift's Volume-block weight as
+  `volumeWeight(s.topWeight)` — `topWeight` is the GIANT block's own day-top (at the Giant
+  difficulty), not the Volume block's day-top (at its own independent `volumeDifficulty`).
+  The secondary lift's Volume line already read the correct value off the `weights` grid; only
+  the main lift had the bug, which is why it went unnoticed — the one test with mismatched
+  difficulties never gave the main lift its own weights-grid entry, so the wrong number went
+  unchecked. Reported live: Giant Hard top 120 kg → summary showed 95 kg (`volumeWeight(120)`)
+  for a Volume block actually run at the Light day-top, 108 kg → 85 kg logged. Fixed to read
+  `weights[cycle][dayType][volumeDifficulty]`, the same source Today renders from. Audited the
+  rest of the generator against this same failure mode (a separate calculation that can drift
+  from what Today actually shows) — every other field (Giant top/RPE/arrow, set ladder,
+  completion, secondary ladder, accessory reps, duration, notes) already reads the stamped
+  session record directly or recomputes via the identical engine call Today uses; confirmed
+  `trends.ts`/`export-csv.ts` don't touch Volume-block math at all, so this was isolated to the
+  summary screen.
+- `fix`: **A "Carry" line rendered on every session regardless of the active cycle.** The Carry
+  section was gated only on `meta && s.dayType` (true for every session) instead of the active
+  cycle's program — it rendered because `carryRounds` defaults to `3` (never null) in every
+  blank session draft, so the presence check was always true even on C1/C2 sessions where the
+  Carries UI never appears. Folded Carry into the same cycle-dispatch already used for
+  Hypertrophy/Oly (`capabilityProgramFor(s.cycle)`), so exactly one Capability line renders,
+  matching whichever block is actually active that cycle. Two existing tests had fixtures that
+  incidentally exploited these bugs (same Giant/Volume difficulty masked the first; an
+  unrealistic `weekType: 'training'` + `cycle: null` combo masked the second) — corrected both
+  and added explicit regression tests. 5 new tests, 19/19 passing (was 16).
+- `feat`: **Copy Session Summary's session list is collapsed by default.** Previously, tapping
+  a day immediately showed the full plain-text preview inline (notes included), pushing Copy
+  below it — every copy meant scrolling past the notes. Now rows render as one-line collapsed
+  summaries (same collapse/expand visual language as the Today-tab SessionCards, §Today
+  redesign above); tapping a row selects it and reveals a Copy action right there on the row,
+  no expansion needed (the "copy and move on" path); a separate chevron expands the row to read
+  the full text. Selecting and expanding are independent state (`selectedKey`/`expandedKey`) —
+  neither requires the other. (`Data.tsx`.)
+
 ## 2026-08-10 (Today tab — sequential expandable cards)
 - `feat`: **Today redesigned as four independent SessionCards** (A. Primer, B. Giant,
   C. Volume, D. Capability — always this order; only D's label/content changes by cycle).

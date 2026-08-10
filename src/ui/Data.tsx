@@ -98,7 +98,10 @@ interface DataProps {
 }
 
 export function Data({ sessions, macros, accessory = {}, weights = {}, deloads = {}, giantAccessory, movements = [], hypertrophyLogs = [], olyLogs = [] }: DataProps) {
+  // Select (copy target) and expand (read the full text) are two independent
+  // actions — selecting a row never requires expanding it, and vice versa.
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [expandedKey, setExpandedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [copyErr, setCopyErr] = useState('')
 
@@ -112,16 +115,13 @@ export function Data({ sessions, macros, accessory = {}, weights = {}, deloads =
     })
     .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
 
-  const selected = entries.find((e) => e.key === selectedKey) || null
-
   function summaryFor(e: Entry): string {
     return sessionSummary(e.s, numberById.get(e.s.macroId) ?? 0, accessory[e.s.macroId], weights[e.s.macroId], e.isDeload, giantAccessory)
   }
 
-  async function onCopy() {
-    if (!selected) return
+  async function onCopy(e: Entry) {
     setCopyErr('')
-    const ok = await copyText(summaryFor(selected))
+    const ok = await copyText(summaryFor(e))
     if (ok) {
       setCopied(true)
       window.setTimeout(() => setCopied(false), 2000)
@@ -167,18 +167,21 @@ export function Data({ sessions, macros, accessory = {}, weights = {}, deloads =
         )}
       </Card>
 
-      {/* Section 2 — per-session copy */}
+      {/* Section 2 — per-session copy. Rows are collapsed by default (just the
+          label) — tapping a row selects it and reveals Copy right there, no
+          expansion needed. Reading the full text (notes included) is a
+          separate, explicit action via the chevron. Same collapse/expand
+          visual language as the Today-tab SessionCards. */}
       <Card>
         <BlockTitle tag="Clipboard">Copy session summary</BlockTitle>
         <p style={{ fontSize: 13, color: C.muted, margin: '0 0 12px' }}>
-          Pick any logged session — training or deload — and copy a plain-text summary to share.
+          Tap a session to select it and copy. Tap the arrow to read the full text (incl. notes) first.
         </p>
 
         <div
-          role="listbox"
           aria-label="Recent sessions"
           style={{
-            maxHeight: 280,
+            maxHeight: 340,
             overflowY: 'auto',
             border: `1px solid ${C.border}`,
             borderRadius: 2,
@@ -189,60 +192,95 @@ export function Data({ sessions, macros, accessory = {}, weights = {}, deloads =
             <div style={{ padding: 14, fontSize: 13, color: C.muted, textAlign: 'center' }}>No sessions logged yet.</div>
           )}
           {entries.map((e) => {
-            const active = e.key === selectedKey
+            const selected = e.key === selectedKey
+            const expanded = e.key === expandedKey
             return (
-              <button
-                key={e.key}
-                role="option"
-                aria-selected={active}
-                onClick={() => setSelectedKey(e.key)}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  textAlign: 'left',
-                  background: active ? 'rgba(201,168,76,0.14)' : 'transparent',
-                  border: 'none',
-                  borderBottom: '1px solid rgba(255,255,255,0.05)',
-                  color: active ? C.gold : C.off,
-                  fontSize: 13,
-                  fontWeight: active ? 600 : 400,
-                  padding: '10px 12px',
-                  cursor: 'pointer',
-                }}
-              >
-                {e.label}
-              </button>
+              <div key={e.key} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'stretch', background: selected ? 'rgba(201,168,76,0.14)' : 'transparent' }}>
+                  <button
+                    aria-pressed={selected}
+                    onClick={() => setSelectedKey((k) => (k === e.key ? null : e.key))}
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      textAlign: 'left',
+                      background: 'transparent',
+                      border: 'none',
+                      color: selected ? C.gold : C.off,
+                      fontSize: 13,
+                      fontWeight: selected ? 600 : 400,
+                      padding: '10px 12px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {e.label}
+                  </button>
+                  {selected && (
+                    <button
+                      onClick={() => onCopy(e)}
+                      style={{
+                        background: 'transparent',
+                        color: C.gold,
+                        border: `1px solid ${C.gold}`,
+                        borderRadius: 2,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        letterSpacing: '0.05em',
+                        textTransform: 'uppercase',
+                        padding: '0 10px',
+                        margin: '6px 0',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Copy
+                    </button>
+                  )}
+                  <button
+                    aria-label={expanded ? `Collapse ${e.label}` : `Expand ${e.label} to read full text`}
+                    aria-expanded={expanded}
+                    onClick={() => setExpandedKey((k) => (k === e.key ? null : e.key))}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: C.muted,
+                      fontSize: 13,
+                      padding: '10px 12px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span aria-hidden="true">{expanded ? '▾' : '▸'}</span>
+                  </button>
+                </div>
+                {expanded && (
+                  <pre
+                    style={{
+                      background: 'rgba(0,0,0,0.25)',
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 2,
+                      color: C.off,
+                      fontSize: 12.5,
+                      lineHeight: 1.5,
+                      padding: 12,
+                      margin: '0 10px 10px',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                    }}
+                  >
+                    {summaryFor(e)}
+                  </pre>
+                )}
+              </div>
             )
           })}
         </div>
 
-        {selected && (
-          <pre
-            style={{
-              background: 'rgba(0,0,0,0.25)',
-              border: `1px solid ${C.border}`,
-              borderRadius: 2,
-              color: C.off,
-              fontSize: 12.5,
-              lineHeight: 1.5,
-              padding: 12,
-              margin: '0 0 14px',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-            }}
-          >
-            {summaryFor(selected)}
-          </pre>
+        {(copied || copyErr) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {copied && <span style={{ fontSize: 13, color: C.green, fontWeight: 600 }}>Copied ✓</span>}
+            {copyErr && <span style={{ fontSize: 12, color: C.red }}>{copyErr}</span>}
+          </div>
         )}
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={onCopy} style={btn(!selected)} disabled={!selected}>
-            Copy summary
-          </button>
-          {copied && <span style={{ fontSize: 13, color: C.green, fontWeight: 600 }}>Copied ✓</span>}
-          {copyErr && <span style={{ fontSize: 12, color: C.red }}>{copyErr}</span>}
-        </div>
       </Card>
     </>
   )

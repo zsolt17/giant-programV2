@@ -113,9 +113,13 @@ export function sessionSummary(
   // ---- Volume Block -----------------------------------------------------------
   // An INDEPENDENT difficulty from the Giant block's (s.volumeDifficulty, not
   // s.difficulty) — null means no Volume block that session (C3 week 4, or deload).
+  // The main lift's weight comes off ITS OWN day-top at the volume difficulty
+  // (the `weights` grid — same source Today reads), never off s.topWeight
+  // (that's the GIANT block's day-top, at a potentially different difficulty).
   if (s.volumeDifficulty) {
     const scheme = SCHEMES[s.volumeDifficulty]
-    const rx = `2×${scheme.vol}${s.topWeight != null ? ` @ ${kg(volumeWeight(s.topWeight))}` : ''}`
+    const volMainTop = s.dayType && s.cycle != null ? weights?.[s.cycle]?.[s.dayType]?.[s.volumeDifficulty] ?? null : null
+    const rx = `2×${scheme.vol}${volMainTop != null ? ` @ ${kg(volumeWeight(volMainTop))}` : ''}`
     lines.push(`Volume Block: ${seg(rx, rpeStr(s.volRpe), arrow(s.volSpeed), s.volDone === false ? 'incomplete' : '')}`)
     // The secondary shares the Volume block (80% of ITS day top, off the Volume difficulty).
     const volLaneTop = laneKey && s.cycle != null ? weights?.[s.cycle]?.[laneKey]?.[s.volumeDifficulty] ?? null : null
@@ -126,27 +130,28 @@ export function sessionSummary(
     lines.push('Volume Block: none this week (C3 week 4)')
   }
 
-  // ---- Carry ------------------------------------------------------------------
-  if (meta && s.dayType) {
-    const w = accessory?.[s.cycle ?? -1]?.[`carry_${s.dayType}`]
-    const load = w != null ? `${fmt(w)}${meta.carry.perHand ? ' / hand' : ''}` : meta.carry.load
-    if (s.carrySkipped) {
-      lines.push(`Carry: ${meta.carry.name} — skipped${s.carrySkipReason ? ` (${s.carrySkipReason})` : ''}`)
-    } else if (s.carryRounds != null || s.carryDistance != null || s.carryRpe) {
-      const rounds = s.carryRounds ?? '—'
-      const dist = s.carryDistance != null ? `${s.carryDistance}m` : '—'
-      lines.push(`Carry: ${seg(`${meta.carry.name} ${load}`, `${rounds}×${dist}`, rpeStr(s.carryRpe))}`)
-    }
-  }
-
-  // Capability block (Hypertrophy C1 / Oly C2): logged in separate tables
-  // (hypertrophy_logs / oly_logs, one row per movement) this function doesn't
-  // have access to — flagged rather than silently left out. Carries (C3) are
-  // fully covered above (same session-level fields as always), so no note there.
+  // ---- Capability block — content dispatched by the ACTIVE CYCLE's program,
+  // same source Today reads (capabilityProgramFor/GIANT2_CAPABILITY_BY_CYCLE),
+  // never hardcoded. Exactly one of these renders per training-week session:
+  // Hypertrophy/Oly are logged in separate tables this function doesn't have
+  // access to, so they're flagged rather than silently left out; Carries (C3)
+  // is fully covered here from the session's own carry_* fields. A session
+  // with no real cycle (the scheduled deload, cycle null) gets none of these —
+  // matching the live app, which never renders a Capability block there either.
   if (s.weekType === 'training' && s.cycle != null) {
     const program = capabilityProgramFor(s.cycle)
     if (program === 'hypertrophy' || program === 'oly') {
       lines.push(`${program === 'hypertrophy' ? 'Hypertrophy' : 'Oly'}: not included in this summary — see the app`)
+    } else if (program === 'carries' && meta && s.dayType) {
+      const w = accessory?.[s.cycle]?.[`carry_${s.dayType}`]
+      const load = w != null ? `${fmt(w)}${meta.carry.perHand ? ' / hand' : ''}` : meta.carry.load
+      if (s.carrySkipped) {
+        lines.push(`Carry: ${meta.carry.name} — skipped${s.carrySkipReason ? ` (${s.carrySkipReason})` : ''}`)
+      } else if (s.carryRounds != null || s.carryDistance != null || s.carryRpe) {
+        const rounds = s.carryRounds ?? '—'
+        const dist = s.carryDistance != null ? `${s.carryDistance}m` : '—'
+        lines.push(`Carry: ${seg(`${meta.carry.name} ${load}`, `${rounds}×${dist}`, rpeStr(s.carryRpe))}`)
+      }
     }
   }
 
