@@ -356,11 +356,18 @@ export function App() {
     setSessions((prev) => prev.filter((s) => s.id !== id))
   }, [])
 
-  // Capability block — one row PER MOVEMENT per session, upsert on
-  // (sessionId, movementId).
+  // Capability block — Hypertrophy is one row PER MOVEMENT PER SET, upsert on
+  // (sessionId, movementId, setNumber) — matching hypertrophy_logs' real
+  // unique constraint. Dropping setNumber from this dedup key was a real bug:
+  // concurrent per-set saves (Promise.all in CapabilityBlock's save()) each
+  // wiped out the OTHER already-saved sets from local state, since every
+  // save's filter matched (and removed) every set for that movement, not just
+  // its own. The database was always correct (a real per-set upsert); only
+  // this in-memory array lost rows, which is why the data reappeared after a
+  // full reload (a fresh fetch) but looked gone after in-app navigation.
   const onSaveHypertrophyLog = useCallback(async (log: HypertrophyLogDraft): Promise<HypertrophyLog> => {
     const saved = await repo.saveHypertrophyLog(log)
-    setHypertrophyLogs((prev) => prev.filter((l) => !(l.sessionId === saved.sessionId && l.movementId === saved.movementId)).concat(saved))
+    setHypertrophyLogs((prev) => prev.filter((l) => !(l.sessionId === saved.sessionId && l.movementId === saved.movementId && l.setNumber === saved.setNumber)).concat(saved))
     return saved
   }, [])
 

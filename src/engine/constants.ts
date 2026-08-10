@@ -93,6 +93,10 @@ export const LIFT_LABEL: Record<Lift, string> = {
 }
 export const LIFT_SHORT: Record<Lift, string> = { deadlift: 'Deadlift', ohp: 'OHP', squat: 'Squat', bench: 'Bench' }
 
+// The one RPE scale used everywhere an RPE gets logged (Giant/Volume/Carry top
+// sets via LogRpe, and Hypertrophy's per-set RPE) — stored as "R6".."R10" text.
+export const RPE_OPTIONS: string[] = ['R6', 'R7', 'R8', 'R8.5', 'R9', 'R9.5', 'R10']
+
 // Giant Block completion (adherence) categories. 'completed' = as prescribed (default);
 // the rest are fail reasons that drive the deload S7 signal. Stored categorically.
 export const BLOCK_COMPLETION: { id: string; label: string }[] = [

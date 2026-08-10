@@ -81,6 +81,13 @@ test('isHypertrophyDone: missing reps on any set fails regardless of weight', ()
   assert.equal(isHypertrophyDone('squat', movementsFixture, logs), false)
 })
 
+test('isHypertrophyDone: RPE is optional — present or absent, it never affects readiness', () => {
+  const withoutRpe = fullLogsFor(squatKeys, movementsFixture)
+  assert.equal(isHypertrophyDone('squat', movementsFixture, withoutRpe), true)
+  const withRpe = withoutRpe.map((l) => ({ ...l, rpe: 'R9' }))
+  assert.equal(isHypertrophyDone('squat', movementsFixture, withRpe), true)
+})
+
 // ---- Oly: quality mark required, weight not required ------------------------
 
 const olySquatKeys = SEED_OLY_KEYS.squat // ['oly_snatch_balance_ohs','oly_hang_full_snatch']

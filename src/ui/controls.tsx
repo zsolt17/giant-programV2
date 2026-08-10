@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { C, HEADING, cardStyle, inp, lbl, pillColor } from './theme'
-import { LIFT_LABEL } from '../engine/constants'
+import { LIFT_LABEL, RPE_OPTIONS } from '../engine/constants'
 import type { Position } from '../engine/types'
 
 // Parse a min:sec duration typed on an iOS decimal keypad (no colon), so all
@@ -193,7 +193,7 @@ export function LogRpe({
         <label style={lbl}>{label} RPE</label>
         <select style={inp} value={rpe} onChange={(e) => onRpe(e.target.value)}>
           <option value="">—</option>
-          {['R6', 'R7', 'R8', 'R8.5', 'R9', 'R9.5', 'R10'].map((r) => (
+          {RPE_OPTIONS.map((r) => (
             <option key={r} value={r}>
               {r}
             </option>

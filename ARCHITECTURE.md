@@ -166,9 +166,10 @@ The block's *shape itself* varies by cycle — decided purely by `GIANT2_CAPABIL
 (cycle → program), never by week or session:
 
 **C1 — Hypertrophy.** Day-specific accessory list, 3 sets fixed regardless of week, logged
-**per SET** (weight × reps per set, `hypertrophy_logs` — one row per movement PER SET per
-session, `unique(session_id, movement_id, set_number)`; no RPE field). Certain pairs are
-supersets (alternate between the two rather than straight sequential sets) per a generic,
+**per SET** (weight × reps × an OPTIONAL RPE per set, `hypertrophy_logs` — one row per
+movement PER SET per session, `unique(session_id, movement_id, set_number)`; RPE is a normal
+field like Giant/Volume/Carry's, just never required for the card's Done button). Certain
+pairs are supersets (alternate between the two rather than straight sequential sets) per a generic,
 nullable `movements.superset_group` column (not scoped to Hypertrophy — any future block can
 reuse it); a movement can also be flagged `weight_optional` (a real boolean column, not the
 free-text `note`) when only reps matter — Hip/Back Extension is the current example:
@@ -432,10 +433,11 @@ two earlier programs — dropped tables (`capacity_logs`, `capacity_config`, `ca
 retired `movements`/`program_slots` rows. `0026_movement_superset_group.sql` added
 `movements.superset_group`; `0027_today_cards.sql` added `sessions.primer_done` and
 `movements.weight_optional`, and moved `hypertrophy_logs` to one row per (session, movement,
-SET) — all three land the Today-tab card redesign (§8), see `specification.md`. Earlier
-migrations (`0001`–`0025`) built up the schema this left behind; see `specification.md` for
-that dated history. See `supabase/MIGRATIONS.md` for how migrations are applied and the DB
-kept reproducible. Tables:
+SET) — all three land the Today-tab card redesign (§8); `0028_hypertrophy_rpe.sql` added
+`hypertrophy_logs.rpe` (optional, correcting 0027's own misreading of the reference wireframe
+— see `specification.md`). Earlier migrations (`0001`–`0025`) built up the schema this left
+behind; see `specification.md` for that dated history. See `supabase/MIGRATIONS.md` for how
+migrations are applied and the DB kept reproducible. Tables:
 
 ```sql
 -- Macros: each macrocycle the athlete runs
@@ -586,7 +588,9 @@ giant2_giant_difficulty (
 )
 
 -- Capability block — C1 Hypertrophy. One row PER MOVEMENT PER SET per session
--- (GIANT2_HYPERTROPHY_SETS, currently 3) — no RPE field.
+-- (GIANT2_HYPERTROPHY_SETS, currently 3). RPE is a normal, OPTIONAL per-set
+-- field (text, "R6".."R10" — same scale as sessions.rpe/vol_rpe/carry_rpe) —
+-- never part of the Done-readiness check (engine/session-progress.ts).
 hypertrophy_logs (
   id            uuid primary key default gen_random_uuid(),
   session_id    text references sessions on delete cascade not null,
@@ -594,6 +598,7 @@ hypertrophy_logs (
   set_number    int not null default 1,       -- 1..GIANT2_HYPERTROPHY_SETS, check (set_number > 0)
   weight        numeric,
   reps_done     int,
+  rpe           text,                         -- "R6".."R10" | null (unset) — optional
   notes         text,
   updated_at    timestamptz default now(),
   unique (session_id, movement_id, set_number)

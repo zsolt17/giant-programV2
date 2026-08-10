@@ -393,6 +393,7 @@ export interface HypertrophyLogRow {
   set_number: number
   weight: number | null
   reps_done: number | null
+  rpe: string | null
   notes: string | null
   updated_at?: string
 }
@@ -404,6 +405,7 @@ export function rowToHypertrophyLog(r: HypertrophyLogRow): HypertrophyLog {
     setNumber: r.set_number,
     weight: toNum(r.weight),
     repsDone: toNum(r.reps_done),
+    rpe: r.rpe || '',
     notes: r.notes || '',
     updatedAt: r.updated_at,
   }
@@ -415,6 +417,7 @@ export function hypertrophyLogToRow(l: HypertrophyLogDraft): HypertrophyLogRow {
     set_number: l.setNumber,
     weight: toNum(l.weight),
     reps_done: toNum(l.repsDone),
+    rpe: blankToNull(l.rpe),
     notes: blankToNull(l.notes),
   }
   if (l.id) row.id = l.id

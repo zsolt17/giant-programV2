@@ -192,6 +192,7 @@ export interface HypertrophyLog {
   setNumber: number // 1..GIANT2_HYPERTROPHY_SETS — one row per set, not per movement
   weight: number | null
   repsDone: number | null
+  rpe: string // "R6".."R10" | '' (unset) — optional, not required for Done
   notes: string
   updatedAt?: string
 }

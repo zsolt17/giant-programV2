@@ -209,15 +209,15 @@ async function main() {
     const movementId = lib.find((m) => m.key === 'walking_lunge')?.id
     ok('walking_lunge resolves in the seeded library', !!movementId)
     if (movementId) {
-      const hLog1 = await repo.saveHypertrophyLog({ sessionId: sid, movementId, setNumber: 1, weight: 30, repsDone: 12, notes: 'smoke' })
-      ok('hypertrophy log (set 1) saved', hLog1.weight === 30 && hLog1.repsDone === 12 && hLog1.setNumber === 1, hLog1)
-      await repo.saveHypertrophyLog({ sessionId: sid, movementId, setNumber: 2, weight: 32.5, repsDone: 12, notes: '' })
-      await repo.saveHypertrophyLog({ ...hLog1, weight: 31 })
+      const hLog1 = await repo.saveHypertrophyLog({ sessionId: sid, movementId, setNumber: 1, weight: 30, repsDone: 12, rpe: 'R8', notes: 'smoke' })
+      ok('hypertrophy log (set 1) saved incl. RPE', hLog1.weight === 30 && hLog1.repsDone === 12 && hLog1.setNumber === 1 && hLog1.rpe === 'R8', hLog1)
+      await repo.saveHypertrophyLog({ sessionId: sid, movementId, setNumber: 2, weight: 32.5, repsDone: 12, rpe: '', notes: '' })
+      await repo.saveHypertrophyLog({ ...hLog1, weight: 31, rpe: 'R9' })
       const hLogs = await repo.getHypertrophyLogs(id)
       const setsForMovement = hLogs.filter((l) => l.movementId === movementId)
       ok('two distinct set rows exist for the same movement', setsForMovement.length === 2, setsForMovement)
-      ok('hypertrophy log upserts on (session,movement,set_number) -> set 1 now 31', setsForMovement.find((l) => l.setNumber === 1)?.weight === 31)
-      ok('set 2 untouched by the set-1 upsert -> still 32.5', setsForMovement.find((l) => l.setNumber === 2)?.weight === 32.5)
+      ok('hypertrophy log upserts on (session,movement,set_number) -> set 1 now 31/R9', setsForMovement.find((l) => l.setNumber === 1)?.weight === 31 && setsForMovement.find((l) => l.setNumber === 1)?.rpe === 'R9')
+      ok('set 2 untouched by the set-1 upsert -> still 32.5, RPE unset', setsForMovement.find((l) => l.setNumber === 2)?.weight === 32.5 && setsForMovement.find((l) => l.setNumber === 2)?.rpe === '')
       ok('getAllHypertrophyLogs spans macros (includes throwaway log)', (await repo.getAllHypertrophyLogs()).some((l) => l.sessionId === sid))
     }
     const olyMovementId = lib.find((m) => m.key === 'oly_muscle_snatch')?.id

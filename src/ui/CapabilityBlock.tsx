@@ -12,7 +12,7 @@ import { Fragment, useState } from 'react'
 import { C, inp } from './theme'
 import { errMsg, DoneButton } from './controls'
 import { SEED_HYPERTROPHY_KEYS, SEED_OLY_KEYS, seedByKey } from '../engine/movements'
-import { OLY_QUALITY, GIANT2_OLY_POSITION_WAVE, GIANT2_HYPERTROPHY_SETS } from '../engine/constants'
+import { OLY_QUALITY, GIANT2_OLY_POSITION_WAVE, GIANT2_HYPERTROPHY_SETS, RPE_OPTIONS } from '../engine/constants'
 import { isHypertrophyDone, isOlyDone } from '../engine/session-progress'
 import type { Movement } from '../engine/movements'
 import type { Lift, HypertrophyLog, HypertrophyLogDraft, OlyLog, OlyLogDraft } from '../engine/types'
@@ -56,8 +56,11 @@ interface HypertrophyBlockProps {
   onDone?: () => void
 }
 
-// Local per-item state: set number -> {weight, reps}.
-type HypertrophyRows = Record<string, Record<number, { weight: number | string; reps: number | string }>>
+// Local per-item state: set number -> {weight, reps, rpe}. RPE is optional —
+// it's saved like every other field but deliberately left out of the
+// Done-readiness check (isHypertrophyDone), same as it's out of scope for
+// reps/load's weight-optional exemption logic.
+type HypertrophyRows = Record<string, Record<number, { weight: number | string; reps: number | string; rpe: string }>>
 
 export function HypertrophyBlock({ dayType, sessionId, movements, logs, onSave, onDone }: HypertrophyBlockProps) {
   const items = resolveItems(SEED_HYPERTROPHY_KEYS[dayType] || [], movements)
@@ -68,7 +71,7 @@ export function HypertrophyBlock({ dayType, sessionId, movements, logs, onSave, 
         Object.fromEntries(
           SET_NUMBERS.map((setNumber) => {
             const existing = it.movementId ? logs.find((l) => l.movementId === it.movementId && l.setNumber === setNumber) : undefined
-            return [setNumber, { weight: existing?.weight ?? '', reps: existing?.repsDone ?? it.seed?.defaultReps ?? '' }]
+            return [setNumber, { weight: existing?.weight ?? '', reps: existing?.repsDone ?? it.seed?.defaultReps ?? '', rpe: existing?.rpe ?? '' }]
           })
         ),
       ])
@@ -77,14 +80,14 @@ export function HypertrophyBlock({ dayType, sessionId, movements, logs, onSave, 
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
 
-  const setCell = (key: string, setNumber: number, field: 'weight' | 'reps', v: string) =>
+  const setCell = (key: string, setNumber: number, field: 'weight' | 'reps' | 'rpe', v: string) =>
     setRows((p) => ({ ...p, [key]: { ...p[key], [setNumber]: { ...p[key][setNumber], [field]: v } } }))
   const groups = groupBySuperset(items)
 
   // Re-derive the same shared completeness check the SessionCard uses to gate
   // its own rendering, off the CURRENT (unsaved) local state — so the button
   // enables the instant the last required field is filled, not only after a
-  // save round-trip.
+  // save round-trip. RPE is intentionally NOT part of this check.
   const draftLogs: HypertrophyLog[] = items.flatMap((it) =>
     it.movementId
       ? SET_NUMBERS.map((setNumber) => {
@@ -95,6 +98,7 @@ export function HypertrophyBlock({ dayType, sessionId, movements, logs, onSave, 
             setNumber,
             weight: cell?.weight === '' || cell?.weight == null ? null : Number(cell.weight),
             repsDone: cell?.reps === '' || cell?.reps == null ? null : Number(cell.reps),
+            rpe: cell?.rpe ?? '',
             notes: '',
           }
         })
@@ -111,7 +115,15 @@ export function HypertrophyBlock({ dayType, sessionId, movements, logs, onSave, 
           .filter((it) => it.movementId)
           .flatMap((it) =>
             SET_NUMBERS.map((setNumber) =>
-              onSave({ sessionId, movementId: it.movementId!, setNumber, weight: rows[it.key][setNumber].weight, repsDone: rows[it.key][setNumber].reps, notes: '' })
+              onSave({
+                sessionId,
+                movementId: it.movementId!,
+                setNumber,
+                weight: rows[it.key][setNumber].weight,
+                repsDone: rows[it.key][setNumber].reps,
+                rpe: rows[it.key][setNumber].rpe,
+                notes: '',
+              })
             )
           )
       )
@@ -132,7 +144,7 @@ export function HypertrophyBlock({ dayType, sessionId, movements, logs, onSave, 
               {it.seed?.name}
               {it.seed?.note && <span style={{ fontSize: 10, color: C.muted }}> · {it.seed.note}</span>}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '32px 1fr 1fr 32px', gap: 6, alignItems: 'center' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 58px', gap: 6, alignItems: 'center' }}>
               <span style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Set</span>
               <span style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'center' }}>Reps</span>
               <span style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'center' }}>Load</span>
@@ -160,7 +172,19 @@ export function HypertrophyBlock({ dayType, sessionId, movements, logs, onSave, 
                     value={rows[it.key]?.[setNumber]?.weight ?? ''}
                     onChange={(e) => setCell(it.key, setNumber, 'weight', e.target.value)}
                   />
-                  <span style={{ fontSize: 12, color: C.muted, textAlign: 'center' }}>–</span>
+                  <select
+                    aria-label={`${it.seed?.name} set ${setNumber} RPE (optional)`}
+                    style={{ ...inp, padding: '6px 2px', textAlign: 'center', fontSize: 11 }}
+                    value={rows[it.key]?.[setNumber]?.rpe ?? ''}
+                    onChange={(e) => setCell(it.key, setNumber, 'rpe', e.target.value)}
+                  >
+                    <option value="">–</option>
+                    {RPE_OPTIONS.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
                 </Fragment>
               ))}
             </div>

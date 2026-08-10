@@ -108,6 +108,42 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-08-10 (Hypertrophy RPE + a real state-update bug behind the "data vanishes" report)
+- `fix`: **RPE re-enabled on the Hypertrophy Capability block — it should never have been
+  disabled.** The Today-tab card redesign built this column as a static, non-interactive dash
+  based on a misreading of the reference wireframe (the dash meant "not filled in yet in the
+  mockup", not "this field doesn't exist"). Checked before flipping any UI flag: the schema
+  genuinely had no `rpe` column on `hypertrophy_logs` at all, so there was nowhere for a typed
+  value to land — this needed a real migration (`0028_hypertrophy_rpe.sql`), not a CSS/prop
+  fix. RPE now renders as the same select input reps/load already use, for every exercise incl.
+  both superset pairs and standalones (Serratus Anterior Raise, Front-Foot-Elevated Split
+  Squat). Stays **optional** — deliberately NOT added to `isHypertrophyDone`'s required-field
+  check, per instruction; a regression test confirms RPE presence/absence never affects
+  Done-readiness. Extracted the R6–R10 option list (previously only inline in `LogRpe`) into a
+  shared `RPE_OPTIONS` constant so Giant/Volume/Carry and Hypertrophy's per-set RPE read from
+  one source. Spot-checked the rest of Capability for the same "built read-only" mistake — Oly's
+  quality-mark buttons and weight input, and Carries' RPE-6 entry, were already genuinely
+  interactive; nothing else was disabled.
+- `fix`: **Hypertrophy data appeared to vanish after navigating away and back (present again
+  after a full restart) — a real in-memory state bug, not a caching/service-worker issue.**
+  `App.tsx`'s `onSaveHypertrophyLog` deduped the local `hypertrophyLogs` array by
+  `(sessionId, movementId)` only — the correct key, since `hypertrophy_logs` moved to one row
+  per (session, movement, SET) in the 2026-08-10 card redesign, is
+  `(sessionId, movementId, setNumber)`. Every per-set save's `Promise.all` (3 concurrent saves
+  per movement) filtered out and discarded the OTHER already-saved sets for that movement
+  before appending its own — only the last-resolving set's row survived in memory. The database
+  itself was always correct (the actual per-set upsert has always used the right key); a full
+  reload re-fetches from the DB and looks fine, which is exactly why the symptom pattern
+  pointed away from a failed write. The Capability card's stuck Done button was the SAME bug,
+  not a second one — `isHypertrophyDone` was correctly evaluating an array that had already
+  lost rows before the card even re-rendered; fixing the one dedup key fixed both symptoms.
+  Ruled out the service-worker hypothesis directly: `vite.config.js`'s `runtimeCaching` only
+  covers Google Fonts, nothing touches the Supabase API. Verified the fix logic in isolation
+  (the buggy filter collapses 3 sequential per-set saves for one movement down to `[3]`; the
+  fixed filter correctly keeps `[1,2,3]`) since dev writes are blocked against production and a
+  live concurrent-save repro wasn't safe to force. Confirmed live against the real Aug 10
+  session: `D. Hypertrophy` reads `✓ Done` on a fresh load with real per-set data intact.
+
 ## 2026-08-10 (Copy Session Summary — data bugs + collapsed-by-default list)
 - `fix`: **Volume Block weight was wrong whenever the Volume difficulty differs from the
   Giant block's.** `session-summary.ts` computed the main lift's Volume-block weight as
