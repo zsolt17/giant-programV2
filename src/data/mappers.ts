@@ -82,6 +82,7 @@ export interface SessionRow {
   carry_rounds: number | null
   carry_distance: number | null
   carry_rpe: string | null
+  cooldown_done: boolean | null
   notes: string | null
   started_at: string | null
   ended_at: string | null
@@ -186,6 +187,7 @@ export function rowToSession(r: SessionRow): Session {
     carryRounds: r.carry_rounds ?? null,
     carryDistance: toNum(r.carry_distance),
     carryRpe: r.carry_rpe || '',
+    cooldownDone: !!r.cooldown_done,
     notes: r.notes || '',
     startedAt: r.started_at || null,
     endedAt: r.ended_at || null,
@@ -219,6 +221,7 @@ export function sessionToRow(s: SessionDraft): SessionRow {
     carry_rounds: toNum(s.carryRounds),
     carry_distance: toNum(s.carryDistance),
     carry_rpe: blankToNull(s.carryRpe),
+    cooldown_done: !!s.cooldownDone,
     notes: blankToNull(s.notes),
     started_at: s.startedAt ?? null,
     ended_at: s.endedAt ?? null,

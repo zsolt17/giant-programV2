@@ -1,12 +1,17 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { isPrimerDone, isGiantDone, isVolumeDone, isCarriesDone, isHypertrophyDone, isOlyDone } from './session-progress'
+import { isPrimerDone, isCooldownDone, isGiantDone, isVolumeDone, isCarriesDone, isHypertrophyDone, isOlyDone } from './session-progress'
 import { SEED_HYPERTROPHY_KEYS, SEED_OLY_KEYS } from './movements'
 import { GIANT2_HYPERTROPHY_SETS } from './constants'
 
 test('isPrimerDone: reads the single persisted flag, nothing else', () => {
   assert.equal(isPrimerDone({ primerDone: false }), false)
   assert.equal(isPrimerDone({ primerDone: true }), true)
+})
+
+test('isCooldownDone: reads the single persisted flag, nothing else', () => {
+  assert.equal(isCooldownDone({ cooldownDone: false }), false)
+  assert.equal(isCooldownDone({ cooldownDone: true }), true)
 })
 
 test('isGiantDone: RPE + bar speed required; cluster required only when needsCluster', () => {

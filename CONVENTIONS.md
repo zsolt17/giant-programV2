@@ -54,8 +54,8 @@ src/
     App.tsx        shell: auth gate, top-level state, tab routing, all handlers
     Today.tsx, Calendar.tsx, History.tsx, Deload.tsx, Setup.tsx, Trends.tsx, Data.tsx, Recovery.tsx, Auth.tsx
     SessionForm.tsx     `buildBlankSession` — the shared blank-draft builder used by Today + SessionModal
-    Giant2SessionForm.tsx  the session view — Primer/Giant/Volume/Capability, each wrapped in a
-                        SessionCard. `sequential` prop: true (Today) = pre-start lock + auto-
+    Giant2SessionForm.tsx  the session view — Primer/Giant/Volume/Capability/Cooldown, each
+                        wrapped in a SessionCard. `sequential` prop: true (Today) = pre-start lock + auto-
                         advance through the sequence; false (SessionModal) = no lock, every
                         card freely toggles. Rendered directly by Today and SessionModal — no
                         era dispatch, there's only the one program

@@ -141,10 +141,17 @@ const GB_ACCESSORIES: MovementSeed[] = [
   { key: 'leg_raises', name: 'Leg Raises', loadType: 'bodyweight', countType: 'reps', defaultReps: 12, repUnit: null, note: null },
 ]
 
-// Primer block: Rope flow (shared, both day types) + band activation (day-typed)
-// + the bodyweight ramp (day-typed, 1-2-3 ascending scheme across 3 rounds —
-// GIANT2_PRIMER_RAMP_ROUNDS in constants.ts; tempo not tracked). All unloaded,
-// completion-only (no RPE).
+// Primer block — STALE as of 2026-08-10 (kept as-is, not updated): the live
+// Primer content (constants.ts GIANT2_PRIMER_HOLDS/CIRCUIT/BAND, rendered
+// directly by Giant2SessionForm.tsx) moved to a shared holds+circuit sequence
+// for all four days plus a day-typed band step. This seed/SEED_PRIMER_KEYS
+// still describe the OLD rope-flow + day-typed 1-2-3 ramp. Primer's session
+// view never calls seedByKey() — unlike Hypertrophy/Oly — so this drift has
+// NO live-UI effect; it only affects the already-unwired program_slots
+// resolver (program.ts primerGroup/primerFor) and the Setup Movement Library
+// list. Bringing it current would mean restructuring primerKeys from
+// upper/lower-only to a mixed shared+day-typed shape — real design work, not
+// done here. Flagging rather than silently leaving stale.
 const PRIMER: MovementSeed[] = [
   { key: 'rope_flow', name: 'Rope flow', loadType: 'none', countType: 'time_seconds', defaultReps: null, repUnit: null, note: 'flow sequence' },
   { key: 'crossover_symmetry', name: 'Crossover Symmetry', loadType: 'none', countType: 'reps', defaultReps: null, repUnit: null, note: 'band activation sequence' },

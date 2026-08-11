@@ -170,20 +170,39 @@ export const GB_DEFAULT_REPS: Record<string, number> = Object.fromEntries(
   Object.values(GB_ACCESSORY).map((m) => [m.key, m.reps])
 )
 
-// Primer block content (session-view display). Rope flow is shared; band
-// activation and the bodyweight ramp are day-typed (GIANT2_DAY_TYPE). No load,
-// no RPE — tracked as prescription only.
-export const GIANT2_ROPE_FLOW = { name: 'Rope flow', dose: 'flow sequence' }
+// Primer block content (session-view display). No load, no RPE — checkbox
+// completion only. 2026-08-10: the bodyweight portion (holds + circuit) was
+// replaced with a single sequence used by all four days — no upper/lower
+// split anymore. Band activation still varies by day (GIANT2_DAY_TYPE) and
+// still runs AFTER the bodyweight section, before the barbell warm-up.
+export const GIANT2_PRIMER_HOLDS: { name: string; dose: string }[] = [
+  { name: 'Deep Squat Hold', dose: '30–60s' },
+  { name: 'Downward Dog', dose: '30–60s' },
+]
+// Then GIANT2_PRIMER_CIRCUIT_ROUNDS (2) rounds of:
+export const GIANT2_PRIMER_CIRCUIT: { name: string; dose: string }[] = [
+  { name: 'Cossack Squats', dose: '5 reps/side' },
+  { name: '90/90 Switches', dose: '5 reps/side' },
+  { name: 'Kneeling T-Spine Rotation', dose: '6 reps/side' },
+  { name: 'Dolphin Press', dose: '6 reps' },
+  { name: 'Dead Bugs', dose: '6 reps/side' },
+]
+export const GIANT2_PRIMER_CIRCUIT_ROUNDS = 2
 export const GIANT2_PRIMER_BAND: Record<'upper' | 'lower', { name: string; dose: string }> = {
   upper: { name: 'Crossover Symmetry', dose: 'band activation sequence' },
   lower: { name: 'Hip Halo', dose: 'band activation sequence' },
 }
-// The bodyweight ramp — 1-2-3 ascending reps across 3 rounds (GIANT2_PRIMER_RAMP_ROUNDS).
-export const GIANT2_PRIMER_RAMP: Record<'upper' | 'lower', string[]> = {
-  upper: ['Inverted Row', 'Push-ups', 'Dead Bug', 'Support Scap-Dip'],
-  lower: ['Good Morning', 'Reverse Lunges', 'Bird Dogs', 'Shallow Lateral Lunge'],
-}
-export const GIANT2_PRIMER_RAMP_ROUNDS: number[] = [1, 2, 3]
+
+// Cooldown block (session-view display) — a fifth Today-tab card, after
+// Capability. Same sequence every day, no day-typing. Checkbox completion
+// only, same shape as Primer — timed holds/stretches, not sets/reps/load.
+export const GIANT2_COOLDOWN: { name: string; dose: string }[] = [
+  { name: '90° Leg Raise Laydown', dose: '60s' },
+  { name: 'Couch Stretch', dose: '2 min/side' },
+  { name: 'Pigeon Pose', dose: '2 min/side' },
+  { name: "Child's Pose", dose: '90s each: middle, left, right' },
+  { name: 'Standing Fold', dose: '60s' },
+]
 
 // Oly (C2) position wave: weeks 1-2 of the cycle hang from the power position
 // (above the knee), weeks 3-4 from the knee. Applies to the hang-based lanes

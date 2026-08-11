@@ -29,10 +29,11 @@ import {
   LIFT_LABEL,
   PULLUP,
   SECONDARY_REPS,
-  GIANT2_ROPE_FLOW,
+  GIANT2_PRIMER_HOLDS,
+  GIANT2_PRIMER_CIRCUIT,
+  GIANT2_PRIMER_CIRCUIT_ROUNDS,
   GIANT2_PRIMER_BAND,
-  GIANT2_PRIMER_RAMP,
-  GIANT2_PRIMER_RAMP_ROUNDS,
+  GIANT2_COOLDOWN,
   GIANT2_SECONDARY,
   GB_ACCESSORY,
   GIANT2_DAY_TYPE,
@@ -42,7 +43,7 @@ import {
 import { fmt, giantSets, warmupSets, volumeWeight, deloadTop, liftMode } from '../engine/loading'
 import { clusterTotal, isUnbroken, meetsTarget } from '../engine/pullups'
 import { capabilityProgramFor } from '../engine/date-engine'
-import { isPrimerDone, isGiantDone, isVolumeDone, isCarriesDone, isHypertrophyDone, isOlyDone } from '../engine/session-progress'
+import { isPrimerDone, isCooldownDone, isGiantDone, isVolumeDone, isCarriesDone, isHypertrophyDone, isOlyDone } from '../engine/session-progress'
 import type { Movement } from '../engine/movements'
 import type {
   Difficulty,
@@ -97,7 +98,7 @@ interface Giant2SessionFormProps {
 
 const wuCell = (w: number): string => (w === 0 ? 'BW' : fmt(w))
 
-type CardId = 'primer' | 'giant' | 'volume' | 'capability'
+type CardId = 'primer' | 'giant' | 'volume' | 'capability' | 'cooldown'
 
 export function Giant2SessionForm({
   dayType,
@@ -123,7 +124,6 @@ export function Giant2SessionForm({
   const scheme = SCHEMES[difficulty]
   const dayTypeGroup = GIANT2_DAY_TYPE[dayType] ?? 'lower'
   const band = GIANT2_PRIMER_BAND[dayTypeGroup]
-  const ramp = GIANT2_PRIMER_RAMP[dayTypeGroup]
   const capabilityProgram = cycle ? capabilityProgramFor(cycle) : null
   const meta = DAY_META[dayType]
   const carryNum = carryLoad === '' || carryLoad == null ? null : Number(carryLoad)
@@ -155,9 +155,13 @@ export function Giant2SessionForm({
   const showCapability = !isDeload && !!capabilityProgram
 
   // ---- card sequence + done/open state --------------------------------------
+  // Cooldown always runs last, regardless of deload/Volume/Capability — a
+  // stretch routine is relevant after any lifting session, same as Primer/
+  // Giant (unlike Volume/Capability, which genuinely don't apply on deload).
   const cards: CardId[] = ['primer', 'giant']
   if (showVolume) cards.push('volume')
   if (showCapability) cards.push('capability')
+  cards.push('cooldown')
 
   const capabilityDone = !showCapability
     ? true
@@ -174,6 +178,7 @@ export function Giant2SessionForm({
     giant: isGiantDone(draft, needsCluster),
     volume: showVolume ? isVolumeDone(draft) : true,
     capability: capabilityDone,
+    cooldown: isCooldownDone(draft),
   }
   const firstNotDone = cards.find((id) => !doneMap[id]) ?? null
 
@@ -181,10 +186,10 @@ export function Giant2SessionForm({
   // independent of the sequence pointer, so it never disturbs the active card.
   const [peekCard, setPeekCard] = useState<CardId | null>(null)
   // Free mode (Calendar): every card's own open/closed toggle, all start open.
-  const [openMap, setOpenMap] = useState<Record<CardId, boolean>>(() => ({ primer: true, giant: true, volume: true, capability: true }))
+  const [openMap, setOpenMap] = useState<Record<CardId, boolean>>(() => ({ primer: true, giant: true, volume: true, capability: true, cooldown: true }))
   useEffect(() => {
     setPeekCard(null)
-    setOpenMap({ primer: true, giant: true, volume: true, capability: true })
+    setOpenMap({ primer: true, giant: true, volume: true, capability: true, cooldown: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.id])
 
@@ -245,7 +250,6 @@ export function Giant2SessionForm({
       <SessionCard letter="A" title="Primer" tag="warm-up" status={statusFor('primer')} expanded={expandedFor('primer')} onHeaderClick={onHeaderClick('primer')}>
         <PrimerContent
           band={band}
-          ramp={ramp}
           wu={wu}
           secondary={secondary}
           secondaryWeighted={secondaryWeighted}
@@ -407,6 +411,13 @@ export function Giant2SessionForm({
         </SessionCard>
       )}
 
+      {/* E. Cooldown — checklist, no load/RPE, same shape as Primer. Always
+          runs (no day-typing, no deload gate) — a stretch routine applies
+          after any lifting session, including deload weeks. */}
+      <SessionCard letter="E" title="Cooldown" tag="stretch" status={statusFor('cooldown')} expanded={expandedFor('cooldown')} onHeaderClick={onHeaderClick('cooldown')}>
+        <CooldownContent initiallyDone={draft.cooldownDone} onDone={() => handleCardDone('cooldown', { cooldownDone: true })} />
+      </SessionCard>
+
       {/* Notes — always visible, not part of the card sequence. */}
       <Card style={locked ? { opacity: 0.5, pointerEvents: 'none' } : undefined}>
         <label style={lbl}>Notes</label>
@@ -428,9 +439,12 @@ export function Giant2SessionForm({
 // every item pre-checked (we know they must all have been checked to get
 // here) rather than trying to recall which ones — nothing meaningful to
 // "fix" per-item on this block anyway.
+//
+// 2026-08-10: the bodyweight portion (holds + circuit) has no upper/lower
+// split — one sequence for every day. Band activation still varies by day
+// and still runs after the bodyweight section, before the barbell warm-up.
 function PrimerContent({
   band,
-  ramp,
   wu,
   secondary,
   secondaryWeighted,
@@ -439,7 +453,6 @@ function PrimerContent({
   onDone,
 }: {
   band: { name: string; dose: string }
-  ramp: string[]
   wu: { weight: number }[] | null
   secondary?: { key: string; name: string }
   secondaryWeighted: boolean
@@ -448,9 +461,9 @@ function PrimerContent({
   onDone: () => Promise<void>
 }) {
   const items = [
-    GIANT2_ROPE_FLOW.name,
+    ...GIANT2_PRIMER_HOLDS.map((h) => h.name),
+    ...GIANT2_PRIMER_CIRCUIT.map((c) => c.name),
     band.name,
-    ...ramp,
     'Barbell build-up',
     ...(secondary && secondaryWeighted ? [`${secondary.name} build-up`] : []),
   ]
@@ -470,14 +483,15 @@ function PrimerContent({
 
   return (
     <div>
-      <Row a={GIANT2_ROPE_FLOW.name} b={GIANT2_ROPE_FLOW.dose} c={<input type="checkbox" aria-label={`${GIANT2_ROPE_FLOW.name} done`} checked={!!checked[GIANT2_ROPE_FLOW.name]} onChange={() => toggle(GIANT2_ROPE_FLOW.name)} />} cls={C.muted} />
-      <Row a={band.name} b={band.dose} c={<input type="checkbox" aria-label={`${band.name} done`} checked={!!checked[band.name]} onChange={() => toggle(band.name)} />} cls={C.muted} />
-      <div style={{ fontSize: 12, color: C.muted, fontStyle: 'italic', margin: '8px 0' }}>
-        Bodyweight ramp — {GIANT2_PRIMER_RAMP_ROUNDS.join('-')}, 10 minutes:
-      </div>
-      {ramp.map((name) => (
-        <Row key={name} a={name} b="" c={<input type="checkbox" aria-label={`${name} done`} checked={!!checked[name]} onChange={() => toggle(name)} />} cls={C.muted} />
+      {GIANT2_PRIMER_HOLDS.map((h) => (
+        <Row key={h.name} a={h.name} b={h.dose} c={<input type="checkbox" aria-label={`${h.name} done`} checked={!!checked[h.name]} onChange={() => toggle(h.name)} />} cls={C.muted} />
       ))}
+      <div style={{ fontSize: 12, color: C.muted, fontStyle: 'italic', margin: '8px 0' }}>Then {GIANT2_PRIMER_CIRCUIT_ROUNDS} rounds of:</div>
+      {GIANT2_PRIMER_CIRCUIT.map((c) => (
+        <Row key={c.name} a={c.name} b={c.dose} c={<input type="checkbox" aria-label={`${c.name} done`} checked={!!checked[c.name]} onChange={() => toggle(c.name)} />} cls={C.muted} />
+      ))}
+      <div style={{ fontSize: 12, color: C.muted, fontStyle: 'italic', margin: '8px 0' }}>Then day-specific band work:</div>
+      <Row a={band.name} b={band.dose} c={<input type="checkbox" aria-label={`${band.name} done`} checked={!!checked[band.name]} onChange={() => toggle(band.name)} />} cls={C.muted} />
       <div style={{ fontSize: 12, color: C.muted, fontStyle: 'italic', margin: '8px 0' }}>Then barbell build-up:</div>
       {WU_PCT.map((p, i) => (
         <Row key={i} a={`WU${i + 1}`} b={`${WU_REPS[i]} reps @ ~${Math.round(p * 100)}%`} c={wu ? wuCell(wu[i].weight) : '—'} cls={C.muted} />
@@ -496,6 +510,35 @@ function PrimerContent({
           </label>
         </>
       )}
+      <DoneButton ready={allChecked} saving={saving} onClick={handleDone} />
+    </div>
+  )
+}
+
+// ---- Cooldown: checklist content --------------------------------------------
+// Same shape as PrimerContent — checkbox-style, no day-typing, no numeric
+// fields. Fifth Today-tab card, runs after Capability, same content every day.
+function CooldownContent({ initiallyDone, onDone }: { initiallyDone: boolean; onDone: () => Promise<void> }) {
+  const items = GIANT2_COOLDOWN.map((c) => c.name)
+  const [checked, setChecked] = useState<Record<string, boolean>>(() => Object.fromEntries(items.map((id) => [id, initiallyDone])))
+  const [saving, setSaving] = useState(false)
+  const allChecked = items.every((id) => checked[id])
+  const toggle = (id: string) => setChecked((p) => ({ ...p, [id]: !p[id] }))
+
+  async function handleDone() {
+    setSaving(true)
+    try {
+      await onDone()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div>
+      {GIANT2_COOLDOWN.map((c) => (
+        <Row key={c.name} a={c.name} b={c.dose} c={<input type="checkbox" aria-label={`${c.name} done`} checked={!!checked[c.name]} onChange={() => toggle(c.name)} />} cls={C.muted} />
+      ))}
       <DoneButton ready={allChecked} saving={saving} onClick={handleDone} />
     </div>
   )

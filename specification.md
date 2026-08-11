@@ -53,26 +53,29 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
   difficulty for all four sessions, by cycle: light/medium/hard) — independent of the Volume
   block's own difficulty, which is fixed for the whole cycle (light C1 / medium C2 / hard C3,
   except C3 week 4 which drops the Volume block entirely).
-- **Sessions** — Primer (rope flow + day-typed band activation — Crossover Symmetry upper /
-  Hip Halo lower — + a 1-2-3 ascending bodyweight ramp, checkbox-style completion, no load/RPE)
-  → Giant Block (the lift's ladder + a day's paired **secondary** — BB Row on OHP day, Pull-ups
-  on bench day — + a bodyweight accessory; squat and deadlift train alone) → Volume (80%, gated
-  off on C3 week 4 and during any deload) → **Capability**, whose content is a property of the
-  CYCLE, not the week: **Hypertrophy** in C1 (per-movement per-SET weight/reps, 3 fixed sets,
-  superset pairing where the source sheet groups two exercises, a movement can be flagged
-  weight-optional), **Olympic lifting** in C2 (per-movement weight + a Q1/Q2/Q3 quality mark,
-  position wave copy by week), **Carries** in C3 (day→implement mapping, flat RPE-6 guidance) —
-  all suppressed during any deload, reactive or scheduled.
-- **Today** — date-computed position; the session renders as **four independent expandable
-  cards** (A. Primer / B. Giant / C. Volume / D. Capability, always this order). Pre-start, all
-  four are expanded with fields locked; Start Session collapses them and auto-expands Primer,
-  unlocked. Each card's Done button (disabled until that block's own required fields are
-  filled) collapses it to a one-line `✓ Done` summary and auto-expands the next card in
-  sequence; tapping a done card reopens it to fix a mislogged entry without disturbing whatever
-  card is currently active. Calendar's session modal gets the same four cards in a simpler
-  free-toggle mode (no lock, no sequence). **Optional session timer:** Start → live timer →
-  End, duration derived from `started_at`/`ended_at`, 90-min auto-end safeguard, manual
-  duration edit.
+- **Sessions** — Primer (a bodyweight holds+circuit sequence, same for all four days — Deep
+  Squat Hold/Downward Dog then 2 rounds of Cossack Squats/90-90 Switches/Kneeling T-Spine
+  Rotation/Dolphin Press/Dead Bugs — then day-typed band activation, Crossover Symmetry upper /
+  Hip Halo lower, checkbox completion, no load/RPE) → Giant Block (the lift's ladder + a day's
+  paired **secondary** — BB Row on OHP day, Pull-ups on bench day — + a bodyweight accessory;
+  squat and deadlift train alone) → Volume (80%, gated off on C3 week 4 and during any deload)
+  → **Capability**, whose content is a property of the CYCLE, not the week: **Hypertrophy** in
+  C1 (per-movement per-SET weight/reps/optional RPE, 3 fixed sets, superset pairing where the
+  source sheet groups two exercises, a movement can be flagged weight-optional), **Olympic
+  lifting** in C2 (per-movement weight + a Q1/Q2/Q3 quality mark, position wave copy by week),
+  **Carries** in C3 (day→implement mapping, flat RPE-6 guidance) — all suppressed during any
+  deload, reactive or scheduled → **Cooldown** (a fixed stretch sequence, same every day incl.
+  deload weeks, checkbox completion, optional).
+- **Today** — date-computed position; the session renders as **five independent expandable
+  cards** (A. Primer / B. Giant / C. Volume / D. Capability / E. Cooldown, always this order —
+  E always renders). Pre-start, all five are expanded with fields locked; Start Session
+  collapses them and auto-expands Primer, unlocked. Each card's Done button (disabled until
+  that block's own required fields are filled — Cooldown's is optional, so nothing gates on
+  it) collapses it to a one-line `✓ Done` summary and auto-expands the next card in sequence;
+  tapping a done card reopens it to fix a mislogged entry without disturbing whatever card is
+  currently active. Calendar's session modal gets the same five cards in a simpler free-toggle
+  mode (no lock, no sequence). **Optional session timer:** Start → live timer → End, duration
+  derived from `started_at`/`ended_at`, 90-min auto-end safeguard, manual duration edit.
 - **Calendar** — program-week grid, **4 columns (Mon/Tue/Thu/Fri)**, 13 weeks (14 with an
   extended deload); log/edit/delete any session; mark breaks.
 - **History** — latest top sets, recent-session feed, pull-up cluster trend.
@@ -107,6 +110,48 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ---
 
 ## Change log
+
+## 2026-08-10 (New Primer content + a fifth Today-tab card: Cooldown)
+- `feat`: **Primer's bodyweight section replaced — no more upper/lower split.** Old content
+  (rope flow + a day-typed 1-2-3-ascending-rep ramp) fully retired except the band-activation
+  step, which stays day-typed and moved to run AFTER the new bodyweight section instead of
+  before it. New sequence, identical for all four days: Deep Squat Hold (30–60s) → Downward
+  Dog (30–60s) → 2 rounds of Cossack Squats (5/side) · 90/90 Switches (5/side) · Kneeling
+  T-Spine Rotation (6/side) · Dolphin Press (6 reps) · Dead Bugs (6/side) → day-specific band
+  work (Crossover Symmetry upper / Hip Halo lower, unchanged) → the existing barbell warm-up
+  ladder (WU1–WU4, untouched). `GIANT2_PRIMER_HOLDS`/`GIANT2_PRIMER_CIRCUIT`/
+  `GIANT2_PRIMER_CIRCUIT_ROUNDS` replace `GIANT2_ROPE_FLOW`/`GIANT2_PRIMER_RAMP`/
+  `GIANT2_PRIMER_RAMP_ROUNDS` in `constants.ts`. No schema change — still one boolean
+  (`sessions.primer_done`), the checklist itself stays local UI state.
+- `feat`: **New fifth Today-tab card — Cooldown**, after Capability: 90° Leg Raise Laydown
+  (60s) → Couch Stretch (2 min/side) → Pigeon Pose (2 min/side) → Child's Pose (90s each:
+  middle, left, right) → Standing Fold (60s). Same content every day, including deload weeks
+  (unlike Volume/Capability, a stretch routine doesn't depend on what the lifting content was).
+  Built as an exact structural copy of Primer's card (checkbox-style, no numeric fields, one
+  persisted flag `sessions.cooldown_done` — migration `0029_cooldown.sql`), reusing the same
+  `SessionCard`/`DoneButton`/sequential-auto-advance machinery the other four cards already
+  have, per the existing Today-tab card system.
+- Two explicit decisions checked rather than assumed (both confirmed with the user before
+  building): **Cooldown is optional, not required** — there is no existing "session fully
+  done" gate anywhere in the app to attach a requirement to (session end is governed by the
+  timer alone, independent of every card's completion, same as Giant/Volume/Hypertrophy
+  already are); and **Cooldown gets no line in `sessionSummary()` or anywhere else outside the
+  app** — same precedent as Primer, which has zero representation there (not even a "not
+  included, see the app" note — that phrasing is reserved for blocks with real per-exercise
+  data elsewhere the generator can't reach, which neither Primer nor Cooldown has).
+- `chore`: flagged (not fixed) a pre-existing, now-widened gap: `engine/movements.ts`'s PRIMER
+  seed / `SEED_PRIMER_KEYS` (the dormant `program_slots` resolver, unwired from any live
+  session view since Giant 2.0 shipped) still describes the OLD rope-flow/ramp content and has
+  no Cooldown entry at all. Primer's session view never calls `seedByKey()` — unlike
+  Hypertrophy/Oly — so this has no live-UI effect; bringing it current would mean
+  restructuring the slot-contract shape from upper/lower-only to a mixed shared+day-typed
+  model, out of scope here. Left a comment on the seed explaining the drift rather than
+  silently leaving it unexplained.
+- Verified live against production: both new cards render with the exact specified content and
+  order (incl. correct day-typed band resolution — Crossover Symmetry on a real Bench/Medium
+  session), Cooldown auto-opens after Capability's Done, Copy Session Summary shows neither
+  block. 15 engine tests unaffected + 1 new (`isCooldownDone`, mirrors `isPrimerDone`); smoke
+  test extended (`cooldownDone` round-trip, 72/72 passing).
 
 ## 2026-08-10 (Hypertrophy RPE + a real state-update bug behind the "data vanishes" report)
 - `fix`: **RPE re-enabled on the Hypertrophy Capability block — it should never have been

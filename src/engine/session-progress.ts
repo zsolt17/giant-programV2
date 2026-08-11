@@ -16,6 +16,12 @@ export function isPrimerDone(draft: Pick<SessionDraft, 'primerDone'>): boolean {
   return !!draft.primerDone
 }
 
+// Cooldown — same shape as Primer (checkbox-style, no numeric fields).
+// Optional: nothing gates session completion on it.
+export function isCooldownDone(draft: Pick<SessionDraft, 'cooldownDone'>): boolean {
+  return !!draft.cooldownDone
+}
+
 // Giant Block: the 4-set ladder is prescribed/computed, never user-entered —
 // the real loggable fields are the top-set RPE + bar speed, plus (bench day,
 // bodyweight-mode Pull-ups only) the final-round cluster.

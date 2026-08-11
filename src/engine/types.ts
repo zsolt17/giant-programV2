@@ -146,6 +146,9 @@ export interface Session {
   carryRounds: number | null
   carryDistance: number | null
   carryRpe: string
+  // Cooldown card completion — same shape as primerDone (checkbox-style
+  // block, no numeric fields). Optional: nothing gates on it.
+  cooldownDone: boolean
   notes: string
   startedAt: string | null
   endedAt: string | null

@@ -71,11 +71,11 @@ per lift (§2.5).
 
 Every lifting session runs, in order:
 ```
-I. Primer → II. Giant Block → III. Volume Block → IV. Capability Block
+I. Primer → II. Giant Block → III. Volume Block → IV. Capability Block → V. Cooldown
 ```
-- **Primer** (§2.3) — day-typed warm-up, no load, no RPE: rope flow, band activation, a
-  bodyweight ramp, then the barbell build-up into the Giant block (`WU_PCT`/`WU_REPS` 8-5-3-2 @
-  ~40/55/70/85%).
+- **Primer** (§2.3) — no load, no RPE: a bodyweight holds+circuit sequence (same for all four
+  days), then day-typed band activation, then the barbell build-up into the Giant block
+  (`WU_PCT`/`WU_REPS` 8-5-3-2 @ ~40/55/70/85%).
 - **Giant Block** (§2.4) — 4 rounds: the main lift's ladder, the day's anchored secondary
   where it has one, the day's bodyweight accessory. Adherence logged once per session via
   the completion control (§2.11).
@@ -84,26 +84,26 @@ I. Primer → II. Giant Block → III. Volume Block → IV. Capability Block
   entirely on C3 week 4 (no Volume block that week) and on any deload (§2.9).
 - **Capability Block** (§2.7) — content is a property of the CYCLE, not the week or
   session: Hypertrophy (C1), Oly (C2), Carries (C3). Absent entirely on any deload.
+- **Cooldown** (§2.13) — a fixed stretch sequence, same for all four days and every cycle,
+  including deload weeks (unlike Volume/Capability, a cooldown routine applies regardless of
+  what the session's lifting content was).
 
 ### 2.3 Primer block
-- **Rope flow** — shared across both day types, no load.
-- **Band activation, day-typed:** Crossover Symmetry (Bench/OHP — "upper") · Hip Halo
-  (Squat/Deadlift — "lower").
-- **Bodyweight ramp, day-typed, 1-2-3 ascending reps across 3 rounds** (rep scheme only, no
-  tempo tracked):
-  | Upper (Bench/OHP) | Lower (Squat/Deadlift) |
-  |---|---|
-  | Inverted Row | Good Morning |
-  | Push-ups | Reverse Lunges |
-  | Dead Bug | Bird Dogs |
-  | Support Scap-Dip | Shallow Lateral Lunge |
+- **Bodyweight holds + circuit — same sequence for all four days, no day-typing** (2026-08-10;
+  previously a day-typed 1-2-3 ascending-rep ramp, replaced entirely except the band step):
+  Deep Squat Hold (30–60s) → Downward Dog (30–60s) → then 2 rounds of: Cossack Squats
+  (5/side) → 90/90 Switches (5/side) → Kneeling T-Spine Rotation (6/side) → Dolphin Press
+  (6 reps) → Dead Bugs (6/side).
+- **Band activation, day-typed** (unchanged, and the only part of the old Primer that stayed
+  day-typed) **— runs AFTER the bodyweight section, before the barbell build-up:** Crossover
+  Symmetry (Bench/OHP — "upper") · Hip Halo (Squat/Deadlift — "lower").
 - Then the barbell build-up (+ the secondary's own build-up when it's weighted) — see §2.2.
-- No RPE, no numeric log entries — checkbox-style completion only (Rope flow, band
-  activation, each of the four ramp movements individually, plus one aggregate "barbell
-  build-up done" checkbox, one more for the secondary's build-up when it applies). Which
-  items are checked is local UI state, never persisted per-item; `sessions.primer_done` (a
-  single boolean) is the one thing that's actually saved — set once every item is checked
-  and the Today card is marked Done (§8).
+- No RPE, no numeric log entries — checkbox-style completion only (every hold/circuit
+  movement individually, the band item, one aggregate "barbell build-up done" checkbox, one
+  more for the secondary's build-up when it applies). Which items are checked is local UI
+  state, never persisted per-item; `sessions.primer_done` (a single boolean) is the one thing
+  that's actually saved — set once every item is checked and the Today card is marked Done
+  (§8). `GIANT2_PRIMER_HOLDS`/`GIANT2_PRIMER_CIRCUIT`/`GIANT2_PRIMER_BAND`, constants.ts.
 
 ### 2.4 Giant Block composition (per day)
 | Day | Giant Block contents |
@@ -235,6 +235,28 @@ completion control (default "completed as prescribed," or a categorical reason),
 - **A timed conditioning ("Capacity") block, testing weeks, a dips main lift, and the Giant Run
   companion program.** None of these have a code path, schema, or UI left anywhere in the app —
   see `specification.md`'s 2026-08-10 entry for what removed them and why.
+
+### 2.13 Cooldown block (2026-08-10)
+A fixed stretch sequence, no day-typing, runs after Capability — the fifth and last card in
+the session sequence. Same content every day and every cycle, **including deload weeks**
+(unlike Volume/Capability, which don't apply on deload — a cooldown routine is relevant
+regardless of what the lifting content was that day):
+1. 90° Leg Raise Laydown — 60s
+2. Couch Stretch — 2 min/side
+3. Pigeon Pose — 2 min/side
+4. Child's Pose — 90s each: middle, left, right
+5. Standing Fold — 60s
+
+No RPE, no numeric log entries — checkbox-style completion only, the exact same shape as
+Primer (§2.3): which items are checked is local UI state, never persisted per-item;
+`sessions.cooldown_done` (a single boolean) is the one thing that's actually saved.
+**Optional, not required** — nothing in the app treats "every card done" as a session-level
+completion gate (session end is governed by the session timer alone, independent of card
+completion), and Cooldown doesn't change that; a person can close the app after Capability
+with no consequence. Not represented in `sessionSummary()` (Copy Session Summary) or anywhere
+else outside the app, same as Primer — both are pure checklists with no loggable numeric data,
+unlike Hypertrophy/Oly (which get a "not included in this summary" note because they DO have
+real per-exercise data the summary can't reach). `GIANT2_COOLDOWN`, constants.ts.
 
 ---
 
@@ -390,18 +412,19 @@ deload signals. Deload cells open a real session editor (Giant block only, ~70%)
 The full rebuild is shipped and deployed to GitHub Pages
 (https://zsolt17.github.io/giant-programV2/). Capabilities, in domain terms:
 
-- **Today** — date-computed position; the session renders as four independent expandable
-  `SessionCard`s (A. Primer / B. Giant / C. Volume / D. Capability, always this order — only
-  D's label/content changes by cycle). Pre-start all four are expanded and locked; Start
-  Session collapses them and auto-expands Primer; each card's Done button (disabled until
-  that block's own required fields are filled, `engine/session-progress.ts`) collapses it to
-  a `✓ Done` summary and auto-expands the next card in sequence; a done card can be reopened
-  to fix a mislogged entry without disturbing whichever card is currently active. The deload
-  week is a real logger too (§2.9). Bodyweight accessory, Volume off its own independent
-  difficulty, Capability dispatched by cycle — same content as before, just card-wrapped.
-  Optional session timer unchanged.
+- **Today** — date-computed position; the session renders as five independent expandable
+  `SessionCard`s (A. Primer / B. Giant / C. Volume / D. Capability / E. Cooldown, always this
+  order — only D's label/content changes by cycle; E always renders, incl. on deload). Pre-start
+  all five are expanded and locked; Start Session collapses them and auto-expands Primer; each
+  card's Done button (disabled until that block's own required fields are filled,
+  `engine/session-progress.ts` — Cooldown is optional, so nothing downstream gates on it)
+  collapses it to a `✓ Done` summary and auto-expands the next card in sequence; a done card
+  can be reopened to fix a mislogged entry without disturbing whichever card is currently
+  active. The deload week is a real logger too (§2.9). Bodyweight accessory, Volume off its
+  own independent difficulty, Capability dispatched by cycle — same content as before, just
+  card-wrapped. Optional session timer unchanged.
 - **Calendar** — the program-week × 4-column grid (§7); log/edit/delete any session; mark
-  breaks. The session modal uses the same four cards in a simpler free-toggle mode (no lock,
+  breaks. The session modal uses the same five cards in a simpler free-toggle mode (no lock,
   no sequence — every card starts expanded, headers freely open/close regardless of done state).
 - **History** — latest top sets (all four lifts), recent-session feed, pull-up cluster trend.
 - **Deload** — per-week fatigue signals + reactive-deload recommend/apply (§5).
@@ -435,7 +458,8 @@ retired `movements`/`program_slots` rows. `0026_movement_superset_group.sql` add
 `movements.weight_optional`, and moved `hypertrophy_logs` to one row per (session, movement,
 SET) — all three land the Today-tab card redesign (§8); `0028_hypertrophy_rpe.sql` added
 `hypertrophy_logs.rpe` (optional, correcting 0027's own misreading of the reference wireframe
-— see `specification.md`). Earlier migrations (`0001`–`0025`) built up the schema this left
+— see `specification.md`); `0029_cooldown.sql` added `sessions.cooldown_done` for the fifth
+card (§2.13). Earlier migrations (`0001`–`0025`) built up the schema this left
 behind; see `specification.md` for that dated history. See `supabase/MIGRATIONS.md` for how
 migrations are applied and the DB kept reproducible. Tables:
 
@@ -513,6 +537,8 @@ sessions (
   carry_rounds  int default 3,             -- carry rounds completed
   carry_distance numeric,                  -- metres per round ("distance before weight")
   carry_rpe     text,
+  -- Today's Cooldown card (§2.13) — same shape as primer_done above.
+  cooldown_done boolean not null default false,
   -- session timer (timestamps; duration is always derived, never stored)
   started_at    timestamptz,
   ended_at      timestamptz,

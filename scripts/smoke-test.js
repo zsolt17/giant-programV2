@@ -118,7 +118,7 @@ async function main() {
       id: sid, macroId: id, date: '2099-01-04', cycle: 1, week: 1, weekType: 'training',
       dayType: 'squat', difficulty: 'hard', volumeDifficulty: 'light', topReps: 2, topWeight: 160, rpe: 'R8', barSpeed: 'normal',
       cardioCals: [15, 14, '', 15], blockCompletion: 'stopped_fatigue',
-      volDone: true, volRpe: '', volSpeed: '', pullupCluster: '', primerDone: true,
+      volDone: true, volRpe: '', volSpeed: '', pullupCluster: '', primerDone: true, cooldownDone: true,
       carrySkipped: false, carrySkipReason: '', carryRounds: 3, carryDistance: 40, carryRpe: '', notes: 'smoke test',
       startedAt: '2099-01-04T08:00:00Z', endedAt: '2099-01-04T08:45:00Z',
     })
@@ -126,6 +126,7 @@ async function main() {
     ok('timer fields round-trip', !!saved.startedAt && !!saved.endedAt, { s: saved.startedAt, e: saved.endedAt })
     ok('volumeDifficulty round-trips = light', saved.volumeDifficulty === 'light', saved.volumeDifficulty)
     ok('primerDone round-trips = true (Today card redesign)', saved.primerDone === true, saved.primerDone)
+    ok('cooldownDone round-trips = true (Cooldown card)', saved.cooldownDone === true, saved.cooldownDone)
 
     // Extra logging fields round-trip (per-round cardio cals, carry rounds+distance).
     ok('blockCompletion round-trips = stopped_fatigue', saved.blockCompletion === 'stopped_fatigue', saved.blockCompletion)

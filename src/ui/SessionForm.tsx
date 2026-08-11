@@ -50,6 +50,7 @@ export function buildBlankSession({ date, macroId, cycle, week, weekType, dayTyp
     carryRounds: 3,
     carryDistance: '',
     carryRpe: '',
+    cooldownDone: false,
     notes: '',
     startedAt: null,
     endedAt: null,
