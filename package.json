@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "smoke": "node --env-file=.env.local --import tsx scripts/smoke-test.js"
+    "smoke": "node --env-file=.env.local --import tsx scripts/smoke-test.js",
+    "gen-icons": "node scripts/gen-icons.mjs"
   },
   "dependencies": {
     "@sentry/react": "^10.60.0",

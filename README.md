@@ -24,7 +24,8 @@ src/engine/             pure logic — date/position math, loading math, deload
                          no Supabase imports. Colocated *.test.js (Vitest).
 src/ui/                 React UI (App.tsx is the shell: auth gate, tab routing)
 scripts/smoke-test.js   data-layer round-trip verification against the live DB
-scripts/gen-icons.mjs   regenerates PWA icons from a source image (manual)
+scripts/gen-icons.mjs   regenerates PWA icons (`npm run gen-icons`) — rare,
+                         manual, run only after editing the emblem in the script
 ```
 
 ## Setup

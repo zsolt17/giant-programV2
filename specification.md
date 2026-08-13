@@ -111,6 +111,18 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-08-13 (Audit follow-up: the remaining two open items)
+- `chore`: added an `npm run gen-icons` script wrapping `scripts/gen-icons.mjs` (previously
+  invoked only via the raw `node` command from its own header comment) — same audit's finding
+  that it wasn't wired into any tooling; not dead code, just undiscoverable. Ran it to confirm
+  it still works and reproduces the committed `public/` icons byte-for-byte (no diff).
+- Investigated (no change): `listProgramVersions`/`listProgramSlots` (`repository.ts`) are
+  NOT dead — confirmed real callers: `ensureSeedProgramVersion` (which `App.tsx` runs on boot,
+  side-effect only, discarding the return value) calls both. They're part of the same
+  intentionally-unwired modular program-content system as `resolveProgram` (§2.7,
+  ARCHITECTURE.md, and the prior entry above) — the DATA path is proven, nothing downstream
+  reads it for prescription yet, same category, no separate action needed.
+
 ## 2026-08-13 (Hypertrophy pairing/weight-optional now read from the athlete's own row)
 - `feat`: **`resolveItems` (`engine/movements.ts`) now prefers the athlete's own movement
   row for `supersetGroup`/`weightOptional`, falling back to the code-side seed only when no
