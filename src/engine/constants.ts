@@ -215,17 +215,17 @@ export const GIANT2_OLY_POSITION_WAVE: Record<number, string> = {
   4: 'Hang from the knee.',
 }
 // Oly quality mark — Q3 (every rep identical) / Q2 (minor faults, self-
-// corrected) / Q1 (position broke). Two consecutive Q3 sessions in a lane
-// steps the load up (2.5 kg snatch family, 5 kg clean/jerk family); two
-// consecutive Q1 steps it down. A logging concept, not a movement capability
-// — lives on oly_logs, never on the movements table.
+// corrected) / Q1 (position broke). The load-progression rule this was meant
+// to drive (two consecutive Q3 sessions in a lane steps the load up 2.5 kg
+// snatch family / 5 kg clean-jerk family; two consecutive Q1 steps it down)
+// is not implemented anywhere — coaching guidance only for now, applied by
+// the athlete's own judgment. A logging concept, not a movement capability —
+// lives on oly_logs, never on the movements table.
 export const OLY_QUALITY: { id: string; label: string }[] = [
   { id: 'Q3', label: 'Q3 — every rep identical' },
   { id: 'Q2', label: 'Q2 — minor faults, self-corrected' },
   { id: 'Q1', label: 'Q1 — position broke' },
 ]
-export const OLY_STEP_SNATCH_KG = 2.5
-export const OLY_STEP_CLEAN_JERK_KG = 5
 
 // Carries (C3): DL Farmer's / OHP Overhead / Squat Bear Hug / Bench Suitcase
 // (see SEED_CARRY_KEYS in engine/program.ts). Always logged, guidance-only

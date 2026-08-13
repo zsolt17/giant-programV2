@@ -62,18 +62,6 @@ export async function getMacroByNumber(number: number): Promise<Macro | null> {
   return data ? M.rowToMacro(data) : null
 }
 
-export async function getActiveMacro(): Promise<Macro | null> {
-  const { data, error } = await supabase
-    .from('macros')
-    .select('*')
-    .eq('status', 'active')
-    .order('number', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  if (error) throw error
-  return data ? M.rowToMacro(data) : null
-}
-
 export async function createMacro({
   number,
   startISO,

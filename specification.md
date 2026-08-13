@@ -111,6 +111,44 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-08-13 (Codebase audit — dead code + orphaned schema cleanup)
+- `chore`: **Full audit of `src/engine/`, `src/ui/`, `src/data/`, `supabase/migrations/`,
+  `package.json`, and root config for legacy/unused elements**, prompted by the earlier
+  concern that the Giant v7/GiantFit/Giant Run retirement (2026-08-10) might have left
+  stragglers. Result: the UI layer, dependencies, CI config, and prior cleanup were all
+  confirmed clean — no leftover strings, no unused deps, no orphaned files. Four genuine
+  items found and fixed:
+  - `fix`: removed dead `OLY_STEP_SNATCH_KG`/`OLY_STEP_CLEAN_JERK_KG` (`constants.ts`) —
+    meant to drive an Oly load-step-up/down rule that was never actually implemented;
+    nothing read them. The comment above `OLY_QUALITY` now says so plainly instead of
+    implying the constants did the work.
+  - `fix`: removed dead `getSuggestedPhase` (`recovery-content.ts`) — a duplicate of
+    `suggestedPhase` (`recovery.ts`), literally unreferenced despite its own "kept for
+    parity with the spec" comment.
+  - `fix`: removed dead `getActiveMacro` (`repository.ts`) — `App.tsx` reimplements the
+    same active-macro lookup inline; the repository export had zero callers.
+  - `fix`: **migration 0030 drops `sessions.dips_cluster`** — an orphaned column from
+    Giant v7's dips day (added `0009_dips_pullup_modes.sql`). The 0024 Giant-2.0-only
+    cleanup dropped its siblings (`pair_weight`, `ref_pace_s`) but missed this one; no
+    code read or wrote it, and all 3 live session rows had it NULL (verified before
+    dropping). Not the same column as `pullup_cluster` (Giant 2.0's live two-mode
+    secondary), which is unaffected.
+  - `docs`: rewrote `README.md` — it still described `src/data/*.js` files (actual code
+    is `.ts`) and called the UI a "placeholder (Step 5 TBD)" despite the app being
+    deployed and feature-complete; now matches current layout/commands.
+  - Investigated (no change): `movements.superset_group`/`weight_optional` are stored
+    correctly but the live Capability rendering path (`resolveItems`/`seedByKey` in
+    `movements.ts`) always reads pairing/weight-optional off the hardcoded
+    `SEED_MOVEMENTS` code constant, never off the athlete's own `movements` row — so
+    editing these columns directly would currently do nothing observable. Confirmed
+    this is the SAME already-documented "modular program-content system is seeded but
+    unwired" situation as `program.ts`/`resolveProgram` (ARCHITECTURE.md §2.7,
+    `Setup.tsx`'s own `MovementLibrary` comment: "Nothing prescribes from this yet...
+    gets wired to the live version's slots in the next phase") — not a distinct bug,
+    already correctly documented at `movements.ts`'s `resolveItems` comment. Left as-is.
+  - Verified: `npx tsc --noEmit`, `npx vitest run` (139/139), `npm run build`, and
+    `npm run smoke` (72/72 against live Supabase) all clean after every change.
+
 ## 2026-08-13 (Capability block: single source of truth for the daily summary)
 - `fix`: **Copy Session Summary showed "Hypertrophy: not included in this summary — see the
   app" instead of the real per-set data.** Same root cause as the Carry-line-everywhere bug

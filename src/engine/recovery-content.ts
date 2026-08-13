@@ -24,15 +24,6 @@ export const PHASE_DOSE: Record<Phase, string> = {
   maintenance: '3 sets × 30s, 1x/week',
 }
 
-// Reference only — Recovery computes phase/day from LOCAL dates (engine/recovery.ts)
-// to match the rest of the app's date discipline. Kept for parity with the spec.
-export function getSuggestedPhase(startDate: Date, today: Date = new Date()): Phase {
-  const days = Math.floor((today.getTime() - startDate.getTime()) / 86_400_000)
-  if (days <= 20) return 'acute'
-  if (days <= 56) return 'build'
-  return 'maintenance'
-}
-
 const I = (body: string): string =>
   `<svg viewBox="0 0 64 64" fill="none" stroke="var(--text-secondary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`
 const PROP = 'stroke="var(--border-strong)" stroke-width="2"' // solid prop/surface
