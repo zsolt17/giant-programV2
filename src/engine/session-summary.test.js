@@ -179,13 +179,80 @@ test('C3 week 4: no Volume block at all (flagged, not silently dropped)', () => 
   assert.doesNotMatch(out, /Volume Block: 2×/)
 })
 
-// ---- Capability block note ---------------------------------------------------
+// ---- Capability block — single source of truth (capabilityRecordFor) -------
+// Regression coverage for the missing-Hypertrophy bug: the summary used to
+// print "not included in this summary — see the app" for C1/C2 instead of
+// reading the same Hypertrophy/Oly log tables the live Capability card
+// reads. These fixtures use ONLY {id, key} per movement — capabilityRecordFor
+// resolves display content (name/note/superset/weightOptional) off the
+// code-side seed (seedByKey), never off the movements array's own fields.
 
-test('Capability note: flags Hypertrophy/Oly (not captured here), stays silent for Carries (already fully rendered above)', () => {
+// squat's Hypertrophy keys: walking_lunge+lying_hamstring_curl (superset A),
+// hip_back_extension (weight-optional)+standing_calf_raise (superset B).
+const HYP_MOVEMENTS = [
+  { id: 'wl', key: 'walking_lunge' },
+  { id: 'lhc', key: 'lying_hamstring_curl' },
+  { id: 'hbe', key: 'hip_back_extension' },
+  { id: 'scr', key: 'standing_calf_raise' },
+]
+// squat's Oly keys: oly_snatch_balance_ohs, oly_hang_full_snatch (no superset — Oly never pairs).
+const OLY_MOVEMENTS = [
+  { id: 'sbo', key: 'oly_snatch_balance_ohs' },
+  { id: 'hfs', key: 'oly_hang_full_snatch' },
+]
+
+test('C1 Hypertrophy: full per-set sets/reps/load/RPE, superset pairs tagged, standalone left untagged, unlogged sets show placeholders', () => {
+  const s = base({ id: '2026-08-10-squat', date: '2026-08-10', cycle: 1, week: 1, dayType: 'squat', difficulty: 'hard', volumeDifficulty: 'light' })
+  const hypertrophyLogs = [
+    { sessionId: s.id, movementId: 'wl', setNumber: 1, weight: 20, repsDone: 12, rpe: 'R8', notes: '' },
+    { sessionId: s.id, movementId: 'wl', setNumber: 2, weight: 22.5, repsDone: 12, rpe: 'R8.5', notes: '' },
+    { sessionId: s.id, movementId: 'wl', setNumber: 3, weight: 25, repsDone: 10, rpe: 'R9', notes: '' },
+    { sessionId: s.id, movementId: 'lhc', setNumber: 1, weight: 15, repsDone: 12, rpe: 'R7', notes: '' },
+    { sessionId: s.id, movementId: 'hbe', setNumber: 1, weight: null, repsDone: 15, rpe: '', notes: '' },
+    { sessionId: s.id, movementId: 'scr', setNumber: 1, weight: 10, repsDone: 15, rpe: '', notes: '' },
+  ]
+  const out = sessionSummary(s, 4, ACC, undefined, false, undefined, { movements: HYP_MOVEMENTS, hypertrophyLogs, olyLogs: [] })
+  assert.match(out, /\nHypertrophy:\n/)
+  assert.match(out, /\n {2}Walking Lunge \(superset\): 12@20kg R8 · 12@22\.5kg R8\.5 · 10@25kg R9\n/)
+  assert.match(out, /\n {2}Lying Hamstring Curl \(superset\): 12@15kg R7 · —@— · —@—\n/) // sets 2-3 never logged
+  assert.match(out, /\n {2}Hip\/Back Extension \(weight optional, superset\): 15 · — · —\n/) // weight-optional: no "@—" residue
+  assert.match(out, /\n {2}Standing Calf Raise \(superset\): 15@10kg · —@— · —@—\n/)
+  assert.doesNotMatch(out, /not included in this summary/)
+})
+
+test('C2 Oly: quality mark per exercise + the week\'s hang-position guidance, no RPE field anywhere', () => {
+  const s = base({ id: '2026-09-07-squat', date: '2026-09-07', cycle: 2, week: 1, dayType: 'squat', difficulty: 'hard', volumeDifficulty: 'light' })
+  const olyLogs = [
+    { sessionId: s.id, movementId: 'sbo', weight: 40, quality: 'Q3', notes: '' },
+    { sessionId: s.id, movementId: 'hfs', weight: null, quality: 'Q2', notes: '' },
+  ]
+  const out = sessionSummary(s, 4, ACC, undefined, false, undefined, { movements: OLY_MOVEMENTS, hypertrophyLogs: [], olyLogs })
+  assert.match(out, /\nOly: Hang from the power position \(above the knee\)\.\n/) // week 1 -> above the knee
+  assert.match(out, /\n {2}Snatch Balance \+ OHS — 3×5, unloaded: 40kg Q3\n/)
+  assert.match(out, /\n {2}Hang Snatch \+ Full Snatch — 4-5×2\+1: — Q2\n/)
+  const olySection = out.slice(out.indexOf('Oly:'))
+  assert.doesNotMatch(olySection, /\bR\d/) // no stray RPE token in the Oly section — quality-marked only
+})
+
+test('C2 Oly: week 3-4 switches the guidance to hang-from-the-knee', () => {
+  const s = base({ id: '2026-09-21-squat', date: '2026-09-21', cycle: 2, week: 3, dayType: 'squat', difficulty: 'hard', volumeDifficulty: 'light' })
+  const out = sessionSummary(s, 4, ACC, undefined, false, undefined, { movements: OLY_MOVEMENTS, hypertrophyLogs: [], olyLogs: [] })
+  assert.match(out, /\nOly: Hang from the knee\.\n/)
+})
+
+test('Capability bundle omitted: Hypertrophy/Oly still render full exercise structure with placeholders, never the old "not included" text', () => {
   const c1 = base({ id: '2026-08-10-squat', date: '2026-08-10', cycle: 1, week: 1, dayType: 'squat', difficulty: 'hard', volumeDifficulty: 'light' })
-  assert.match(sessionSummary(c1, 4, ACC), /Hypertrophy: not included in this summary/)
+  const out1 = sessionSummary(c1, 4, ACC)
+  assert.match(out1, /\nHypertrophy:\n/)
+  assert.match(out1, /\n {2}Walking Lunge \(superset\): —@— · —@— · —@—\n/)
+  assert.doesNotMatch(out1, /not included in this summary/)
+
   const c2 = base({ ...c1, id: '2026-09-07-squat', date: '2026-09-07', cycle: 2 })
-  assert.match(sessionSummary(c2, 4, ACC), /Oly: not included in this summary/)
+  const out2 = sessionSummary(c2, 4, ACC)
+  assert.match(out2, /\nOly: Hang from the power position \(above the knee\)\.\n/)
+  assert.match(out2, /\n {2}Snatch Balance \+ OHS — 3×5, unloaded: — —\n/)
+  assert.doesNotMatch(out2, /not included in this summary/)
+
   const c3 = base({ ...c1, id: '2026-10-05-squat', date: '2026-10-05', cycle: 3 })
   const out3 = sessionSummary(c3, 4, ACC)
   assert.doesNotMatch(out3, /not included in this summary/)

@@ -45,6 +45,10 @@ src/
                    Hypertrophy/Oly Done-button gate so they can't disagree
     trends.ts      pure derivations: Session -> Trends chart view-models
     export-csv.ts  pure -> CSV strings (Data page): sessions / hypertrophy / oly
+    capability-record.ts  single source of truth for "what the Capability block contains
+                   today" — cycle-dispatched (capabilityProgramFor), joined against
+                   hypertrophy_logs/oly_logs; session-summary.ts and the live Capability
+                   card both build on it (see ARCHITECTURE.md §2.7)
     session-summary.ts  pure Session -> plain-text share summary (Data page "Copy")
     recovery-content.ts  static Recovery content (joints/tendons/exercises + 64x64 SVGs, PHASE_DOSE)
     recovery.ts    local-date phase/day helpers for Recovery (suggestedPhase/effectivePhase/protocolDay)

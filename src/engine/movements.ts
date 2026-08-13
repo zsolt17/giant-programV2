@@ -232,3 +232,33 @@ export const SEED_OLY_KEYS: Record<Lift, string[]> = {
 export function seedByKey(key: string): MovementSeed | undefined {
   return SEED_MOVEMENTS.find((m) => m.key === key)
 }
+
+// ---- resolving a day's Capability keys against the athlete's library --------
+
+// One movement key resolved against the athlete's library — the display
+// content (name/reps/note) comes from the code-side seed (seedByKey), the
+// identity (movementId, for the FK) from the athlete's own library.
+export function resolveItems(keys: string[], movements: Movement[]) {
+  return keys.map((key) => ({ key, seed: seedByKey(key), movementId: movements.find((m) => m.key === key)?.id }))
+}
+
+export type ResolvedItem = ReturnType<typeof resolveItems>[number]
+
+// Clusters adjacent items sharing a non-null supersetGroup into a pair
+// (alternate between them); everything else stays standalone. Movements that
+// pair are always adjacent in the seed key order, so a single linear pass
+// is enough — no need to search the whole list for a matching group.
+export function groupBySuperset(items: ResolvedItem[]): ResolvedItem[][] {
+  const groups: ResolvedItem[][] = []
+  for (let i = 0; i < items.length; i++) {
+    const cur = items[i]
+    const next = items[i + 1]
+    if (cur.seed?.supersetGroup && next?.seed?.supersetGroup === cur.seed.supersetGroup) {
+      groups.push([cur, next])
+      i++
+    } else {
+      groups.push([cur])
+    }
+  }
+  return groups
+}

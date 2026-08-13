@@ -3,9 +3,10 @@
 // and unit-tested. Captures the complete session picture: the Giant Block set
 // ladder comes from the SAME loading-engine computation Today renders (giantSets/
 // volumeWeight), never re-derived. Non-applicable / unlogged lines are omitted.
-import { LIFT_SHORT, SCHEMES, DAY_META, BLOCK_COMPLETION, GIANT2_SECONDARY, GB_ACCESSORY, SECONDARY_LANE, SECONDARY_REPS, PULLUP } from './constants'
-import { giantSets, volumeWeight, liftMode, fmt } from './loading'
-import { capabilityProgramFor } from './date-engine'
+import { LIFT_SHORT, SCHEMES, BLOCK_COMPLETION, GIANT2_SECONDARY, GB_ACCESSORY, SECONDARY_LANE, SECONDARY_REPS, PULLUP } from './constants'
+import { giantSets, volumeWeight, liftMode } from './loading'
+import { capabilityRecordFor } from './capability-record'
+import type { CapabilityLogs, HypertrophyExerciseRecord, HypertrophySetRecord, OlyExerciseRecord } from './capability-record'
 import type { Session, Lift, AccessoryByCycle, WeightsByCycle, GiantAccessoryReps } from './types'
 
 // 'up' -> ↑, 'down' -> ↓, 'normal' -> →; blank -> '' (no stray arrow when unlogged).
@@ -39,19 +40,44 @@ function durationMin(s: Session): number | null {
 // Join present segments with " | " (drops blanks so unlogged RPE/speed leave no residue).
 const seg = (...parts: (string | null | undefined)[]): string => parts.filter(Boolean).join(' | ')
 
+// "12@20kg R8"; weight-optional sets left unlogged drop the "@—" entirely
+// (that's an expected empty, not a missing one) rather than reading as unset.
+function hypertrophySetStr(set: HypertrophySetRecord, weightOptional: boolean): string {
+  const reps = set.reps != null ? String(set.reps) : '—'
+  const rpe = set.rpe ? ` ${rpeStr(set.rpe)}` : ''
+  if (weightOptional && set.weight == null) return `${reps}${rpe}`
+  return `${reps}@${set.weight != null ? `${kg(set.weight)}kg` : '—'}${rpe}`
+}
+
+function hypertrophyExerciseLine(ex: HypertrophyExerciseRecord, superset: boolean): string {
+  const tags = [ex.note, superset ? 'superset' : null].filter(Boolean).join(', ')
+  const label = tags ? `${ex.name} (${tags})` : ex.name
+  return `  ${label}: ${ex.sets.map((set) => hypertrophySetStr(set, ex.weightOptional)).join(' · ')}`
+}
+
+function olyExerciseLine(ex: OlyExerciseRecord): string {
+  const label = ex.note ? `${ex.name} — ${ex.note}` : ex.name
+  const weight = ex.weight != null ? `${kg(ex.weight)}kg` : '—'
+  return `  ${label}: ${weight} ${ex.quality || '—'}`
+}
+
 // `accessory` = the per-cycle grid for the SESSION'S macro (cycle -> item -> weight);
 // resolves the carry weight. `weights` = the same macro's working-weight grid —
-// resolves the secondary's ladder + the weighted pull-up ladder.
+// resolves the secondary's ladder + the weighted pull-up ladder. `capability` =
+// this session's Hypertrophy/Oly log tables + the athlete's movement library —
+// omitted (e.g. minimal test fixtures), Hypertrophy/Oly still render full
+// exercise structure with "—" placeholders for anything not logged (see
+// capabilityRecordFor); Carries needs none of it, it reads straight off `s`.
 export function sessionSummary(
   s: Session,
   macroNumber: number,
   accessory?: AccessoryByCycle,
   weights?: WeightsByCycle,
   deloadWeek?: boolean,
-  giantAccessory?: GiantAccessoryReps
+  giantAccessory?: GiantAccessoryReps,
+  capability?: CapabilityLogs
 ): string {
   const lines: string[] = []
-  const meta = s.dayType ? DAY_META[s.dayType] : null
 
   // Header: "Session — M2C1W1 — Squat Hard — 22.06.2026" ("Deload — …" on a
   // reactive-deload week).
@@ -131,27 +157,28 @@ export function sessionSummary(
   }
 
   // ---- Capability block — content dispatched by the ACTIVE CYCLE's program,
-  // same source Today reads (capabilityProgramFor/GIANT2_CAPABILITY_BY_CYCLE),
-  // never hardcoded. Exactly one of these renders per training-week session:
-  // Hypertrophy/Oly are logged in separate tables this function doesn't have
-  // access to, so they're flagged rather than silently left out; Carries (C3)
-  // is fully covered here from the session's own carry_* fields. A session
-  // with no real cycle (the scheduled deload, cycle null) gets none of these —
-  // matching the live app, which never renders a Capability block there either.
-  if (s.weekType === 'training' && s.cycle != null) {
-    const program = capabilityProgramFor(s.cycle)
-    if (program === 'hypertrophy' || program === 'oly') {
-      lines.push(`${program === 'hypertrophy' ? 'Hypertrophy' : 'Oly'}: not included in this summary — see the app`)
-    } else if (program === 'carries' && meta && s.dayType) {
-      const w = accessory?.[s.cycle]?.[`carry_${s.dayType}`]
-      const load = w != null ? `${fmt(w)}${meta.carry.perHand ? ' / hand' : ''}` : meta.carry.load
-      if (s.carrySkipped) {
-        lines.push(`Carry: ${meta.carry.name} — skipped${s.carrySkipReason ? ` (${s.carrySkipReason})` : ''}`)
-      } else if (s.carryRounds != null || s.carryDistance != null || s.carryRpe) {
-        const rounds = s.carryRounds ?? '—'
-        const dist = s.carryDistance != null ? `${s.carryDistance}m` : '—'
-        lines.push(`Carry: ${seg(`${meta.carry.name} ${load}`, `${rounds}×${dist}`, rpeStr(s.carryRpe))}`)
-      }
+  // read from the single source of truth (capabilityRecordFor), never
+  // re-decided here. Exactly one program renders per training-week session;
+  // a session with no real cycle (the scheduled deload, cycle null) gets
+  // none of these — matching the live app, which never renders a Capability
+  // block there either.
+  const capRecord = capabilityRecordFor(s, capability, accessory)
+  if (capRecord?.program === 'hypertrophy') {
+    lines.push('Hypertrophy:')
+    for (const group of capRecord.groups) {
+      const superset = group.length > 1
+      for (const ex of group) lines.push(hypertrophyExerciseLine(ex, superset))
+    }
+  } else if (capRecord?.program === 'oly') {
+    lines.push(`Oly:${capRecord.positionGuidance ? ` ${capRecord.positionGuidance}` : ''}`)
+    for (const ex of capRecord.exercises) lines.push(olyExerciseLine(ex))
+  } else if (capRecord?.program === 'carries') {
+    if (capRecord.skipped) {
+      lines.push(`Carry: ${capRecord.name} — skipped${capRecord.skipReason ? ` (${capRecord.skipReason})` : ''}`)
+    } else if (capRecord.rounds != null || capRecord.distance != null || capRecord.rpe) {
+      const rounds = capRecord.rounds ?? '—'
+      const dist = capRecord.distance != null ? `${capRecord.distance}m` : '—'
+      lines.push(`Carry: ${seg(`${capRecord.name} ${capRecord.load}`, `${rounds}×${dist}`, rpeStr(capRecord.rpe))}`)
     }
   }
 

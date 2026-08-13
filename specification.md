@@ -111,6 +111,43 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-08-13 (Capability block: single source of truth for the daily summary)
+- `fix`: **Copy Session Summary showed "Hypertrophy: not included in this summary — see the
+  app" instead of the real per-set data.** Same root cause as the Carry-line-everywhere bug
+  (2026-08-10, below), viewed from the opposite direction: `session-summary.ts` had no access
+  to the `hypertrophy_logs`/`oly_logs` tables, so C1/C2 days were flagged rather than rendered,
+  while the live Capability card (`CapabilityBlock.tsx`) had the real per-exercise resolution
+  logic but only as React UI, not reusable by the pure summary generator. Audited whether a
+  unified "what happened today" record existed anywhere else (`Data.tsx`/`Trends.tsx`/
+  `History.tsx`/`Calendar.tsx`): confirmed Giant/Volume/Primer/Cooldown all already read from
+  the Session row alone (one place, correct, never duplicated) — Capability was the one block
+  whose real content lives elsewhere, which is exactly why it was the site of both bugs.
+- `feat`: **New `engine/capability-record.ts` — the single source of truth for "what the
+  Capability block contains today."** `capabilityRecordFor(session, logs, accessory)`
+  cycle-dispatches (`capabilityProgramFor`, unchanged) and returns one typed record per
+  program, never a hardcoded shape: Hypertrophy (C1) — sets/reps/load/RPE per exercise,
+  grouped into superset pairs vs. standalone (reusing `resolveItems`/`groupBySuperset`,
+  relocated from `CapabilityBlock.tsx` into `engine/movements.ts` so both the live form and
+  this new module share one implementation); Oly (C2) — quality mark (Q3/Q2/Q1) per exercise
+  plus the week's hang-position guidance (`GIANT2_OLY_POSITION_WAVE`), no RPE field (Oly is
+  never RPE-logged); Carries (C3) — the single RPE-6 entry per carry, unchanged from before
+  (no per-set breakdown — this block was never designed around sets/reps). Logs/movements
+  omitted (e.g. minimal test fixtures) still returns full exercise structure — names, note,
+  superset pairing, Oly guidance — with "—" placeholders for anything not logged, the same way
+  Giant/Volume already show "—" for unlogged fields rather than omitting the block; the old
+  "not included" text is gone entirely, there's no code path left that can produce it.
+- `fix`: **`session-summary.ts` now reads Capability from `capabilityRecordFor` instead of
+  deciding it inline.** New optional `capability` param (`{movements, hypertrophyLogs,
+  olyLogs}`); `Data.tsx`'s `summaryFor()` (the only real call site) filters the all-macro logs
+  it already receives by session id and passes them through — no new prop plumbing needed.
+  Giant/Volume/Primer/Cooldown sections are untouched (they were never the bug — already
+  correct, already reading the Session row alone), so this refactor only touches the piece
+  that actually needed it. Verified against real production data (M3C1W1 Deadlift Light,
+  13.08.2026): Hypertrophy now renders Front-Foot-Elevated Split Squat (standalone) + Hip
+  Thrust/Leg Extension (superset pair, correctly tagged) with real per-set weight/reps/RPE.
+  22 tests in `session-summary.test.js` (was 12), covering all three cycles' Capability
+  content plus the bundle-omitted fallback; 139 tests total, all passing.
+
 ## 2026-08-10 (New Primer content + a fifth Today-tab card: Cooldown)
 - `feat`: **Primer's bodyweight section replaced — no more upper/lower split.** Old content
   (rope flow + a day-typed 1-2-3-ascending-rep ramp) fully retired except the band-activation

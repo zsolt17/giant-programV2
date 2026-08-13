@@ -116,7 +116,11 @@ export function Data({ sessions, macros, accessory = {}, weights = {}, deloads =
     .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
 
   function summaryFor(e: Entry): string {
-    return sessionSummary(e.s, numberById.get(e.s.macroId) ?? 0, accessory[e.s.macroId], weights[e.s.macroId], e.isDeload, giantAccessory)
+    return sessionSummary(e.s, numberById.get(e.s.macroId) ?? 0, accessory[e.s.macroId], weights[e.s.macroId], e.isDeload, giantAccessory, {
+      movements,
+      hypertrophyLogs: hypertrophyLogs.filter((l) => l.sessionId === e.s.id),
+      olyLogs: olyLogs.filter((l) => l.sessionId === e.s.id),
+    })
   }
 
   async function onCopy(e: Entry) {

@@ -11,39 +11,11 @@
 import { Fragment, useState } from 'react'
 import { C, inp } from './theme'
 import { errMsg, DoneButton } from './controls'
-import { SEED_HYPERTROPHY_KEYS, SEED_OLY_KEYS, seedByKey } from '../engine/movements'
+import { SEED_HYPERTROPHY_KEYS, SEED_OLY_KEYS, resolveItems, groupBySuperset } from '../engine/movements'
 import { OLY_QUALITY, GIANT2_OLY_POSITION_WAVE, GIANT2_HYPERTROPHY_SETS, RPE_OPTIONS } from '../engine/constants'
 import { isHypertrophyDone, isOlyDone } from '../engine/session-progress'
 import type { Movement } from '../engine/movements'
 import type { Lift, HypertrophyLog, HypertrophyLogDraft, OlyLog, OlyLogDraft } from '../engine/types'
-
-// One movement key resolved against the athlete's library — the display
-// content (name/reps/note) comes from the code-side seed (seedByKey), the
-// identity (movementId, for the FK) from the athlete's own library.
-function resolveItems(keys: string[], movements: Movement[]) {
-  return keys.map((key) => ({ key, seed: seedByKey(key), movementId: movements.find((m) => m.key === key)?.id }))
-}
-
-type ResolvedItem = ReturnType<typeof resolveItems>[number]
-
-// Clusters adjacent items sharing a non-null supersetGroup into a pair
-// (alternate between them); everything else stays standalone. Movements that
-// pair are always adjacent in the seed key order, so a single linear pass
-// is enough — no need to search the whole list for a matching group.
-function groupBySuperset(items: ResolvedItem[]): ResolvedItem[][] {
-  const groups: ResolvedItem[][] = []
-  for (let i = 0; i < items.length; i++) {
-    const cur = items[i]
-    const next = items[i + 1]
-    if (cur.seed?.supersetGroup && next?.seed?.supersetGroup === cur.seed.supersetGroup) {
-      groups.push([cur, next])
-      i++
-    } else {
-      groups.push([cur])
-    }
-  }
-  return groups
-}
 
 const SET_NUMBERS = Array.from({ length: GIANT2_HYPERTROPHY_SETS }, (_, i) => i + 1)
 

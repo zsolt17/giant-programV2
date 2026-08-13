@@ -163,7 +163,14 @@ too.
 
 ### 2.7 Capability block — content by cycle
 The block's *shape itself* varies by cycle — decided purely by `GIANT2_CAPABILITY_BY_CYCLE`
-(cycle → program), never by week or session:
+(cycle → program), never by week or session. `engine/capability-record.ts`
+(`capabilityRecordFor`) is the single source of truth for "what the Capability block contains
+today" — cycle-dispatched and, for Hypertrophy/Oly, joined against `hypertrophy_logs`/
+`oly_logs`; both the live Capability card and `sessionSummary()` (Copy Session Summary) read
+from it rather than each independently re-deciding the block's content (the two are still
+separate consumers — the live card needs editable draft state this pure record doesn't carry,
+so it calls `resolveItems`/`groupBySuperset` directly — but both are built on the same
+resolver, `engine/movements.ts`, so there's one place that knows which exercises a day has):
 
 **C1 — Hypertrophy.** Day-specific accessory list, 3 sets fixed regardless of week, logged
 **per SET** (weight × reps × an OPTIONAL RPE per set, `hypertrophy_logs` — one row per
@@ -255,8 +262,9 @@ completion gate (session end is governed by the session timer alone, independent
 completion), and Cooldown doesn't change that; a person can close the app after Capability
 with no consequence. Not represented in `sessionSummary()` (Copy Session Summary) or anywhere
 else outside the app, same as Primer — both are pure checklists with no loggable numeric data,
-unlike Hypertrophy/Oly (which get a "not included in this summary" note because they DO have
-real per-exercise data the summary can't reach). `GIANT2_COOLDOWN`, constants.ts.
+unlike Hypertrophy/Oly, which DO have real per-exercise data and are rendered in full (§2.7,
+`engine/capability-record.ts` — the single source of truth `sessionSummary()` reads from for
+the Capability section, rather than deciding it inline). `GIANT2_COOLDOWN`, constants.ts.
 
 ---
 
