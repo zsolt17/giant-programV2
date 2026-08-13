@@ -9,7 +9,7 @@
 // collapse) is owned by the caller's SessionCard wrapper, not rendered here —
 // these components render only their content + the Done button.
 import { Fragment, useState } from 'react'
-import { C, inp } from './theme'
+import { C, inp, withAlpha, supersetAccent } from './theme'
 import { errMsg, DoneButton } from './controls'
 import { SEED_HYPERTROPHY_KEYS, SEED_OLY_KEYS, resolveItems, groupBySuperset } from '../engine/movements'
 import { OLY_QUALITY, GIANT2_OLY_POSITION_WAVE, GIANT2_HYPERTROPHY_SETS, RPE_OPTIONS } from '../engine/constants'
@@ -107,6 +107,11 @@ export function HypertrophyBlock({ dayType, sessionId, movements, logs, onSave, 
     }
   }
 
+  // Counts only superset PAIRS (group.length > 1) — a standalone exercise
+  // never consumes a slot, so the color sequence tracks "1st superset, 2nd
+  // superset" regardless of where standalones fall among them that day.
+  let supersetIndex = 0
+
   return (
     <div>
       {groups.map((group) => {
@@ -163,11 +168,20 @@ export function HypertrophyBlock({ dayType, sessionId, movements, logs, onSave, 
           </div>
         ))
         if (group.length === 1) return rowsEls
+        // Full bordered box per pair (not just the left accent line) — a
+        // boundary is unambiguous at a glance, which a single edge-line isn't
+        // once a day has two pairs back to back. Real vertical gap between
+        // boxes (marginBottom) so adjacent pairs read as distinct groups even
+        // scrolled to mid-box. Box border + inner vertical line share the same
+        // per-pair accent color so they read as one group identity.
+        const accent = supersetAccent(supersetIndex++)
         return (
-          <div key={group[0].key} style={{ borderLeft: `2px solid ${C.gold}`, paddingLeft: 8, marginBottom: 2 }}>
-            <div style={{ fontSize: 10, color: C.gold, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '4px 0' }}>Superset — alternate</div>
-            {rowsEls}
-          </div>
+          <Fragment key={group[0].key}>
+            <div style={{ fontSize: 10, color: accent, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '4px 0' }}>Superset — alternate</div>
+            <div style={{ border: `1px solid ${withAlpha(accent, 0.45)}`, borderRadius: 8, background: 'rgba(255,255,255,0.02)', padding: '2px 12px', marginBottom: 24 }}>
+              <div style={{ borderLeft: `2px solid ${accent}`, paddingLeft: 8 }}>{rowsEls}</div>
+            </div>
+          </Fragment>
         )
       })}
       <DoneButton ready={readyForDone} saving={saving} onClick={save} />

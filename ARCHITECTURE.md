@@ -183,6 +183,17 @@ free-text `note`) when only reps matter — Hip/Back Extension is the current ex
 | Day | Exercises | Supersets |
 |---|---|---|
 | Squat | Walking Lunge · Lying Hamstring Curl · Hip/Back Extension (3×15, weight optional) · Standing Calf Raise (3×15) | Walking Lunge+Lying Hamstring Curl · Hip/Back Ext+Standing Calf Raise |
+
+**Superset display (a day can have 2+ pairs):** each pair renders in its own full bordered box
+(rounded corners, not just a left-edge accent line — a boundary reads unambiguously at a glance,
+a single line doesn't once two pairs sit back to back) with real vertical spacing between boxes.
+The box border and the pair's inner vertical accent line always share one color, keyed by the
+pair's index among that day's superset pairs specifically (`theme.ts`'s `supersetAccent`,
+`SUPERSET_ACCENTS = [gold, purple]`, cycling if a day ever has a 3rd pair) — color is scanning
+reinforcement on top of the box/spacing, never the only signal. Purple (`C.purple`, "chart alt
+series" in the brand guide) is the deliberate non-semantic accent: green/red/blue are reserved
+difficulty/state meanings elsewhere in the app, so reusing one here would misread as good/bad
+next to workout numbers.
 | Bench | Seated DB Press · One-Arm Row · Bicep Curl (3×15) · Skull Crusher (3×15) · Serratus Anterior Raise | Seated DB Press+One-Arm Row · Bicep Curl+Skull Crusher |
 | Deadlift | Front-Foot-Elevated Split Squat · Hip Thrust (3×15) · Leg Extension (3×15) | Hip Thrust+Leg Extension |
 | OHP | Flat DB Bench · Lat Pulldown (supinated) · Lateral Raise (3×15) · Rope Face Pull (seated, to top of head, 3×15) | Flat DB Bench+Lat Pulldown · Lateral Raise+Rope Face Pull |

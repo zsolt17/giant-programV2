@@ -111,6 +111,33 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-08-13 (Fix: superset grouping unclear with 2+ pairs)
+- `fix`: **Each Hypertrophy superset pair now renders in its own full bordered box**
+  (`CapabilityBlock.tsx`'s `HypertrophyBlock`), replacing the single left-edge accent line —
+  which read fine for one pair but left two adjacent pairs ambiguous about which exercise
+  belonged to which group. Real vertical gap between boxes (`marginBottom: 24`, up from `2`)
+  so adjacent pairs read as distinct groups at a glance, not just when both are fully in view.
+  Matches a Claude Design mockup provided for this section (rounded box, real spacing) rather
+  than an invented style.
+- `feat`: **Superset pairs alternate accent color by index within the day** — `theme.ts` adds
+  `C.purple` ("chart alt series" in the Brand & Design Guide, the one non-semantic secondary
+  accent; green/red/blue are reserved difficulty/state meanings, ruled out per the guide's own
+  "use them the same way... and nowhere else"), `withAlpha(hex, alpha)` (generic hex→rgba, not
+  hardcoded per-color), and `SUPERSET_ACCENTS`/`supersetAccent(index)` (an array + modulo, open-
+  ended for a 3rd pair rather than two hardcoded branches). The box border and the pair's inner
+  vertical line always share one color, so a pair reads as one identity, not two design elements
+  — color is scanning reinforcement on top of the box/spacing fix, never the only signal (explicit
+  requirement: gym lighting + quick glances shouldn't hinge on a subtle line-color difference).
+  Indexed by the pair's position among that day's superset PAIRS specifically (a running counter
+  incremented only when `group.length > 1`), not all groups — a day with a standalone exercise
+  before its only pair (e.g. deadlift: Front-Foot-Elevated Split Squat standalone, then Hip
+  Thrust+Leg Extension) must still show gold, not purple, for that first-and-only pair.
+- Verified: reproduced the exact render markup as a static HTML page (temporarily served from
+  `public/`, removed after) since dev-write-blocked + no live-app credentials in this session
+  ruled out logging into the real preview — confirmed two adjacent pairs render as clearly
+  separated gold/purple boxes with a real gap. Typecheck, 142 tests, and build all clean
+  (no engine logic touched — this is UI-only).
+
 ## 2026-08-13 (Audit follow-up: the remaining two open items)
 - `chore`: added an `npm run gen-icons` script wrapping `scripts/gen-icons.mjs` (previously
   invoked only via the raw `node` command from its own header comment) — same audit's finding

@@ -12,8 +12,32 @@ export const C = {
   blue: '#7eb8f7',
   green: '#8ddcb0',
   red: '#e88888',
+  // "Chart alt series" from the brand guide — the one non-semantic secondary
+  // accent. Green/red/blue are reserved meanings (difficulty, state) per the
+  // guide's own rule ("use them the same way... and nowhere else"); purple is
+  // the deliberate escape hatch for "a second group, not good/bad/a state".
+  purple: '#B39DDB',
   card: 'rgba(255,255,255,0.04)',
   border: 'rgba(201,168,76,0.18)',
+}
+
+// hex -> rgba(...) at the given alpha. Generic so any accent (not just gold)
+// can produce its own translucent variant for borders/fills.
+export function withAlpha(hex: string, alpha: number): string {
+  const h = hex.replace('#', '')
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+// Superset group identity color, keyed by the group's index among THAT DAY'S
+// superset pairs specifically (not all groups — a standalone exercise never
+// consumes a slot in this sequence). Index-based and open-ended so a 3rd
+// pair (if content ever adds one) cycles rather than needing a new branch.
+export const SUPERSET_ACCENTS = [C.gold, C.purple]
+export function supersetAccent(index: number): string {
+  return SUPERSET_ACCENTS[index % SUPERSET_ACCENTS.length]
 }
 
 export const HEADING = "'Bebas Neue', sans-serif"
