@@ -211,6 +211,15 @@ in the `program_versions`/`program_slots` system (§9) — but the session VIEWS
 hardcoded `GIANT2_*` constants, not `resolveProgram`. Wiring a live session view to the resolver
 remains a possible future step, not something the build has done yet.
 
+One narrower piece of this IS wired, deliberately scoped smaller than the resolver above:
+`resolveItems` (`engine/movements.ts`) reads a Hypertrophy movement's **pairing
+(`supersetGroup`) and `weightOptional`** off the athlete's own library row when one exists,
+falling back to the code-side seed only for a key with no row yet — so those two fields are
+DB-authoritative, not hardcoded. Everything else about a Capability exercise (its name, which
+exercises exist on which day, rep targets, note copy) is still 100% code-driven; `Setup.tsx`'s
+Movement Library form doesn't expose editing pairing/weight-optional yet, so today this only
+matters if those columns are changed directly (e.g. a future Setup form field, or by hand).
+
 ### 2.8 The 13-week macrocycle
 Three 4-week mesocycles (C1/C2/C3) + one deload week, extendable by the athlete to a 14-week
 macro (`deload_extended`). 4 session days/week (Mon/Tue/Thu/Fri).

@@ -111,6 +111,26 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-08-13 (Hypertrophy pairing/weight-optional now read from the athlete's own row)
+- `feat`: **`resolveItems` (`engine/movements.ts`) now prefers the athlete's own movement
+  row for `supersetGroup`/`weightOptional`, falling back to the code-side seed only when no
+  row exists for that key.** Follow-up to the same-day audit's finding that these two DB
+  columns (added `0026`/`0027`) were stored and correctly round-tripped but never actually
+  read — the live Capability view always used the hardcoded seed regardless of what the row
+  said. Deliberately scoped narrower than the still-unwired `resolveProgram` system (§2.7,
+  ARCHITECTURE.md): only these two fields are now DB-authoritative; exercise name, which
+  movements exist per day, and rep targets all stay code-driven, and `Setup.tsx` doesn't
+  expose editing pairing/weight-optional yet — this only matters once/if that's added, or
+  for a direct data edit. `resolveItems`/`groupBySuperset` are the one shared implementation
+  both the live Hypertrophy form and `capabilityRecordFor`/Copy Session Summary build on, so
+  both pick up the change together, automatically.
+- `test`: 3 new `movements.test.js` cases for `resolveItems` (no row → seed fallback; row
+  matching the seed → passthrough; row disagreeing with the seed → row wins, proven via
+  `groupBySuperset` breaking a previously-paired group). `session-summary.test.js`'s
+  Hypertrophy fixtures updated to include `supersetGroup`/`weightOptional` matching the seed
+  (mirroring what a real seeded row looks like) so existing assertions still hold. 142 tests
+  total (was 139), all passing; typecheck and build clean.
+
 ## 2026-08-13 (Codebase audit — dead code + orphaned schema cleanup)
 - `chore`: **Full audit of `src/engine/`, `src/ui/`, `src/data/`, `supabase/migrations/`,
   `package.json`, and root config for legacy/unused elements**, prompted by the earlier

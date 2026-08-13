@@ -236,10 +236,21 @@ export function seedByKey(key: string): MovementSeed | undefined {
 // ---- resolving a day's Capability keys against the athlete's library --------
 
 // One movement key resolved against the athlete's library — the display
-// content (name/reps/note) comes from the code-side seed (seedByKey), the
-// identity (movementId, for the FK) from the athlete's own library.
+// content (name/reps/note) comes from the code-side seed (seedByKey); the
+// identity (movementId, for the FK) from the athlete's own library. Pairing
+// (supersetGroup) and weightOptional are the two fields the athlete's own
+// row is authoritative for instead: `rowToMovement` (data/mappers.ts)
+// always populates both once a row exists (weightOptional defaults false,
+// supersetGroup defaults null — never `undefined`), so when a row is found
+// its values win outright, seed values only cover a key with no row yet
+// (library not loaded, or the row genuinely doesn't exist).
 export function resolveItems(keys: string[], movements: Movement[]) {
-  return keys.map((key) => ({ key, seed: seedByKey(key), movementId: movements.find((m) => m.key === key)?.id }))
+  return keys.map((key) => {
+    const movement = movements.find((m) => m.key === key)
+    const seed = seedByKey(key)
+    const effectiveSeed = seed && movement ? { ...seed, supersetGroup: movement.supersetGroup, weightOptional: movement.weightOptional } : seed
+    return { key, seed: effectiveSeed, movementId: movement?.id }
+  })
 }
 
 export type ResolvedItem = ReturnType<typeof resolveItems>[number]

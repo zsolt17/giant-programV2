@@ -183,17 +183,20 @@ test('C3 week 4: no Volume block at all (flagged, not silently dropped)', () => 
 // Regression coverage for the missing-Hypertrophy bug: the summary used to
 // print "not included in this summary — see the app" for C1/C2 instead of
 // reading the same Hypertrophy/Oly log tables the live Capability card
-// reads. These fixtures use ONLY {id, key} per movement — capabilityRecordFor
-// resolves display content (name/note/superset/weightOptional) off the
-// code-side seed (seedByKey), never off the movements array's own fields.
+// reads. capabilityRecordFor resolves display NAME/note off the code-side
+// seed (seedByKey) always, but pairing (supersetGroup) and weightOptional
+// off the athlete's own movement row when one is found (resolveItems,
+// movements.ts) — these fixtures set both to match the seed exactly, the
+// same as a real seeded row would (see movements.test.js for the dedicated
+// row-overrides-seed coverage; that behavior isn't re-tested here).
 
 // squat's Hypertrophy keys: walking_lunge+lying_hamstring_curl (superset A),
 // hip_back_extension (weight-optional)+standing_calf_raise (superset B).
 const HYP_MOVEMENTS = [
-  { id: 'wl', key: 'walking_lunge' },
-  { id: 'lhc', key: 'lying_hamstring_curl' },
-  { id: 'hbe', key: 'hip_back_extension' },
-  { id: 'scr', key: 'standing_calf_raise' },
+  { id: 'wl', key: 'walking_lunge', supersetGroup: 'A', weightOptional: false },
+  { id: 'lhc', key: 'lying_hamstring_curl', supersetGroup: 'A', weightOptional: false },
+  { id: 'hbe', key: 'hip_back_extension', supersetGroup: 'B', weightOptional: true },
+  { id: 'scr', key: 'standing_calf_raise', supersetGroup: 'B', weightOptional: false },
 ]
 // squat's Oly keys: oly_snatch_balance_ohs, oly_hang_full_snatch (no superset — Oly never pairs).
 const OLY_MOVEMENTS = [

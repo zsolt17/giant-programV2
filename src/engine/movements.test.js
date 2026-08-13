@@ -9,6 +9,8 @@ import {
   validateOccupant,
   slugify,
   seedByKey,
+  resolveItems,
+  groupBySuperset,
   LOAD_TYPES,
   COUNT_TYPES,
 } from './movements'
@@ -132,6 +134,54 @@ test('validateOccupant: count capability is checked when the contract constrains
   assert.match(validateOccupant(repsOnly, seedByKey('rope_flow')), /counted in/)
   // No countTypes on the contract = any count is fine.
   assert.equal(validateOccupant({ label: 'Hypertrophy', loadTypes: ['recorded'] }, seedByKey('walking_lunge')), null)
+})
+
+// ---- resolveItems: the athlete's own row is authoritative for pairing/weight-optional ----
+// (mappers.ts's rowToMovement always populates both fields once a row exists —
+// weightOptional defaults false, supersetGroup defaults null, never `undefined` —
+// so "row found" always means "trust the row", not "trust it only if set".)
+
+test('resolveItems: with no movement row for a key, falls back fully to the code seed', () => {
+  const [walkingLunge] = resolveItems(['walking_lunge'], [])
+  const seed = seedByKey('walking_lunge')
+  assert.equal(walkingLunge.movementId, undefined)
+  assert.equal(walkingLunge.seed.supersetGroup, seed.supersetGroup) // 'A'
+  assert.equal(walkingLunge.seed.weightOptional, seed.weightOptional) // undefined/falsy
+})
+
+test('resolveItems: a movement row matching the seed passes through unchanged (the common case)', () => {
+  const movements = [
+    { id: 'm-wl', key: 'walking_lunge', supersetGroup: 'A', weightOptional: false },
+    { id: 'm-hbe', key: 'hip_back_extension', supersetGroup: 'B', weightOptional: true },
+  ]
+  const [walkingLunge, , hipBackExt] = resolveItems(SEED_HYPERTROPHY_KEYS.squat, movements)
+  assert.equal(walkingLunge.movementId, 'm-wl')
+  assert.equal(walkingLunge.seed.supersetGroup, 'A')
+  assert.equal(hipBackExt.seed.weightOptional, true)
+})
+
+test('resolveItems: the row WINS over the seed when they disagree — this is the actual read-path wiring', () => {
+  // walking_lunge's seed pairs it with lying_hamstring_curl (both 'A') and
+  // marks it NOT weight-optional; standing_calf_raise's seed is 'B', not
+  // weight-optional. Give the athlete's own rows the opposite values and
+  // confirm resolveItems (and downstream groupBySuperset) follow the row.
+  const movements = [
+    { id: 'm-wl', key: 'walking_lunge', supersetGroup: null, weightOptional: true }, // seed: 'A', false
+    { id: 'm-lhc', key: 'lying_hamstring_curl', supersetGroup: 'A', weightOptional: false },
+    { id: 'm-hbe', key: 'hip_back_extension', supersetGroup: 'B', weightOptional: true },
+    { id: 'm-scr', key: 'standing_calf_raise', supersetGroup: null, weightOptional: false }, // seed: 'B'
+  ]
+  const items = resolveItems(SEED_HYPERTROPHY_KEYS.squat, movements)
+  const [walkingLunge, , , standingCalfRaise] = items
+  assert.equal(walkingLunge.seed.supersetGroup, null) // seed says 'A' — row wins
+  assert.equal(walkingLunge.seed.weightOptional, true) // seed says false — row wins
+  assert.equal(standingCalfRaise.seed.supersetGroup, null) // seed says 'B' — row wins
+
+  // groupBySuperset reads seed.supersetGroup, so the un-paired row breaks
+  // walking_lunge/lying_hamstring_curl into two standalone groups instead of one pair.
+  const groups = groupBySuperset(items)
+  assert.equal(groups.length, 4) // was 2 groups (of 2) under the seed's own pairing
+  assert.ok(groups.every((g) => g.length === 1))
 })
 
 test('slugify: stable auto-key from a name (create-time only)', () => {
