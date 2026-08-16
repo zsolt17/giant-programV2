@@ -1,9 +1,10 @@
 // Pure derivation: our persisted Session/Macro/deload data -> the flat row shape
 // the Trends charts consume (TrendSession). No DB calls, no React. The deload
 // signal flags mirror deload-rule.ts exactly so Trends never disagrees with Deload.
-import type { Session, Macro, DeloadMap, BreakDayMap, AccessoryByCycle, TrendSession, TrendCarry, CarryType, AttStatus, AttMacro, AttCycle, AttEndRow } from './types'
+import type { Session, Macro, DeloadMap, BreakDayMap, WodLog, TrendSession, TrendWod, AttStatus, AttMacro, AttCycle, AttEndRow } from './types'
 import { weekKeyFor } from './deload-rule'
 import { enumerateMacro, todayISO } from './date-engine'
+import { GIANT2_DAY_TYPE } from './constants'
 
 const DAY_LABEL: Record<string, TrendSession['day']> = { deadlift: 'DL', ohp: 'OHP', squat: 'Squat', bench: 'Bench' }
 const SPD: Record<string, 0 | 1 | 2> = { down: 0, normal: 1, up: 2 }
@@ -45,7 +46,7 @@ export function toTrendSessions(sessions: Session[], macros: Macro[], deloads: D
         // session with no Volume block (C3 week 4, or a deload).
         S1: rpe != null && rpe >= 9.5 ? 1 : 0,
         S2: s.volumeDifficulty != null && s.volDone === false ? 1 : 0,
-        S3: s.carrySkipped && s.carrySkipReason === 'fatigue' ? 1 : 0,
+        S3: s.wodSkipped && s.wodSkipReason === 'fatigue' ? 1 : 0,
         S5: s.barSpeed === 'down' ? 1 : 0,
         S7: s.blockCompletion && s.blockCompletion !== 'completed' ? 1 : 0,
         volOk: s.volDone !== false,
@@ -56,34 +57,34 @@ export function toTrendSessions(sessions: Session[], macros: Macro[], deloads: D
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
 }
 
-// Each training session has one carry, typed by the day's lift. Weight is the
-// per-cycle accessory load; distance is the session's logged metres/round.
-const CARRY_OF: Record<string, { type: CarryType; item: string }> = {
-  deadlift: { type: 'Farmer', item: 'carry_deadlift' },
-  ohp: { type: 'Overhead', item: 'carry_ohp' },
-  squat: { type: 'Sandbag', item: 'carry_squat' },
-  bench: { type: 'Suitcase', item: 'carry_bench' },
-}
-export function toCarrySessions(sessions: Session[], macros: Macro[], accessory: Record<string, AccessoryByCycle>): TrendCarry[] {
+// Each C3 session's Engine WOD, flattened to its total calories (the sum of
+// its logged rounds — the primary improvement marker). Skipped sessions and
+// sessions with nothing logged yet are omitted, same filtering spirit as the
+// old carry chart's "only sessions with real data" rule.
+export function toWodSessions(sessions: Session[], macros: Macro[], wodLogs: WodLog[]): TrendWod[] {
   const numById: Record<string, number> = {}
   macros.forEach((m) => {
     numById[m.id] = m.number
   })
+  const roundsBySession: Record<string, WodLog[]> = {}
+  wodLogs.forEach((l) => {
+    ;(roundsBySession[l.sessionId] ||= []).push(l)
+  })
+
   return sessions
-    .filter((s) => s.dayType && s.cycle != null && s.week != null && !s.carrySkipped && s.carryDistance != null)
+    .filter((s) => s.dayType && s.cycle === 3 && s.week != null && !s.wodSkipped)
     .map((s) => {
-      const c = CARRY_OF[s.dayType as string]
-      const weight = accessory[s.macroId]?.[s.cycle as number]?.[c.item] ?? null
+      const cals = (roundsBySession[s.id] || []).map((l) => l.machineCalories).filter((c): c is number => c != null)
       return {
         macro: `M${numById[s.macroId] ?? 0}`,
         cycle: `C${s.cycle}`,
         week: `W${s.week}`,
         date: s.date,
-        type: c.type,
-        weight,
-        distance: s.carryDistance,
+        dayGroup: GIANT2_DAY_TYPE[s.dayType!] ?? 'lower',
+        totalCalories: cals.length ? cals.reduce((a, c) => a + c, 0) : null,
       }
     })
+    .filter((w) => w.totalCalories != null)
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
 }
 

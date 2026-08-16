@@ -23,6 +23,9 @@ import type {
   HypertrophyLogDraft,
   OlyLog,
   OlyLogDraft,
+  WodLog,
+  WodLogDraft,
+  MachineType,
 } from '../engine/types'
 import type { Joint, Phase } from '../engine/recovery-content'
 import type { Movement, MovementSeed, LoadType, CountType } from '../engine/movements'
@@ -77,11 +80,8 @@ export interface SessionRow {
   vol_speed: string | null
   pullup_cluster: string | null
   primer_done: boolean | null
-  carry_skipped: boolean | null
-  carry_skip_reason: string | null
-  carry_rounds: number | null
-  carry_distance: number | null
-  carry_rpe: string | null
+  wod_skipped: boolean | null
+  wod_skip_reason: string | null
   cooldown_done: boolean | null
   notes: string | null
   started_at: string | null
@@ -182,11 +182,8 @@ export function rowToSession(r: SessionRow): Session {
     volSpeed: r.vol_speed || '',
     pullupCluster: r.pullup_cluster || '',
     primerDone: !!r.primer_done,
-    carrySkipped: !!r.carry_skipped,
-    carrySkipReason: r.carry_skip_reason || '',
-    carryRounds: r.carry_rounds ?? null,
-    carryDistance: toNum(r.carry_distance),
-    carryRpe: r.carry_rpe || '',
+    wodSkipped: !!r.wod_skipped,
+    wodSkipReason: r.wod_skip_reason || '',
     cooldownDone: !!r.cooldown_done,
     notes: r.notes || '',
     startedAt: r.started_at || null,
@@ -216,11 +213,8 @@ export function sessionToRow(s: SessionDraft): SessionRow {
     vol_speed: blankToNull(s.volSpeed),
     pullup_cluster: blankToNull(s.pullupCluster),
     primer_done: !!s.primerDone,
-    carry_skipped: !!s.carrySkipped,
-    carry_skip_reason: blankToNull(s.carrySkipReason),
-    carry_rounds: toNum(s.carryRounds),
-    carry_distance: toNum(s.carryDistance),
-    carry_rpe: blankToNull(s.carryRpe),
+    wod_skipped: !!s.wodSkipped,
+    wod_skip_reason: blankToNull(s.wodSkipReason),
     cooldown_done: !!s.cooldownDone,
     notes: blankToNull(s.notes),
     started_at: s.startedAt ?? null,
@@ -454,6 +448,39 @@ export function olyLogToRow(l: OlyLogDraft): OlyLogRow {
     weight: toNum(l.weight),
     quality: blankToNull(l.quality),
     notes: blankToNull(l.notes),
+  }
+  if (l.id) row.id = l.id
+  return row
+}
+
+// ---- Engine WOD logs (C3) — one row per round, no movement_id -------------
+export interface WodLogRow {
+  id?: string
+  session_id: string
+  round_number: number
+  machine_type: string
+  machine_calories: number | null
+  carry_rpe: string | null
+  updated_at?: string
+}
+export function rowToWodLog(r: WodLogRow): WodLog {
+  return {
+    id: r.id,
+    sessionId: r.session_id,
+    roundNumber: r.round_number,
+    machineType: r.machine_type as MachineType,
+    machineCalories: toNum(r.machine_calories),
+    carryRpe: r.carry_rpe || '',
+    updatedAt: r.updated_at,
+  }
+}
+export function wodLogToRow(l: WodLogDraft): WodLogRow {
+  const row: WodLogRow = {
+    session_id: l.sessionId,
+    round_number: l.roundNumber,
+    machine_type: l.machineType,
+    machine_calories: toNum(l.machineCalories),
+    carry_rpe: blankToNull(l.carryRpe),
   }
   if (l.id) row.id = l.id
   return row

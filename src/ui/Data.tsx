@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { C } from './theme'
 import { Card, BlockTitle } from './components'
-import { sessionsToCsv, hypertrophyToCsv, olyToCsv } from '../engine/export-csv'
+import { sessionsToCsv, hypertrophyToCsv, olyToCsv, wodToCsv } from '../engine/export-csv'
 import { sessionSummary } from '../engine/session-summary'
 import { todayISO } from '../engine/date-engine'
 import { weekKeyFor } from '../engine/deload-rule'
 import { LIFT_SHORT } from '../engine/constants'
-import type { Session, Macro, AccessoryByCycle, WeightsByCycle, DeloadMap, GiantAccessoryReps, HypertrophyLog, OlyLog } from '../engine/types'
+import type { Session, Macro, AccessoryByCycle, WeightsByCycle, DeloadMap, GiantAccessoryReps, HypertrophyLog, OlyLog, WodLog } from '../engine/types'
 import type { Movement } from '../engine/movements'
 
 const btn = (disabled = false) => ({
@@ -91,13 +91,14 @@ interface DataProps {
   // Giant Block accessory rep targets (user-scoped) — the summary's accessory line.
   giantAccessory?: GiantAccessoryReps
   // The Capability block: the athlete's movement library (to resolve log
-  // rows' names) + all-macro Hypertrophy/Oly logs.
+  // rows' names) + all-macro Hypertrophy/Oly/Engine-WOD logs.
   movements?: Movement[]
   hypertrophyLogs?: HypertrophyLog[]
   olyLogs?: OlyLog[]
+  wodLogs?: WodLog[]
 }
 
-export function Data({ sessions, macros, accessory = {}, weights = {}, deloads = {}, giantAccessory, movements = [], hypertrophyLogs = [], olyLogs = [] }: DataProps) {
+export function Data({ sessions, macros, accessory = {}, weights = {}, deloads = {}, giantAccessory, movements = [], hypertrophyLogs = [], olyLogs = [], wodLogs = [] }: DataProps) {
   // Select (copy target) and expand (read the full text) are two independent
   // actions — selecting a row never requires expanding it, and vice versa.
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
@@ -120,6 +121,7 @@ export function Data({ sessions, macros, accessory = {}, weights = {}, deloads =
       movements,
       hypertrophyLogs: hypertrophyLogs.filter((l) => l.sessionId === e.s.id),
       olyLogs: olyLogs.filter((l) => l.sessionId === e.s.id),
+      wodLogs: wodLogs.filter((l) => l.sessionId === e.s.id),
     })
   }
 
@@ -140,8 +142,8 @@ export function Data({ sessions, macros, accessory = {}, weights = {}, deloads =
       <Card>
         <BlockTitle tag="CSV">Download all data</BlockTitle>
         <p style={{ fontSize: 13, color: C.muted, margin: '0 0 14px' }}>
-          Sessions (with volume_difficulty + deload_week columns) and the Hypertrophy/Oly Capability results export as
-          three CSV files — each lives in its own table.
+          Sessions (with volume_difficulty + deload_week columns) and the Hypertrophy/Oly/Engine-WOD Capability results
+          export as four CSV files — each lives in its own table.
         </p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button
@@ -164,6 +166,13 @@ export function Data({ sessions, macros, accessory = {}, weights = {}, deloads =
             disabled={olyLogs.length === 0}
           >
             Oly CSV
+          </button>
+          <button
+            onClick={() => downloadCsv(wodToCsv(wodLogs, sessions, macros), `giant-program-wod-${todayISO()}.csv`)}
+            style={btn(wodLogs.length === 0)}
+            disabled={wodLogs.length === 0}
+          >
+            Engine WOD CSV
           </button>
         </div>
         {sessions.length === 0 && (

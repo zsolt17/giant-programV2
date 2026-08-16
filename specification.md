@@ -63,9 +63,10 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
   C1 (per-movement per-SET weight/reps/optional RPE, 3 fixed sets, superset pairing where the
   source sheet groups two exercises, a movement can be flagged weight-optional), **Olympic
   lifting** in C2 (per-movement weight + a Q1/Q2/Q3 quality mark, position wave copy by week),
-  **Carries** in C3 (day→implement mapping, flat RPE-6 guidance) — all suppressed during any
-  deload, reactive or scheduled → **Cooldown** (a fixed stretch sequence, same every day incl.
-  deload weeks, checkbox completion, optional).
+  **Engine WOD** in C3 (5 rounds of carry + Row/Ski/Bike Erg + rest-by-week, per-round machine
+  calories required and optional carry RPE, session-level skip+reason) — all suppressed during
+  any deload, reactive or scheduled → **Cooldown** (a fixed stretch sequence, same every day
+  incl. deload weeks, checkbox completion, optional).
 - **Today** — date-computed position; the session renders as **five independent expandable
   cards** (A. Primer / B. Giant / C. Volume / D. Capability / E. Cooldown, always this order —
   E always renders). Pre-start, all five are expanded with fields locked; Start Session
@@ -88,12 +89,14 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
   Volume all compute live off each anchor, with a read-only preview + **Giant Block
   Accessories** (rep target per day's bodyweight movement) + carries, macro anchor, macro
   picker, and "start next macro" archiving (carries C3→C1 anchors forward).
-- **Data** — export sessions (incl. `volume_difficulty`), Hypertrophy logs, and Oly logs as
-  CSVs, and copy a plain-text summary of any logged session (secondary/accessory/Volume-block
-  detail + a Capability-not-included note where relevant) to the clipboard for coaching
+- **Data** — export sessions (incl. `volume_difficulty`), Hypertrophy logs, Oly logs, and
+  Engine WOD logs as CSVs, and copy a plain-text summary of any logged session (secondary/
+  accessory/Volume-block detail + the full cycle-aware Capability content — per-set Hypertrophy,
+  per-exercise Oly, per-round Engine WOD with total calories) to the clipboard for coaching
   conversations. (Burger menu → Data.)
-- **Trends** — Lifts (DL/OHP/Squat/Bench, dynamic per-macro attendance columns) · Carries ·
-  Session views; multi-macro range picker; lazy recharts chunk. No Hypertrophy/Oly series yet.
+- **Trends** — Lifts (DL/OHP/Squat/Bench, dynamic per-macro attendance columns) · WOD (Engine
+  WOD total calories by day-type template) · Session views; multi-macro range picker; lazy
+  recharts chunk. No Hypertrophy/Oly series yet.
 - **Recovery → Tendon Health** — joint-specific isometric loading protocol: pick a joint, phase
   auto-advances (Acute/Build/Maintenance, overridable), per-tendon 30s hold timer + light per-day
   "done" logging, position diagrams. One active protocol at a time. (Burger menu → Recovery; first item.)
@@ -110,6 +113,54 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ---
 
 ## Change log
+
+## 2026-08-13 (Feature: C3 Capability → "Engine WOD", replacing isolated carry logging)
+- `feat`: **C3's Capability block is now a structured conditioning WOD, not isolated carry
+  logging.** 5 rounds of {carry segment (day's implement, `:45` continuous, flat RPE 6 guidance,
+  unchanged from before) → machine segment (Row/Ski Erg on Squat/Deadlift — athlete's choice;
+  Bike Erg on Bench/OHP — no choice; `:60`, pushed sustainably hard) → rest, tapering by week
+  within the cycle (`GIANT2_WOD_REST_SEC_BY_WEEK = {1:75, 2:65, 3:55, 4:75}` — week 4 eases back
+  rather than stacking two hard variables onto the already-heavier collapsed-Hard week)}. Session
+  total calories (sum of the 5 rounds' `machine_calories`) is the primary improvement marker.
+  `CapabilityProgram`'s `'carries'` literal renamed to `'wod'` throughout (pure compile-time
+  dispatch key, never persisted, so the rename touched nothing on disk).
+- `feat`: **Migration 0031** — new `wod_logs` table (one row PER ROUND, no `movement_id`: the
+  carry implement is resolved from `day_type` alone, unlike Hypertrophy's per-day exercise
+  list), `sessions.wod_skipped`/`wod_skip_reason` (replacing `carry_skipped`/`carry_skip_reason`,
+  same shape, drives deload signal S3 — relabeled "Engine WOD skipped (fatigue)"). Old
+  `sessions.carry_rounds`/`carry_distance`/`carry_rpe`/`carry_skipped`/`carry_skip_reason`
+  dropped in the same migration — verified zero real logged data first (all 4 live session rows
+  had them null/false; the app has never reached a real C3 week yet).
+- `feat`: **New `WodBlock` component** (`CapabilityBlock.tsx`) — 5-row per-round table (round #,
+  machine calories required, carry RPE optional), matching the Hypertrophy per-set-table
+  pattern. Lower-day sessions get a Row/Ski toggle above the table (one selection applies to all
+  5 rounds when saved — `machine_type` is a per-round DB column for schema generality, not a
+  per-round UI choice); upper-day sessions show a fixed "Bike Erg" label, no selector. Session-
+  level skip+reason checkbox lives in `Giant2SessionForm.tsx` (mirrors the old inline carries
+  skip UX exactly), gating whether `WodBlock` renders at all.
+- `fix`: **`capabilityRecordFor`/`sessionSummary` read Engine WOD the same single-source-of-truth
+  way Hypertrophy/Oly already do** — same class of fix as the 2026-08-13 Hypertrophy/Carry
+  summary bug (hardcoded fields not reading actual logged data / active cycle), applied
+  proactively here so a new block can't silently reintroduce it. `capability-record.ts` gained
+  `CapabilityWodRecord` (dayGroup, machineOptions, restSeconds, carry name/load, 5 rounds,
+  totalCalories — null when nothing's logged yet, distinct from a real 0).
+- `feat`: **Trends' Carries view replaced with a WOD view** — total-calories-over-time, split
+  into two mini-charts (Squat/Deadlift vs Bench/OHP, mirroring the old per-implement breakdown
+  but single-metric). `History.tsx`'s Carry Distance mini-chart and per-session carry-distance
+  feed suffix are retired (their data source — `carryDistance`/`carryRounds` — no longer exists;
+  the new WOD's carry segment logs RPE only, no distance/load); the session-level "skipped"
+  indicator is kept in the feed line since it's free (already on `Session`). `Data.tsx` gained a
+  4th CSV button (`wodToCsv`, one row per round).
+- Full wiring: `types.ts` (`WodLog`/`WodLogDraft`/`MachineType`), `mappers.ts`
+  (`rowToWodLog`/`wodLogToRow`), `repository.ts` (`getWodLogs`/`saveWodLog`/`getAllWodLogs`,
+  offline-queue executor, `loadMacroBundle`/`loadTrends`), `cache.ts`, `App.tsx`
+  (`wodLogs`/`allWodLogs` state + `onSaveWodLog`), `Today.tsx`/`SessionModal.tsx`/`Calendar.tsx`
+  (FK-first save pattern, identical to the existing Hypertrophy/Oly wiring).
+- Verified: 146 unit tests (was 142 — net new: `isWodDone`, `toWodSessions`, `wodToCsv`,
+  cycle-aware WOD summary rendering for both day-type templates + rest-by-week + skip), a real
+  sort bug caught by the new `wodToCsv` test and fixed (date-tie comparator never fell through to
+  the round-number tiebreak). Smoke test (75/75, incl. the full `wod_logs` upsert/dedup
+  round-trip) against live Supabase. Typecheck and build clean.
 
 ## 2026-08-13 (Fix: superset grouping unclear with 2+ pairs)
 - `fix`: **Each Hypertrophy superset pair now renders in its own full bordered box**

@@ -83,7 +83,7 @@ I. Primer → II. Giant Block → III. Volume Block → IV. Capability Block →
   2 sets, reps by ITS OWN difficulty, 80% of the day's top for that difficulty. Absent
   entirely on C3 week 4 (no Volume block that week) and on any deload (§2.9).
 - **Capability Block** (§2.7) — content is a property of the CYCLE, not the week or
-  session: Hypertrophy (C1), Oly (C2), Carries (C3). Absent entirely on any deload.
+  session: Hypertrophy (C1), Oly (C2), Engine WOD (C3). Absent entirely on any deload.
 - **Cooldown** (§2.13) — a fixed stretch sequence, same for all four days and every cycle,
   including deload weeks (unlike Volume/Capability, a cooldown routine applies regardless of
   what the session's lifting content was).
@@ -183,6 +183,9 @@ free-text `note`) when only reps matter — Hip/Back Extension is the current ex
 | Day | Exercises | Supersets |
 |---|---|---|
 | Squat | Walking Lunge · Lying Hamstring Curl · Hip/Back Extension (3×15, weight optional) · Standing Calf Raise (3×15) | Walking Lunge+Lying Hamstring Curl · Hip/Back Ext+Standing Calf Raise |
+| Bench | Seated DB Press · One-Arm Row · Bicep Curl (3×15) · Skull Crusher (3×15) · Serratus Anterior Raise | Seated DB Press+One-Arm Row · Bicep Curl+Skull Crusher |
+| Deadlift | Front-Foot-Elevated Split Squat · Hip Thrust (3×15) · Leg Extension (3×15) | Hip Thrust+Leg Extension |
+| OHP | Flat DB Bench · Lat Pulldown (supinated) · Lateral Raise (3×15) · Rope Face Pull (seated, to top of head, 3×15) | Flat DB Bench+Lat Pulldown · Lateral Raise+Rope Face Pull |
 
 **Superset display (a day can have 2+ pairs):** each pair renders in its own full bordered box
 (rounded corners, not just a left-edge accent line — a boundary reads unambiguously at a glance,
@@ -194,9 +197,6 @@ reinforcement on top of the box/spacing, never the only signal. Purple (`C.purpl
 series" in the brand guide) is the deliberate non-semantic accent: green/red/blue are reserved
 difficulty/state meanings elsewhere in the app, so reusing one here would misread as good/bad
 next to workout numbers.
-| Bench | Seated DB Press · One-Arm Row · Bicep Curl (3×15) · Skull Crusher (3×15) · Serratus Anterior Raise | Seated DB Press+One-Arm Row · Bicep Curl+Skull Crusher |
-| Deadlift | Front-Foot-Elevated Split Squat · Hip Thrust (3×15) · Leg Extension (3×15) | Hip Thrust+Leg Extension |
-| OHP | Flat DB Bench · Lat Pulldown (supinated) · Lateral Raise (3×15) · Rope Face Pull (seated, to top of head, 3×15) | Flat DB Bench+Lat Pulldown · Lateral Raise+Rope Face Pull |
 
 **C2 — Oly.** Technical work, loaded to a per-lane "technical ceiling found by feel" — **not**
 a percentage of a tested max, and **not RPE** — logged with a **quality mark** instead
@@ -212,9 +212,29 @@ the knee), weeks 3–4 from the knee.
 | Deadlift | Muscle Snatch | Snatch High Pull + Hang Power Snatch | — |
 | OHP | Tall Jerk | Push Press + Jerk | Split Jerk |
 
-**C3 — Carries.** One implement per day (§2.10), gated to render only in C3. Always guided at
-a flat **RPE 6** — copy/guidance only, not an enforced value; the athlete's own `carry_rpe`
-input is unchanged. Progression: position before load, distance before weight.
+**C3 — Engine WOD** (2026-08-13, replaced isolated carry logging). 5 rounds of {carry segment,
+machine segment, rest}, one `wod_logs` row per round (`unique(session_id, round_number)`, no
+`movement_id` — the carry implement is resolved from `day_type` alone, same as before, not a
+per-day exercise choice like Hypertrophy's). Two day-type templates (`GIANT2_DAY_TYPE`):
+- **Carry segment** — the day's implement (§2.10) unchanged from the old carries block, `:45`
+  continuous, guided at a flat **RPE 6** (`GIANT2_CARRY_RPE_GUIDANCE`) — copy/guidance only, not
+  an enforced value; `wod_logs.carry_rpe` is optional, logged per round (the segment repeats
+  each round, not once for the whole WOD). No distance/load field in this block — the old
+  carry's distance-before-weight progression doesn't apply to a fixed-duration segment.
+- **Machine segment** — Row or Ski Erg (lower day: Squat/Deadlift, athlete's choice) or Bike Erg
+  (upper day: Bench/OHP, no choice). `:60`, pushed sustainably hard, not a max sprint.
+  `wod_logs.machine_calories` is the required field — the round's whole point, and the sum
+  across a session's rounds is the primary improvement marker (surfaced in Data/Trends and the
+  session summary). `machine_type` is a per-round *column* for schema generality, but in
+  practice one selector picks it for the whole session (equipment doesn't change mid-WOD) —
+  UI is 5 rows of {round #, calories, optional carry RPE}, not a per-round machine choice.
+- **Rest between rounds** — by week within C3, tapering weeks 1–3 then easing back on week 4
+  (the collapsed-Hard week, `GIANT2_WEEK4_DIFFICULTY`) rather than stacking two hard variables:
+  `GIANT2_WOD_REST_SEC_BY_WEEK = { 1: 75, 2: 65, 3: 55, 4: 75 }` seconds.
+
+`sessions.wod_skipped`/`wod_skip_reason` (same shape as the old `carry_skipped`/
+`carry_skip_reason` they replaced) gate the whole WOD as a unit, not per-round — drives deload
+signal S3.
 
 **Movement identity vs. resolver:** the movement library (`movements`) holds every
 Primer/Hypertrophy/Oly/Giant-Block movement, and the program is seeded as **program version 2**
@@ -244,10 +264,10 @@ is stored purely as the scheme lookup). No Volume block, no Capability block (§
 `!isDeload` gates). Reactive mid-cycle deloads (§5) share the same ~70%/no-Volume/no-Capability
 shape.
 
-### 2.10 Carries (per day, accessory effort)
+### 2.10 Carries (per day, the Engine WOD's carry segment)
 **Squat → Sandbag Bear Hug · Bench → Suitcase · Deadlift → Farmers · OHP → Overhead.** Same
-`carry_<day>` keys, Setup-configurable per-cycle weights, Suitcase 50 kg seed default. Gated
-to render only in C3 (§2.7).
+`carry_<day>` keys, Setup-configurable per-cycle weights, Suitcase 50 kg seed default. Only
+consumed by the Engine WOD (§2.7), which only renders in C3.
 
 ### 2.11 Giant-block completion (adherence)
 The top set keeps full RPE + bar-speed logging; the rest of the block is captured by a single
@@ -346,9 +366,9 @@ An honest fatigue ego-check. Watches objective signals across a training week.
   Volume block at all (C3 week 4, `volumeDifficulty` null, or any deload) — an explicit domain
   rule in `deload-rule.ts` rather than left as an implicit consequence of which checkbox
   happens to render.
-- **S3** — carry skipped due to **fatigue** (not schedule). `carrySkipped`/`carrySkipReason`
-  are only ever set where the Carry UI renders (C3), so the signal is already quiet outside C3
-  structurally.
+- **S3** — Engine WOD skipped due to **fatigue** (not schedule). `wodSkipped`/`wodSkipReason`
+  are only ever set where the Engine WOD UI renders (C3), so the signal is already quiet outside
+  C3 structurally.
 - **S5** — bar speed ↓ on the top set in **2+ sessions** within the week (any lifts).
 - **S7** — **giant block not completed as prescribed** (any non-"completed" state of the
   completion control, §2.11).
@@ -462,11 +482,11 @@ The full rebuild is shipped and deployed to GitHub Pages
   macro picker, and "start next macro" archiving (C3→C1).
 - **Per-cycle working weights** — the motivating fix; a session reads its own `(macro, cycle)` grid.
 - **Multi-macro archiving** — roll into a new macro carrying C3 weights forward; prior macros stay viewable.
-- **Trends** — Lifts (DL/OHP/Squat/Bench) · Carries · Attendance (4-column grid) · Session views
-  across a macro range. No Hypertrophy/Oly trend views yet (their CSV export exists, not a
-  Trends visualization).
-- **Data export / share** — three CSVs (sessions incl. `volume_difficulty`, Hypertrophy logs,
-  Oly logs) and per-session plain-text summaries.
+- **Trends** — Lifts (DL/OHP/Squat/Bench) · WOD (Engine WOD total calories, by day-type
+  template) · Attendance (4-column grid) · Session views across a macro range. No Hypertrophy/Oly
+  trend views yet (their CSV export exists, not a Trends visualization).
+- **Data export / share** — four CSVs (sessions incl. `volume_difficulty`, Hypertrophy logs,
+  Oly logs, Engine WOD logs) and per-session plain-text summaries.
 - **Recovery → Tendon Health** (§12) — joint isometric-loading protocols with phase-based dosing,
   per-tendon hold timers, and light per-day "done" logging. Macro-independent.
 - **Single-user auth** (Supabase + Row Level Security), installable PWA with offline logging.
@@ -559,12 +579,11 @@ sessions (
   -- Today's Primer card: the checklist itself is UI-only local state (never
   -- persisted per-item); this single flag is what the card's Done saves.
   primer_done   boolean not null default false,
-  -- carry
-  carry_skipped boolean default false,
-  carry_skip_reason text,                  -- fatigue | schedule
-  carry_rounds  int default 3,             -- carry rounds completed
-  carry_distance numeric,                  -- metres per round ("distance before weight")
-  carry_rpe     text,
+  -- Engine WOD (C3, §2.7) skip — gates the whole 5-round WOD as a unit, not
+  -- per-round (per-round detail lives in wod_logs below). Same shape as the
+  -- old carry_skipped/carry_skip_reason it replaced (2026-08-13).
+  wod_skipped   boolean not null default false,
+  wod_skip_reason text,                    -- fatigue | schedule
   -- Today's Cooldown card (§2.13) — same shape as primer_done above.
   cooldown_done boolean not null default false,
   -- session timer (timestamps; duration is always derived, never stored)
@@ -643,8 +662,8 @@ giant2_giant_difficulty (
 
 -- Capability block — C1 Hypertrophy. One row PER MOVEMENT PER SET per session
 -- (GIANT2_HYPERTROPHY_SETS, currently 3). RPE is a normal, OPTIONAL per-set
--- field (text, "R6".."R10" — same scale as sessions.rpe/vol_rpe/carry_rpe) —
--- never part of the Done-readiness check (engine/session-progress.ts).
+-- field (text, "R6".."R10" — same scale as sessions.rpe/vol_rpe/wod_logs.carry_rpe)
+-- — never part of the Done-readiness check (engine/session-progress.ts).
 hypertrophy_logs (
   id            uuid primary key default gen_random_uuid(),
   session_id    text references sessions on delete cascade not null,
@@ -669,6 +688,25 @@ oly_logs (
   notes         text,
   updated_at    timestamptz default now(),
   unique (session_id, movement_id)
+)
+
+-- Capability block — C3 Engine WOD (2026-08-13, replaced isolated carry
+-- logging). One row PER ROUND (1..GIANT2_WOD_ROUNDS, currently 5) per
+-- session — no movement_id, the carry implement is resolved from the
+-- session's day_type alone (DAY_META), never a per-day choice.
+-- machine_calories is the required field; carry_rpe is optional, same scale
+-- as every other RPE field. machine_type is stored per round for schema
+-- generality, but in practice one UI selector picks it for the whole
+-- session (Row/Ski on lower days, always Bike on upper — no real choice).
+wod_logs (
+  id                uuid primary key default gen_random_uuid(),
+  session_id        text references sessions on delete cascade not null,
+  round_number      int not null,             -- 1..GIANT2_WOD_ROUNDS, check (round_number between 1 and 5)
+  machine_type      text not null,            -- row | ski | bike
+  machine_calories  numeric,
+  carry_rpe         text,                     -- "R6".."R10" | null (unset) — optional
+  updated_at        timestamptz default now(),
+  unique (session_id, round_number)
 )
 
 -- The movement library: which exercise occupies which slot, and its defaults.
@@ -770,7 +808,7 @@ repeated here. The two load-bearing domain invariants to preserve, wherever the 
   deload signal S7.
 - **Pull-ups (bench-day secondary) are two-mode**, flipping between bodyweight (cluster) and
   weighted (full cascade) purely on the cycle's anchor value (§3, §4) — no toggle.
-- Carries are accessory/reward effort, ~RPE 6, never pushed.
+- Carries (now the Engine WOD's carry segment) are accessory/reward effort, ~RPE 6, never pushed.
 - Reactive deload: advise-and-confirm, never auto-forced.
 - Keep the navy/gold design identity.
 - Backend is Supabase + RLS.

@@ -155,10 +155,10 @@ test('deload week: DOES carry a dayType (fixed day->lift, deload or not), but no
   assert.equal(mon.volumeDifficulty, null)
 })
 
-test('capabilityProgramFor: Hypertrophy C1, Oly C2, Carries C3', () => {
+test('capabilityProgramFor: Hypertrophy C1, Oly C2, Engine WOD C3', () => {
   assert.equal(capabilityProgramFor(1), 'hypertrophy')
   assert.equal(capabilityProgramFor(2), 'oly')
-  assert.equal(capabilityProgramFor(3), 'carries')
+  assert.equal(capabilityProgramFor(3), 'wod')
 })
 
 test('giant2GiantDifficultyFor / giant2VolumeDifficultyFor: pure lookups match corePosition exactly', () => {

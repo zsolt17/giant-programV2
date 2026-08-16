@@ -27,19 +27,23 @@ import type {
   HypertrophyLogDraft,
   OlyLog,
   OlyLogDraft,
+  WodLog,
+  WodLogDraft,
 } from '../engine/types'
 import type { Movement } from '../engine/movements'
 
 // Capability block context — the FK needs the session row first, so its save
-// upserts the current draft before writing the sub-record. Movements + BOTH
-// log arrays (only one program is ever active for a given cycle, but the
-// context doesn't need to know which).
+// upserts the current draft before writing the sub-record. Movements + ALL
+// THREE log arrays (only one program is ever active for a given cycle, but
+// the context doesn't need to know which).
 interface CapabilityCtx {
   movements: Movement[]
   hypertrophyLogs: HypertrophyLog[]
   olyLogs: OlyLog[]
+  wodLogs: WodLog[]
   onSaveHypertrophyLog: (log: HypertrophyLogDraft) => Promise<HypertrophyLog>
   onSaveOlyLog: (log: OlyLogDraft) => Promise<OlyLog>
+  onSaveWodLog: (log: WodLogDraft) => Promise<WodLog>
 }
 
 // Is any break day inside the program week containing weekIndex?
@@ -93,12 +97,14 @@ interface TodayProps {
   // Giant Block accessory rep targets (Setup config, defaults merged).
   giantAccessory?: GiantAccessoryReps
   // The Capability block: the athlete's movement library + this macro's
-  // Hypertrophy/Oly logs + save handlers.
+  // Hypertrophy/Oly/Engine-WOD logs + save handlers.
   movements?: Movement[]
   hypertrophyLogs?: HypertrophyLog[]
   olyLogs?: OlyLog[]
+  wodLogs?: WodLog[]
   onSaveHypertrophyLog?: (log: HypertrophyLogDraft) => Promise<HypertrophyLog>
   onSaveOlyLog?: (log: OlyLogDraft) => Promise<OlyLog>
+  onSaveWodLog?: (log: WodLogDraft) => Promise<WodLog>
   onSaveSession: (record: SessionDraft) => Promise<Session>
   onApplyDeload: (weekKey: string, on: boolean) => Promise<void>
   onExtendDeload?: (on: boolean) => Promise<void>
@@ -119,10 +125,12 @@ export function Today({
   movements = [],
   hypertrophyLogs = [],
   olyLogs = [],
+  wodLogs = [],
   onSaveSession,
   onApplyDeload,
   onSaveHypertrophyLog,
   onSaveOlyLog,
+  onSaveWodLog,
   onExtendDeload,
   onRunningChange,
 }: TodayProps) {
@@ -239,16 +247,18 @@ export function Today({
 
   // Capability block context — only when the cycle actually has one (never
   // on deload, cycle is null there). The block itself decides Hypertrophy/
-  // Oly/Carries by cycle; this context just supplies the data both
-  // per-movement log types might need.
+  // Oly/Engine-WOD by cycle; this context just supplies the data any of the
+  // three log types might need.
   const capabilityCtx: CapabilityCtx | null =
-    onSaveHypertrophyLog && onSaveOlyLog
+    onSaveHypertrophyLog && onSaveOlyLog && onSaveWodLog
       ? {
           movements,
           hypertrophyLogs: hypertrophyLogs.filter((l) => l.sessionId === sessionId),
           olyLogs: olyLogs.filter((l) => l.sessionId === sessionId),
+          wodLogs: wodLogs.filter((l) => l.sessionId === sessionId),
           onSaveHypertrophyLog,
           onSaveOlyLog,
+          onSaveWodLog,
         }
       : null
 
@@ -588,6 +598,7 @@ function SessionEditor({
         movements: capabilityCtx.movements,
         hypertrophyLogs: capabilityCtx.hypertrophyLogs,
         olyLogs: capabilityCtx.olyLogs,
+        wodLogs: capabilityCtx.wodLogs,
         onSaveHypertrophyLog: async (l: HypertrophyLogDraft) => {
           await onSaveSession({ ...draft, ...stamp })
           return capabilityCtx.onSaveHypertrophyLog(l)
@@ -595,6 +606,10 @@ function SessionEditor({
         onSaveOlyLog: async (l: OlyLogDraft) => {
           await onSaveSession({ ...draft, ...stamp })
           return capabilityCtx.onSaveOlyLog(l)
+        },
+        onSaveWodLog: async (l: WodLogDraft) => {
+          await onSaveSession({ ...draft, ...stamp })
+          return capabilityCtx.onSaveWodLog(l)
         },
       }
     : null

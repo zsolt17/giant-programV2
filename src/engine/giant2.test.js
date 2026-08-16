@@ -38,7 +38,7 @@ test('GIANT2_GIANT_DEFAULT_ROTATION: exactly one tier doubles up each week, all 
 test('week 4 collapse and volume-by-cycle and capability-by-cycle match the confirmed 13-week calendar', () => {
   assert.deepEqual(GIANT2_WEEK4_DIFFICULTY, { 1: 'light', 2: 'medium', 3: 'hard' })
   assert.deepEqual(GIANT2_VOLUME_DIFFICULTY_BY_CYCLE, { 1: 'light', 2: 'medium', 3: 'hard' })
-  assert.deepEqual(GIANT2_CAPABILITY_BY_CYCLE, { 1: 'hypertrophy', 2: 'oly', 3: 'carries' })
+  assert.deepEqual(GIANT2_CAPABILITY_BY_CYCLE, { 1: 'hypertrophy', 2: 'oly', 3: 'wod' })
 })
 
 test('GIANT2_DAY_LIFT: fixed Mon/Tue/Thu/Fri -> Squat/Bench/Deadlift/OHP, no Wed/Sat/Sun', () => {

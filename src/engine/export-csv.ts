@@ -1,7 +1,7 @@
 // Pure CSV serialization of all logged sessions, for the Data page's export.
 // Framework-agnostic and unit-tested. The macro NUMBER is resolved from the
 // macros list (rows only carry macroId).
-import type { Session, Macro, DeloadMap, HypertrophyLog, OlyLog } from './types'
+import type { Session, Macro, DeloadMap, HypertrophyLog, OlyLog, WodLog } from './types'
 import type { Movement } from './movements'
 
 // Column order = header order. Each entry maps a Session to its cell value.
@@ -27,11 +27,8 @@ const COLUMNS: { header: string; value: (s: Session, macroNumber: number | '') =
   { header: 'vol_rpe', value: (s) => s.volRpe },
   { header: 'vol_speed', value: (s) => s.volSpeed },
   { header: 'pullup_cluster', value: (s) => s.pullupCluster },
-  { header: 'carry_skipped', value: (s) => s.carrySkipped },
-  { header: 'carry_skip_reason', value: (s) => s.carrySkipReason },
-  { header: 'carry_rounds', value: (s) => s.carryRounds },
-  { header: 'carry_distance', value: (s) => s.carryDistance },
-  { header: 'carry_rpe', value: (s) => s.carryRpe },
+  { header: 'wod_skipped', value: (s) => s.wodSkipped },
+  { header: 'wod_skip_reason', value: (s) => s.wodSkipReason },
   { header: 'started_at', value: (s) => s.startedAt },
   { header: 'ended_at', value: (s) => s.endedAt },
   { header: 'notes', value: (s) => s.notes },
@@ -90,6 +87,23 @@ export function olyToCsv(logs: OlyLog[], sessions: Session[], movements: Movemen
     .sort((a, b) => ((a.s?.date || '') < (b.s?.date || '') ? -1 : 1))
     .map(({ l, s, m }) =>
       [s?.date, s ? numberById.get(s.macroId) ?? '' : '', s?.cycle, s?.week, s?.dayType, m?.name ?? l.movementId, l.weight, l.quality, l.notes]
+        .map(csvCell)
+        .join(',')
+    )
+  return [header, ...rows].join('\n')
+}
+
+// Engine WOD export (C3) — one row per round, no movement (the carry
+// implement is resolved from day_type, not a per-day exercise list).
+export function wodToCsv(logs: WodLog[], sessions: Session[], macros: Macro[]): string {
+  const numberById = new Map(macros.map((m) => [m.id, m.number]))
+  const sessionById = new Map(sessions.map((s) => [s.id, s]))
+  const header = 'date,macro,cycle,week,day_type,round_number,machine_type,machine_calories,carry_rpe'
+  const rows = logs
+    .map((l) => ({ l, s: sessionById.get(l.sessionId) }))
+    .sort((a, b) => (a.s?.date || '').localeCompare(b.s?.date || '') || a.l.roundNumber - b.l.roundNumber)
+    .map(({ l, s }) =>
+      [s?.date, s ? numberById.get(s.macroId) ?? '' : '', s?.cycle, s?.week, s?.dayType, l.roundNumber, l.machineType, l.machineCalories, l.carryRpe]
         .map(csvCell)
         .join(',')
     )

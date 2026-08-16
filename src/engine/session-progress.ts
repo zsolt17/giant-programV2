@@ -3,9 +3,9 @@
 // field" rule). Shared by the card UI (Giant2SessionForm, CapabilityBlock) so
 // the Done-button gate and the collapsed-card checkmark can never disagree —
 // both call the same function instead of each re-deriving it.
-import { GIANT2_HYPERTROPHY_SETS } from './constants'
+import { GIANT2_HYPERTROPHY_SETS, GIANT2_WOD_ROUNDS } from './constants'
 import { SEED_HYPERTROPHY_KEYS, SEED_OLY_KEYS, seedByKey } from './movements'
-import type { Lift, SessionDraft, HypertrophyLog, OlyLog } from './types'
+import type { Lift, SessionDraft, HypertrophyLog, OlyLog, WodLog } from './types'
 import type { Movement } from './movements'
 
 const filled = (v: unknown): boolean => v != null && String(v).trim() !== ''
@@ -37,10 +37,15 @@ export function isVolumeDone(draft: Pick<SessionDraft, 'volRpe' | 'volSpeed'>): 
   return filled(draft.volRpe) && filled(draft.volSpeed)
 }
 
-// Carries (C3): skipped needs only a reason; otherwise rounds+distance+RPE.
-export function isCarriesDone(draft: Pick<SessionDraft, 'carrySkipped' | 'carrySkipReason' | 'carryRounds' | 'carryDistance' | 'carryRpe'>): boolean {
-  if (draft.carrySkipped) return filled(draft.carrySkipReason)
-  return filled(draft.carryRounds) && filled(draft.carryDistance) && filled(draft.carryRpe)
+// Engine WOD (C3): skipped needs only a reason; otherwise every round needs
+// its machine calories (the round's whole point) — carry RPE is optional,
+// same as Hypertrophy's per-set RPE is out of its own Done check.
+export function isWodDone(draft: Pick<SessionDraft, 'wodSkipped' | 'wodSkipReason'>, logs: WodLog[]): boolean {
+  if (draft.wodSkipped) return filled(draft.wodSkipReason)
+  for (let round = 1; round <= GIANT2_WOD_ROUNDS; round++) {
+    if (!filled(logs.find((l) => l.roundNumber === round)?.machineCalories)) return false
+  }
+  return true
 }
 
 // Hypertrophy (C1): reps + load for every SET (GIANT2_HYPERTROPHY_SETS) of

@@ -3,10 +3,10 @@
 // and unit-tested. Captures the complete session picture: the Giant Block set
 // ladder comes from the SAME loading-engine computation Today renders (giantSets/
 // volumeWeight), never re-derived. Non-applicable / unlogged lines are omitted.
-import { LIFT_SHORT, SCHEMES, BLOCK_COMPLETION, GIANT2_SECONDARY, GB_ACCESSORY, SECONDARY_LANE, SECONDARY_REPS, PULLUP } from './constants'
+import { LIFT_SHORT, SCHEMES, BLOCK_COMPLETION, GIANT2_SECONDARY, GB_ACCESSORY, SECONDARY_LANE, SECONDARY_REPS, PULLUP, MACHINE_LABEL } from './constants'
 import { giantSets, volumeWeight, liftMode } from './loading'
 import { capabilityRecordFor } from './capability-record'
-import type { CapabilityLogs, HypertrophyExerciseRecord, HypertrophySetRecord, OlyExerciseRecord } from './capability-record'
+import type { CapabilityLogs, HypertrophyExerciseRecord, HypertrophySetRecord, OlyExerciseRecord, WodRoundRecord } from './capability-record'
 import type { Session, Lift, AccessoryByCycle, WeightsByCycle, GiantAccessoryReps } from './types'
 
 // 'up' -> ↑, 'down' -> ↓, 'normal' -> →; blank -> '' (no stray arrow when unlogged).
@@ -61,13 +61,20 @@ function olyExerciseLine(ex: OlyExerciseRecord): string {
   return `  ${label}: ${weight} ${ex.quality || '—'}`
 }
 
+// "R1: 12 cal | carry R6"; either segment drops cleanly if unlogged.
+function wodRoundLine(r: WodRoundRecord): string {
+  const cal = r.machineCalories != null ? `${r.machineCalories} cal` : '—'
+  const carry = r.carryRpe ? `carry ${rpeStr(r.carryRpe)}` : ''
+  return `  R${r.roundNumber}: ${seg(cal, carry)}`
+}
+
 // `accessory` = the per-cycle grid for the SESSION'S macro (cycle -> item -> weight);
 // resolves the carry weight. `weights` = the same macro's working-weight grid —
 // resolves the secondary's ladder + the weighted pull-up ladder. `capability` =
-// this session's Hypertrophy/Oly log tables + the athlete's movement library —
-// omitted (e.g. minimal test fixtures), Hypertrophy/Oly still render full
-// exercise structure with "—" placeholders for anything not logged (see
-// capabilityRecordFor); Carries needs none of it, it reads straight off `s`.
+// this session's Hypertrophy/Oly/Engine-WOD log tables + the athlete's movement
+// library — omitted (e.g. minimal test fixtures), every program still renders
+// full structure with "—" placeholders for anything not logged (see
+// capabilityRecordFor).
 export function sessionSummary(
   s: Session,
   macroNumber: number,
@@ -172,13 +179,14 @@ export function sessionSummary(
   } else if (capRecord?.program === 'oly') {
     lines.push(`Oly:${capRecord.positionGuidance ? ` ${capRecord.positionGuidance}` : ''}`)
     for (const ex of capRecord.exercises) lines.push(olyExerciseLine(ex))
-  } else if (capRecord?.program === 'carries') {
+  } else if (capRecord?.program === 'wod') {
     if (capRecord.skipped) {
-      lines.push(`Carry: ${capRecord.name} — skipped${capRecord.skipReason ? ` (${capRecord.skipReason})` : ''}`)
-    } else if (capRecord.rounds != null || capRecord.distance != null || capRecord.rpe) {
-      const rounds = capRecord.rounds ?? '—'
-      const dist = capRecord.distance != null ? `${capRecord.distance}m` : '—'
-      lines.push(`Carry: ${seg(`${capRecord.name} ${capRecord.load}`, `${rounds}×${dist}`, rpeStr(capRecord.rpe))}`)
+      lines.push(`Engine WOD: skipped${capRecord.skipReason ? ` (${capRecord.skipReason})` : ''}`)
+    } else {
+      const machineLabel = capRecord.machineOptions.map((m) => MACHINE_LABEL[m]).join('/')
+      lines.push(`Engine WOD: ${capRecord.carryName} ${capRecord.carryLoad} · ${machineLabel} · rest ${capRecord.restSeconds}s`)
+      for (const r of capRecord.rounds) lines.push(wodRoundLine(r))
+      lines.push(`  Total: ${capRecord.totalCalories != null ? `${capRecord.totalCalories} cal` : '—'}`)
     }
   }
 

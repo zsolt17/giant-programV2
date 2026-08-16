@@ -8,7 +8,7 @@ import { fmtClock, DurationEdit, errMsg } from './controls'
 import { SCHEMES, LIFT_LABEL, SECONDARY_LANE } from '../engine/constants'
 import { deloadTop } from '../engine/loading'
 import { parseLocalDate } from '../engine/date-engine'
-import type { MacroCell, Session, SessionDraft, WeightsByCycle, AccessoryByCycle, DeloadMap, GiantAccessoryReps, Difficulty, HypertrophyLog, HypertrophyLogDraft, OlyLog, OlyLogDraft } from '../engine/types'
+import type { MacroCell, Session, SessionDraft, WeightsByCycle, AccessoryByCycle, DeloadMap, GiantAccessoryReps, Difficulty, HypertrophyLog, HypertrophyLogDraft, OlyLog, OlyLogDraft, WodLog, WodLogDraft } from '../engine/types'
 import type { Movement } from '../engine/movements'
 
 function shortDate(iso: string): string {
@@ -30,12 +30,14 @@ interface SessionModalProps {
   // Giant Block accessory rep targets (Setup config, defaults merged).
   giantAccessory?: GiantAccessoryReps
   // The Capability block: the athlete's movement library + this macro's
-  // Hypertrophy/Oly logs + save handlers.
+  // Hypertrophy/Oly/Engine-WOD logs + save handlers.
   movements?: Movement[]
   hypertrophyLogs?: HypertrophyLog[]
   olyLogs?: OlyLog[]
+  wodLogs?: WodLog[]
   onSaveHypertrophyLog?: (log: HypertrophyLogDraft) => Promise<HypertrophyLog>
   onSaveOlyLog?: (log: OlyLogDraft) => Promise<OlyLog>
+  onSaveWodLog?: (log: WodLogDraft) => Promise<WodLog>
   onClose: () => void
 }
 
@@ -55,8 +57,10 @@ export function SessionModal({
   movements = [],
   hypertrophyLogs = [],
   olyLogs = [],
+  wodLogs = [],
   onSaveHypertrophyLog,
   onSaveOlyLog,
+  onSaveWodLog,
   onClose,
 }: SessionModalProps) {
   // The deload week is a real, loggable session (fixed day->lift, no H/M/L
@@ -137,11 +141,12 @@ export function SessionModal({
   // renders for it there).
   const sessionId = dayType && difficulty ? `${cell.date}-${dayType}` : null
   const capabilityProp =
-    sessionId && cycle != null && onSaveHypertrophyLog && onSaveOlyLog
+    sessionId && cycle != null && onSaveHypertrophyLog && onSaveOlyLog && onSaveWodLog
       ? {
           movements,
           hypertrophyLogs: hypertrophyLogs.filter((l) => l.sessionId === sessionId),
           olyLogs: olyLogs.filter((l) => l.sessionId === sessionId),
+          wodLogs: wodLogs.filter((l) => l.sessionId === sessionId),
           onSaveHypertrophyLog: async (l: HypertrophyLogDraft) => {
             await onSaveSession(buildRecord())
             return onSaveHypertrophyLog(l)
@@ -149,6 +154,10 @@ export function SessionModal({
           onSaveOlyLog: async (l: OlyLogDraft) => {
             await onSaveSession(buildRecord())
             return onSaveOlyLog(l)
+          },
+          onSaveWodLog: async (l: WodLogDraft) => {
+            await onSaveSession(buildRecord())
+            return onSaveWodLog(l)
           },
         }
       : null

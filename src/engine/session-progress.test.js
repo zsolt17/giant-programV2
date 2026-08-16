@@ -1,8 +1,8 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { isPrimerDone, isCooldownDone, isGiantDone, isVolumeDone, isCarriesDone, isHypertrophyDone, isOlyDone } from './session-progress'
+import { isPrimerDone, isCooldownDone, isGiantDone, isVolumeDone, isWodDone, isHypertrophyDone, isOlyDone } from './session-progress'
 import { SEED_HYPERTROPHY_KEYS, SEED_OLY_KEYS } from './movements'
-import { GIANT2_HYPERTROPHY_SETS } from './constants'
+import { GIANT2_HYPERTROPHY_SETS, GIANT2_WOD_ROUNDS } from './constants'
 
 test('isPrimerDone: reads the single persisted flag, nothing else', () => {
   assert.equal(isPrimerDone({ primerDone: false }), false)
@@ -29,13 +29,28 @@ test('isVolumeDone: RPE + bar speed required (volDone is not part of the check �
   assert.equal(isVolumeDone({ volRpe: 'R8', volSpeed: 'up' }), true)
 })
 
-test('isCarriesDone: skipped needs only a reason; otherwise rounds+distance+RPE', () => {
-  assert.equal(isCarriesDone({ carrySkipped: true, carrySkipReason: '', carryRounds: null, carryDistance: null, carryRpe: '' }), false)
-  assert.equal(isCarriesDone({ carrySkipped: true, carrySkipReason: 'fatigue', carryRounds: null, carryDistance: null, carryRpe: '' }), true)
-  assert.equal(isCarriesDone({ carrySkipped: false, carrySkipReason: '', carryRounds: 3, carryDistance: 40, carryRpe: '' }), false)
-  assert.equal(isCarriesDone({ carrySkipped: false, carrySkipReason: '', carryRounds: 3, carryDistance: 40, carryRpe: 'R6' }), true)
-  // 0 is a legitimate value, not "unfilled".
-  assert.equal(isCarriesDone({ carrySkipped: false, carrySkipReason: '', carryRounds: 0, carryDistance: 40, carryRpe: 'R6' }), true)
+// ---- Engine WOD (C3): skipped needs only a reason; otherwise every round needs machine calories ----
+
+function wodRoundsFor({ roundsWithCalories = [] } = {}) {
+  return Array.from({ length: GIANT2_WOD_ROUNDS }, (_, i) => {
+    const roundNumber = i + 1
+    return { roundNumber, machineType: 'row', machineCalories: roundsWithCalories.includes(roundNumber) ? 12 : null, carryRpe: '' }
+  })
+}
+const ALL_WOD_ROUNDS = Array.from({ length: GIANT2_WOD_ROUNDS }, (_, i) => i + 1)
+
+test('isWodDone: skipped needs only a reason, logs irrelevant', () => {
+  assert.equal(isWodDone({ wodSkipped: true, wodSkipReason: '' }, []), false)
+  assert.equal(isWodDone({ wodSkipped: true, wodSkipReason: 'fatigue' }, []), true)
+})
+
+test('isWodDone: not skipped — false with no rounds logged, false with only some rounds logged', () => {
+  assert.equal(isWodDone({ wodSkipped: false, wodSkipReason: '' }, []), false)
+  assert.equal(isWodDone({ wodSkipped: false, wodSkipReason: '' }, wodRoundsFor({ roundsWithCalories: [1, 2, 3, 4] })), false)
+})
+
+test('isWodDone: not skipped — true once every round has machine calories (carry RPE not required)', () => {
+  assert.equal(isWodDone({ wodSkipped: false, wodSkipReason: '' }, wodRoundsFor({ roundsWithCalories: ALL_WOD_ROUNDS })), true)
 })
 
 // ---- Hypertrophy: per-set, weight-optional aware ----------------------------

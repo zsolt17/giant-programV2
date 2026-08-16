@@ -119,7 +119,7 @@ async function main() {
       dayType: 'squat', difficulty: 'hard', volumeDifficulty: 'light', topReps: 2, topWeight: 160, rpe: 'R8', barSpeed: 'normal',
       cardioCals: [15, 14, '', 15], blockCompletion: 'stopped_fatigue',
       volDone: true, volRpe: '', volSpeed: '', pullupCluster: '', primerDone: true, cooldownDone: true,
-      carrySkipped: false, carrySkipReason: '', carryRounds: 3, carryDistance: 40, carryRpe: '', notes: 'smoke test',
+      wodSkipped: false, wodSkipReason: '', notes: 'smoke test',
       startedAt: '2099-01-04T08:00:00Z', endedAt: '2099-01-04T08:45:00Z',
     })
     ok('session saved, topWeight = 160', saved.topWeight === 160, saved.topWeight)
@@ -128,16 +128,14 @@ async function main() {
     ok('primerDone round-trips = true (Today card redesign)', saved.primerDone === true, saved.primerDone)
     ok('cooldownDone round-trips = true (Cooldown card)', saved.cooldownDone === true, saved.cooldownDone)
 
-    // Extra logging fields round-trip (per-round cardio cals, carry rounds+distance).
+    // Extra logging fields round-trip (per-round cardio cals).
     ok('blockCompletion round-trips = stopped_fatigue', saved.blockCompletion === 'stopped_fatigue', saved.blockCompletion)
-    ok('carryRounds round-trips = 3', saved.carryRounds === 3, saved.carryRounds)
-    ok('carryDistance round-trips = 40', saved.carryDistance === 40, saved.carryDistance)
     ok('cardioCals = [15,14,null,15] (blank round -> NULL, length 4)',
       JSON.stringify(saved.cardioCals) === JSON.stringify([15, 14, null, 15]), saved.cardioCals)
 
     // "" -> NULL normalization at the raw row level.
-    const { data: raw } = await supabase.from('sessions').select('carry_skip_reason,bar_speed').eq('id', sid).single()
-    ok('empty carrySkipReason stored as NULL', raw.carry_skip_reason === null, raw.carry_skip_reason)
+    const { data: raw } = await supabase.from('sessions').select('wod_skip_reason,bar_speed').eq('id', sid).single()
+    ok('empty wodSkipReason stored as NULL', raw.wod_skip_reason === null, raw.wod_skip_reason)
     ok('barSpeed preserved as "normal"', raw.bar_speed === 'normal', raw.bar_speed)
 
     // Idempotent update on the same id.
@@ -228,6 +226,18 @@ async function main() {
       ok('getAllOlyLogs spans macros (includes throwaway log)', (await repo.getAllOlyLogs()).some((l) => l.sessionId === sid))
     }
 
+    console.log('Engine WOD logs (C3 — one row PER ROUND per session, no movement_id)')
+    const wLog1 = await repo.saveWodLog({ sessionId: sid, roundNumber: 1, machineType: 'row', machineCalories: 12, carryRpe: 'R6' })
+    ok('wod log (round 1) saved incl. carry RPE', wLog1.machineCalories === 12 && wLog1.roundNumber === 1 && wLog1.machineType === 'row' && wLog1.carryRpe === 'R6', wLog1)
+    await repo.saveWodLog({ sessionId: sid, roundNumber: 2, machineType: 'row', machineCalories: 14, carryRpe: '' })
+    await repo.saveWodLog({ ...wLog1, machineCalories: 13 })
+    const wLogs = await repo.getWodLogs(id)
+    const roundsForSession = wLogs.filter((l) => l.sessionId === sid)
+    ok('two distinct round rows exist for the session', roundsForSession.length === 2, roundsForSession)
+    ok('wod log upserts on (session,round_number) -> round 1 now 13 cal', roundsForSession.find((l) => l.roundNumber === 1)?.machineCalories === 13)
+    ok('round 2 untouched by the round-1 upsert -> still 14 cal, RPE unset', roundsForSession.find((l) => l.roundNumber === 2)?.machineCalories === 14 && roundsForSession.find((l) => l.roundNumber === 2)?.carryRpe === '')
+    ok('getAllWodLogs spans macros (includes throwaway log)', (await repo.getAllWodLogs()).some((l) => l.sessionId === sid))
+
     await repo.deleteSession(sid)
     ok('session deleted', !(await repo.getSessions(id)).find((s) => s.id === sid))
 
@@ -247,7 +257,7 @@ async function main() {
     console.log('Bundle')
     const bundle = await repo.loadMacroBundle(id)
     ok('bundle returns all sections', !!(bundle && bundle.weights && bundle.sessions && 'deloads' in bundle))
-    ok('bundle includes Capability logs', Array.isArray(bundle.hypertrophyLogs) && Array.isArray(bundle.olyLogs))
+    ok('bundle includes Capability logs', Array.isArray(bundle.hypertrophyLogs) && Array.isArray(bundle.olyLogs) && Array.isArray(bundle.wodLogs))
 
     // Roll forward: C3 weights/accessory -> new C1.
     // The rolled macro (number 1000) is briefly ACTIVE — deleted right here, and

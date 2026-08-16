@@ -1,7 +1,7 @@
 // Program constants for Giant 2.0 — the app's one and only program. (Giant v7
 // and GiantFit, its two predecessors, were fully retired 2026-08-10: their
 // data, schema, and code are gone. See specification.md for that history.)
-import type { Difficulty, Lift, AnchorLift, Scheme, DayMeta, CapabilityProgram } from './types'
+import type { Difficulty, Lift, AnchorLift, Scheme, DayMeta, CapabilityProgram, MachineType } from './types'
 
 // Fixed weekday -> lift, no rotation. JS Date#getDay(): 1 Mon, 2 Tue, 4 Thu,
 // 5 Fri. Wed/Sat/Sun are rest.
@@ -36,7 +36,7 @@ export const GIANT2_VOLUME_DIFFICULTY_BY_CYCLE: Record<number, Difficulty> = { 1
 // The Capability block's content is a property of the CYCLE, not the week or
 // session. The slot inventory for all three programs is registered in
 // engine/program.ts; this map only says which one a cycle reads.
-export const GIANT2_CAPABILITY_BY_CYCLE: Record<number, CapabilityProgram> = { 1: 'hypertrophy', 2: 'oly', 3: 'carries' }
+export const GIANT2_CAPABILITY_BY_CYCLE: Record<number, CapabilityProgram> = { 1: 'hypertrophy', 2: 'oly', 3: 'wod' }
 
 // Giant Block rep schemes (4 descending sets) + volume reps. The reps differentiate
 // the days; the load percentages are the uniform SET_LADDER below (single-anchor model).
@@ -107,12 +107,15 @@ export const BLOCK_COMPLETION: { id: string; label: string }[] = [
   { id: 'cut_time', label: 'Cut short — time' },
 ]
 
-// Carry implement per lift day (§2.10). Keyed by Lift for the carry/DayMeta shape.
+// Carry implement per lift day (§2.7/§2.10), unchanged by the Engine WOD
+// replacing isolated carry logging — only name/load/perHand are still read
+// (display only); the old dist/sets prescription doesn't apply to the WOD's
+// time-based carry segment (:45 continuous, GIANT2_WOD_CARRY_DURATION_SEC).
 export const DAY_META: Record<Lift, DayMeta> = {
-  deadlift: { carry: { name: "Farmer's Carry", load: '60 kg / hand', perHand: true, dist: '20–30 m', sets: '3–4' } },
-  ohp: { carry: { name: 'Overhead Carry', load: '2 × 20 kg', perHand: true, dist: '20 m / side', sets: '3–4' } },
-  squat: { carry: { name: 'Sandbag Bear Hug', load: '68 kg', perHand: false, dist: '20–30 m', sets: '3–4' } },
-  bench: { carry: { name: 'Suitcase Carry', load: '50 kg / hand', perHand: true, dist: '20 m / side', sets: '3–4' } },
+  deadlift: { carry: { name: "Farmer's Carry", load: '60 kg / hand', perHand: true } },
+  ohp: { carry: { name: 'Overhead Carry', load: '2 × 20 kg', perHand: true } },
+  squat: { carry: { name: 'Sandbag Bear Hug', load: '68 kg', perHand: false } },
+  bench: { carry: { name: 'Suitcase Carry', load: '50 kg / hand', perHand: true } },
 }
 
 // Carry starting loads seeded into Setup when a cycle's value is blank
@@ -128,7 +131,7 @@ export const ACC_ITEMS = ['carry_deadlift', 'carry_ohp', 'carry_squat', 'carry_b
 export const SIGNALS: { id: string; label: string }[] = [
   { id: 'S1', label: 'Any day, top set R9.5+' },
   { id: 'S2', label: 'Volume block incomplete' },
-  { id: 'S3', label: 'Carry skipped (fatigue)' },
+  { id: 'S3', label: 'Engine WOD skipped (fatigue)' },
   { id: 'S5', label: 'Bar speed ↓ on top set in 2+ sessions' },
   { id: 'S7', label: 'Giant block not completed as prescribed' },
 ]
@@ -228,6 +231,27 @@ export const OLY_QUALITY: { id: string; label: string }[] = [
 ]
 
 // Carries (C3): DL Farmer's / OHP Overhead / Squat Bear Hug / Bench Suitcase
-// (see SEED_CARRY_KEYS in engine/program.ts). Always logged, guidance-only
-// flat RPE 6 — copy, not a locked value.
+// (see SEED_CARRY_KEYS in engine/program.ts) — the implement occupying the
+// Engine WOD's carry segment each round. Always logged, guidance-only flat
+// RPE 6 — copy, not a locked value.
 export const GIANT2_CARRY_RPE_GUIDANCE = 'RPE 6'
+
+// The Capability block's content, cycle 3 — Engine WOD, replacing isolated
+// carry logging (2026-08-13): 5 rounds of {carry, machine, rest}, same
+// structure for both day-type templates, only the machine differs.
+export const GIANT2_WOD_ROUNDS = 5
+export const GIANT2_WOD_CARRY_DURATION_SEC = 45
+export const GIANT2_WOD_MACHINE_DURATION_SEC = 60
+// Lower day (Squat/Deadlift): athlete's choice of Row or Ski Erg, picked once
+// per session (not per round — machine_type is a per-round COLUMN for schema
+// generality, but every round of a session shares one value in practice).
+// Upper day (Bench/OHP): always Bike Erg — no real choice, no selector shown.
+export const GIANT2_WOD_MACHINES_BY_DAY_GROUP: Record<'lower' | 'upper', MachineType[]> = {
+  lower: ['row', 'ski'],
+  upper: ['bike'],
+}
+export const MACHINE_LABEL: Record<MachineType, string> = { row: 'Row Erg', ski: 'Ski Erg', bike: 'Bike Erg' }
+// Rest between rounds, by week within the cycle (weeks 1-3 taper down; week 4
+// — the collapsed-Hard week, GIANT2_WEEK4_DIFFICULTY — eases back to week 1's
+// rest rather than stacking two hard variables on an already-heavier week).
+export const GIANT2_WOD_REST_SEC_BY_WEEK: Record<number, number> = { 1: 75, 2: 65, 3: 55, 4: 75 }

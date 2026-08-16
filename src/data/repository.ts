@@ -25,6 +25,8 @@ import type {
   HypertrophyLogDraft,
   OlyLog,
   OlyLogDraft,
+  WodLog,
+  WodLogDraft,
   Lift,
 } from '../engine/types'
 import type { Joint, Phase } from '../engine/recovery-content'
@@ -389,6 +391,37 @@ export async function saveOlyLog(log: OlyLogDraft): Promise<OlyLog> {
   }
 }
 
+// ---- Engine WOD logs (C3) — one row per round, no movement_id ---------------
+export async function getWodLogs(macroId: string): Promise<WodLog[]> {
+  const { data, error } = await supabase
+    .from('wod_logs')
+    .select('*, sessions!inner(macro_id)')
+    .eq('sessions.macro_id', macroId)
+  if (error) throw error
+  return (data || []).map(M.rowToWodLog)
+}
+
+export async function saveWodLog(log: WodLogDraft): Promise<WodLog> {
+  assertWritable()
+  const row = M.wodLogToRow(log)
+  const dedupeId = `wod-${row.session_id}-${row.round_number}`
+  if (isOffline()) {
+    queue.enqueue({ kind: 'saveWodLog', payload: { id: dedupeId, row } })
+    return M.rowToWodLog(row)
+  }
+  try {
+    const { data, error } = await supabase.from('wod_logs').upsert(row, { onConflict: 'session_id,round_number' }).select().single()
+    if (error) throw error
+    return M.rowToWodLog(data)
+  } catch (e) {
+    if (isNetworkError(e)) {
+      queue.enqueue({ kind: 'saveWodLog', payload: { id: dedupeId, row } })
+      return M.rowToWodLog(row)
+    }
+    throw e
+  }
+}
+
 // Replay queued offline writes. Call on reconnect and at startup.
 const QUEUE_EXECUTORS: QueueExecutors = {
   async saveSession(row) {
@@ -405,6 +438,10 @@ const QUEUE_EXECUTORS: QueueExecutors = {
   },
   async saveOlyLog({ row }) {
     const { error } = await supabase.from('oly_logs').upsert(row, { onConflict: 'session_id,movement_id' })
+    if (error) throw error
+  },
+  async saveWodLog({ row }) {
+    const { error } = await supabase.from('wod_logs').upsert(row, { onConflict: 'session_id,round_number' })
     if (error) throw error
   },
 }
@@ -487,15 +524,16 @@ export async function rollToNextMacro({
 // unfiltered select returns only their rows across all macros). Per-macro weight
 // grids are grouped by macro_id; deload week_keys are globally unique.
 export async function loadTrends(): Promise<TrendsData> {
-  const [macros, sess, wRows, aRows, dRows, breakDays] = await Promise.all([
+  const [macros, sess, wRows, aRows, dRows, breakDays, wodRows] = await Promise.all([
     getMacros(),
     supabase.from('sessions').select('*'),
     supabase.from('working_weights').select('*'),
     supabase.from('accessory_weights').select('*'),
     supabase.from('deloads').select('*'),
     getBreakDays(),
+    supabase.from('wod_logs').select('*'),
   ])
-  for (const r of [sess, wRows, aRows, dRows]) if (r.error) throw r.error
+  for (const r of [sess, wRows, aRows, dRows, wodRows]) if (r.error) throw r.error
 
   const byMacro = <T extends { macro_id: string }>(rows: T[]) => {
     const out: Record<string, T[]> = {}
@@ -518,6 +556,7 @@ export async function loadTrends(): Promise<TrendsData> {
     accessory,
     deloads: M.rowsToDeloads(dRows.data || []),
     breakDays,
+    wodLogs: (wodRows.data || []).map(M.rowToWodLog),
   }
 }
 
@@ -531,6 +570,11 @@ export async function getAllOlyLogs(): Promise<OlyLog[]> {
   const { data, error } = await supabase.from('oly_logs').select('*')
   if (error) throw error
   return (data || []).map(M.rowToOlyLog)
+}
+export async function getAllWodLogs(): Promise<WodLog[]> {
+  const { data, error } = await supabase.from('wod_logs').select('*')
+  if (error) throw error
+  return (data || []).map(M.rowToWodLog)
 }
 
 // All reactive-deload week flags across every macro (weekKey "M2C3W2" is
@@ -619,7 +663,7 @@ export async function setTendonLog(protocolId: string, tendonKey: string, dateIS
 
 // ---- bundle (one round-trip for app boot) ---------------------------------
 export async function loadMacroBundle(macroId: string): Promise<MacroBundle> {
-  const [weights, accessory, sessions, deloads, breakDays, giantAccessory, giant2Difficulty, hypertrophyLogs, olyLogs] = await Promise.all([
+  const [weights, accessory, sessions, deloads, breakDays, giantAccessory, giant2Difficulty, hypertrophyLogs, olyLogs, wodLogs] = await Promise.all([
     getWorkingWeights(macroId),
     getAccessoryWeights(macroId),
     getSessions(macroId),
@@ -629,6 +673,7 @@ export async function loadMacroBundle(macroId: string): Promise<MacroBundle> {
     getGiant2DifficultyConfig(),
     getHypertrophyLogs(macroId),
     getOlyLogs(macroId),
+    getWodLogs(macroId),
   ])
-  return { weights, accessory, sessions, deloads, breakDays, giantAccessory, giant2Difficulty, hypertrophyLogs, olyLogs }
+  return { weights, accessory, sessions, deloads, breakDays, giantAccessory, giant2Difficulty, hypertrophyLogs, olyLogs, wodLogs }
 }

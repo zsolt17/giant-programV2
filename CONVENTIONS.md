@@ -26,10 +26,11 @@ src/
     constants.ts   the program's domain content: GIANT2_DAY_LIFT (fixed weekday->lift),
                    GIANT2_GIANT_DEFAULT_ROTATION/GIANT2_WEEK4_DIFFICULTY (Giant difficulty),
                    GIANT2_VOLUME_DIFFICULTY_BY_CYCLE (Volume difficulty), GIANT2_CAPABILITY_BY_CYCLE
-                   (Hypertrophy/Oly/Carries dispatch), ANCHOR_LIFTS/ANCHOR_LABEL (six anchors), SCHEMES,
+                   (Hypertrophy/Oly/Engine-WOD dispatch), ANCHOR_LIFTS/ANCHOR_LABEL (six anchors), SCHEMES,
                    DAY_SPREAD/SET_LADDER/VOLUME_PCT (anchor cascade), DAY_META (carries), BLOCK_COMPLETION,
                    SIGNALS, MACRO_WEEKS, GIANT2_SECONDARY/SECONDARY_LANE/SECONDARY_REPS, GB_ACCESSORY,
-                   GIANT2_PRIMER_*, OLY_QUALITY — see `ARCHITECTURE.md` §2 for what each means
+                   GIANT2_PRIMER_*, OLY_QUALITY, GIANT2_WOD_ROUNDS/GIANT2_WOD_REST_SEC_BY_WEEK/
+                   GIANT2_WOD_MACHINES_BY_DAY_GROUP — see `ARCHITECTURE.md` §2 for what each means
     date-engine.ts position math from the macro start date (see §7); one program, no era branching —
                    corePosition computes the fixed Mon/Tue/Thu/Fri schedule unconditionally
     loading.ts     single-anchor cascade (dayTop/expandDayTops/giantSets/volumeWeight), uniform 2.5 kg rounding, fmt
@@ -40,15 +41,15 @@ src/
     deload-rule.ts reactive-deload signals + trigger; one explicit gate on S2 (no Volume block in
                    C3 week 4, or any deload week, → can't be incomplete)
     session-progress.ts  Today card completion: isPrimerDone/isGiantDone/isVolumeDone/
-                   isCarriesDone/isHypertrophyDone/isOlyDone — each reads that block's own
+                   isWodDone/isHypertrophyDone/isOlyDone — each reads that block's own
                    real schema (not "every visible field"); shared by the card UI and the
-                   Hypertrophy/Oly Done-button gate so they can't disagree
+                   Hypertrophy/Oly/Engine-WOD Done-button gate so they can't disagree
     trends.ts      pure derivations: Session -> Trends chart view-models
-    export-csv.ts  pure -> CSV strings (Data page): sessions / hypertrophy / oly
+    export-csv.ts  pure -> CSV strings (Data page): sessions / hypertrophy / oly / wod
     capability-record.ts  single source of truth for "what the Capability block contains
                    today" — cycle-dispatched (capabilityProgramFor), joined against
-                   hypertrophy_logs/oly_logs; session-summary.ts and the live Capability
-                   card both build on it (see ARCHITECTURE.md §2.7)
+                   hypertrophy_logs/oly_logs/wod_logs; session-summary.ts and the live
+                   Capability card both build on it (see ARCHITECTURE.md §2.7)
     session-summary.ts  pure Session -> plain-text share summary (Data page "Copy")
     recovery-content.ts  static Recovery content (joints/tendons/exercises + 64x64 SVGs, PHASE_DOSE)
     recovery.ts    local-date phase/day helpers for Recovery (suggestedPhase/effectivePhase/protocolDay)
@@ -377,7 +378,7 @@ and singular by design (`ARCHITECTURE.md` §2.12).
   are unchanged), and `weightsToRows` writes only `hard`. `fmt` is null-safe (returns `—`).
 - **Reactive deload — `src/engine/deload-rule.ts`.** `computeWeekSignals(weekSessions)` —
   S1 R9.5+, S2 volume incomplete (skipped on any session with no Volume block — C3 week 4 or a
-  deload), S3 carry skipped for fatigue, S5 bar-speed down in 2+ sessions, S7 giant block not
+  deload), S3 Engine WOD skipped for fatigue, S5 bar-speed down in 2+ sessions, S7 giant block not
   completed. There is no S4 or S6 — both were signals tied to mechanisms this app no longer has
   (a legacy set-1 RPE read and the old Capacity block), and the survivors keep their original
   ids rather than being renumbered. Trigger = 3+ occurrences across ≥2 sessions.
@@ -386,7 +387,7 @@ and singular by design (`ARCHITECTURE.md` §2.12).
 - **Constants — `src/engine/constants.ts`.** `GIANT2_DAY_LIFT`/`GIANT2_SESSION_DAYS` (fixed
   weekday→lift), `GIANT2_GIANT_DEFAULT_ROTATION`/`GIANT2_WEEK4_DIFFICULTY` (Giant difficulty),
   `GIANT2_VOLUME_DIFFICULTY_BY_CYCLE` (Volume difficulty), `GIANT2_CAPABILITY_BY_CYCLE`
-  (Hypertrophy/Oly/Carries dispatch), `ANCHOR_LIFTS`/`ANCHOR_LABEL`, `SCHEMES`,
+  (Hypertrophy/Oly/Engine-WOD dispatch), `ANCHOR_LIFTS`/`ANCHOR_LABEL`, `SCHEMES`,
   `DAY_SPREAD`/`SET_LADDER`/`VOLUME_PCT`, `DAY_META` (carries), `CARRY_DEFAULTS` (Setup seed:
   Suitcase 50), `BLOCK_COMPLETION`, `SIGNALS`, `MACRO_WEEKS = 13` (default shape; the engine
   reads the macro's stored `weeks`), plus the Capability-block content (`GIANT2_SECONDARY`,

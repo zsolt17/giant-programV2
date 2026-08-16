@@ -36,7 +36,7 @@ function devNow(): Date {
   }
   return new Date()
 }
-import type { Macro, Session, SessionDraft, WeightsByCycle, AccessoryByCycle, DeloadMap, BreakDayMap, MacroBundle, GiantAccessoryReps, Giant2DifficultyConfig, HypertrophyLog, HypertrophyLogDraft, OlyLog, OlyLogDraft } from '../engine/types'
+import type { Macro, Session, SessionDraft, WeightsByCycle, AccessoryByCycle, DeloadMap, BreakDayMap, MacroBundle, GiantAccessoryReps, Giant2DifficultyConfig, HypertrophyLog, HypertrophyLogDraft, OlyLog, OlyLogDraft, WodLog, WodLogDraft } from '../engine/types'
 import type { Movement } from '../engine/movements'
 import { GB_DEFAULT_REPS, GIANT2_GIANT_DEFAULT_ROTATION } from '../engine/constants'
 
@@ -90,6 +90,7 @@ export function App() {
   const [allDeloads, setAllDeloads] = useState<DeloadMap>({}) // all-macro deload week flags (Data labels)
   const [allHypertrophyLogs, setAllHypertrophyLogs] = useState<HypertrophyLog[]>([]) // all-macro Hypertrophy results (Data CSV)
   const [allOlyLogs, setAllOlyLogs] = useState<OlyLog[]>([]) // all-macro Oly results (Data CSV)
+  const [allWodLogs, setAllWodLogs] = useState<WodLog[]>([]) // all-macro Engine WOD results (Data CSV)
   const [dataErr, setDataErr] = useState('')
   // Recovery (Tendon Health) — independent of macros, loaded on first Recovery open.
   const [recovery, setRecovery] = useState<{ protocol: RecoveryProtocol | null; logs: RecoveryLogMap } | null>(null)
@@ -110,6 +111,7 @@ export function App() {
   const [giant2Difficulty, setGiant2Difficulty] = useState<Giant2DifficultyConfig>(() => ({ ...GIANT2_GIANT_DEFAULT_ROTATION }))
   const [hypertrophyLogs, setHypertrophyLogs] = useState<HypertrophyLog[]>([])
   const [olyLogs, setOlyLogs] = useState<OlyLog[]>([])
+  const [wodLogs, setWodLogs] = useState<WodLog[]>([])
   // The movement library — user-scoped (like breakDays), loaded next to the
   // macro bundle and seeded on first boot. Nothing prescribes from it yet.
   const [movements, setMovements] = useState<Movement[]>([])
@@ -141,6 +143,7 @@ export function App() {
     setGiant2Difficulty(snap.giant2Difficulty || { ...GIANT2_GIANT_DEFAULT_ROTATION })
     setHypertrophyLogs(snap.hypertrophyLogs || [])
     setOlyLogs(snap.olyLogs || [])
+    setWodLogs(snap.wodLogs || [])
     setMovements(snap.movements || [])
   }
 
@@ -168,6 +171,7 @@ export function App() {
             giant2Difficulty: { ...GIANT2_GIANT_DEFAULT_ROTATION },
             hypertrophyLogs: [],
             olyLogs: [],
+            wodLogs: [],
           }
       setMacros(all)
       setMacro(target)
@@ -181,6 +185,7 @@ export function App() {
       setGiant2Difficulty(b.giant2Difficulty)
       setHypertrophyLogs(b.hypertrophyLogs)
       setOlyLogs(b.olyLogs)
+      setWodLogs(b.wodLogs)
       // The movement library is user-scoped (independent of the macro).
       // syncSeedMovements seeds a fresh library AND backfills any new
       // content added since. Best-effort by design: a blocked dev write
@@ -265,14 +270,15 @@ export function App() {
     if (tab !== 'data' || !user || allSessions) return
     let cancelled = false
     setDataErr('')
-    Promise.all([repo.getAllSessions(), repo.getAllAccessoryWeights(), repo.getAllWorkingWeights(), repo.getAllDeloads(), repo.getAllHypertrophyLogs(), repo.getAllOlyLogs()])
-      .then(([s, acc, w, d, hl, ol]) => {
+    Promise.all([repo.getAllSessions(), repo.getAllAccessoryWeights(), repo.getAllWorkingWeights(), repo.getAllDeloads(), repo.getAllHypertrophyLogs(), repo.getAllOlyLogs(), repo.getAllWodLogs()])
+      .then(([s, acc, w, d, hl, ol, wl]) => {
         if (cancelled) return
         setAllAccessory(acc)
         setAllWeights(w)
         setAllDeloads(d)
         setAllHypertrophyLogs(hl)
         setAllOlyLogs(ol)
+        setAllWodLogs(wl)
         setAllSessions(s)
       })
       .catch((e) => !cancelled && setDataErr(errMsg(e)))
@@ -337,9 +343,9 @@ export function App() {
   // optimistic offline writes, since those flow through state).
   useEffect(() => {
     if (status === 'ready' && user && macro) {
-      saveSnapshot({ macros, viewedMacroId, macro, weights, accessory, sessions, deloads, breakDays, giantAccessory, giant2Difficulty, hypertrophyLogs, olyLogs, movements })
+      saveSnapshot({ macros, viewedMacroId, macro, weights, accessory, sessions, deloads, breakDays, giantAccessory, giant2Difficulty, hypertrophyLogs, olyLogs, wodLogs, movements })
     }
-  }, [status, user, macro, macros, viewedMacroId, weights, accessory, sessions, deloads, breakDays, giantAccessory, giant2Difficulty, hypertrophyLogs, olyLogs, movements])
+  }, [status, user, macro, macros, viewedMacroId, weights, accessory, sessions, deloads, breakDays, giantAccessory, giant2Difficulty, hypertrophyLogs, olyLogs, wodLogs, movements])
 
   const onSaveSession = useCallback(async (record: SessionDraft): Promise<Session> => {
     const saved = await repo.saveSession(record)
@@ -374,6 +380,16 @@ export function App() {
   const onSaveOlyLog = useCallback(async (log: OlyLogDraft): Promise<OlyLog> => {
     const saved = await repo.saveOlyLog(log)
     setOlyLogs((prev) => prev.filter((l) => !(l.sessionId === saved.sessionId && l.movementId === saved.movementId)).concat(saved))
+    return saved
+  }, [])
+
+  // Engine WOD — one row PER ROUND, upsert on (sessionId, roundNumber),
+  // matching wod_logs' real unique constraint — same dedup-key discipline as
+  // onSaveHypertrophyLog above (concurrent per-round saves must each only
+  // replace their OWN round in local state, not every round for the session).
+  const onSaveWodLog = useCallback(async (log: WodLogDraft): Promise<WodLog> => {
+    const saved = await repo.saveWodLog(log)
+    setWodLogs((prev) => prev.filter((l) => !(l.sessionId === saved.sessionId && l.roundNumber === saved.roundNumber)).concat(saved))
     return saved
   }, [])
 
@@ -523,10 +539,12 @@ export function App() {
           movements={movements}
           hypertrophyLogs={hypertrophyLogs}
           olyLogs={olyLogs}
+          wodLogs={wodLogs}
           onSaveSession={onSaveSession}
           onApplyDeload={onApplyDeload}
           onSaveHypertrophyLog={onSaveHypertrophyLog}
           onSaveOlyLog={onSaveOlyLog}
+          onSaveWodLog={onSaveWodLog}
           onExtendDeload={onExtendDeload}
           onRunningChange={setSessionRunning}
         />
@@ -549,11 +567,13 @@ export function App() {
           movements={movements}
           hypertrophyLogs={hypertrophyLogs}
           olyLogs={olyLogs}
+          wodLogs={wodLogs}
           onToggleBreak={onToggleBreak}
           onSaveSession={onSaveSession}
           onDeleteSession={onDeleteSession}
           onSaveHypertrophyLog={onSaveHypertrophyLog}
           onSaveOlyLog={onSaveOlyLog}
+          onSaveWodLog={onSaveWodLog}
         />
       )}
 
@@ -601,6 +621,7 @@ export function App() {
             movements={movements}
             hypertrophyLogs={allHypertrophyLogs}
             olyLogs={allOlyLogs}
+            wodLogs={allWodLogs}
           />
         ) : (
           <Center>

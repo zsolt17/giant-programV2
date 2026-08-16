@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { sessionsToCsv, hypertrophyToCsv, olyToCsv } from './export-csv'
+import { sessionsToCsv, hypertrophyToCsv, olyToCsv, wodToCsv } from './export-csv'
 
 const macros = [
   { id: 'm1', number: 1, startISO: '2026-04-13', weeks: 13, status: 'completed' },
@@ -28,11 +28,8 @@ function session(over = {}) {
     volRpe: 'R8',
     volSpeed: 'normal',
     pullupCluster: '',
-    carrySkipped: false,
-    carrySkipReason: '',
-    carryRounds: 3,
-    carryDistance: 30,
-    carryRpe: 'R6',
+    wodSkipped: false,
+    wodSkipReason: '',
     notes: 'felt strong',
     startedAt: null,
     endedAt: null,
@@ -44,7 +41,7 @@ test('header row lists all columns in order', () => {
   const csv = sessionsToCsv([], macros)
   assert.equal(
     csv,
-    'date,macro,cycle,week,week_type,day_type,difficulty,volume_difficulty,top_weight,top_reps,rpe,bar_speed,cardio_cals,block_completion,vol_done,vol_rpe,vol_speed,pullup_cluster,carry_skipped,carry_skip_reason,carry_rounds,carry_distance,carry_rpe,started_at,ended_at,notes,deload_week'
+    'date,macro,cycle,week,week_type,day_type,difficulty,volume_difficulty,top_weight,top_reps,rpe,bar_speed,cardio_cals,block_completion,vol_done,vol_rpe,vol_speed,pullup_cluster,wod_skipped,wod_skip_reason,started_at,ended_at,notes,deload_week'
   )
 })
 
@@ -53,7 +50,7 @@ test('serializes a row, resolves macro number, collapses cardio, renders nulls a
   const row = csv.split('\n')[1]
   assert.equal(
     row,
-    '2026-08-10,2,1,1,training,squat,hard,light,145,2,R9.5,up,15/14//15,completed,true,R8,normal,,false,,3,30,R6,,,felt strong,'
+    '2026-08-10,2,1,1,training,squat,hard,light,145,2,R9.5,up,15/14//15,completed,true,R8,normal,,false,,,,felt strong,'
   )
 })
 
@@ -118,4 +115,18 @@ test('olyToCsv: logs a quality mark, not RPE; unresolved movement falls back to 
   assert.equal(lines[0], 'date,macro,cycle,week,day_type,movement,weight,quality,notes')
   assert.equal(lines[1], '2026-09-07,2,2,1,squat,Muscle Snatch,40,Q3,')
   assert.equal(lines[2], '2026-09-07,2,2,1,squat,mv-unknown,20,Q1,')
+})
+
+// ---- Engine WOD (C3) --------------------------------------------------------
+
+test('wodToCsv: one row per round, sorted by session date then round number, no movement column', () => {
+  const sessions = [session({ id: '2026-10-05-squat', date: '2026-10-05', cycle: 3 })]
+  const logs = [
+    { sessionId: '2026-10-05-squat', roundNumber: 2, machineType: 'row', machineCalories: 14, carryRpe: 'R6' },
+    { sessionId: '2026-10-05-squat', roundNumber: 1, machineType: 'row', machineCalories: 12, carryRpe: '' },
+  ]
+  const lines = wodToCsv(logs, sessions, macros).split('\n')
+  assert.equal(lines[0], 'date,macro,cycle,week,day_type,round_number,machine_type,machine_calories,carry_rpe')
+  assert.equal(lines[1], '2026-10-05,2,3,1,squat,1,row,12,') // round 1 sorted before round 2
+  assert.equal(lines[2], '2026-10-05,2,3,1,squat,2,row,14,R6')
 })

@@ -20,8 +20,6 @@ export interface CarryMeta {
   name: string
   load: string // descriptive fallback shown only when no per-cycle weight is set in Setup
   perHand?: boolean // true = the Setup weight is per hand (Farmer/Suitcase/Overhead); display appends "/ hand"
-  dist: string
-  sets: string
 }
 export interface DayMeta {
   carry: CarryMeta
@@ -141,11 +139,11 @@ export interface Session {
   // numeric log entries, so this single flag IS the persisted "done" signal;
   // which individual items were checked is UI-only local state, never stored.
   primerDone: boolean
-  carrySkipped: boolean
-  carrySkipReason: string
-  carryRounds: number | null
-  carryDistance: number | null
-  carryRpe: string
+  // C3's Capability block (Engine WOD) skip — same shape as the old carry
+  // skip it replaced: skipping needs only a reason, per-round detail (see
+  // WodLog) is simply absent rather than logged. Drives deload signal S3.
+  wodSkipped: boolean
+  wodSkipReason: string
   // Cooldown card completion — same shape as primerDone (checkbox-style
   // block, no numeric fields). Optional: nothing gates on it.
   cooldownDone: boolean
@@ -158,10 +156,8 @@ export interface Session {
 // A session as held in the UI form state and handed to the persistence layer.
 // Numeric inputs hold raw strings until the mappers coerce them (toNum/blankToNull),
 // so the form-bound fields are looser than the canonical persisted Session.
-export interface SessionDraft extends Omit<Session, 'cardioCals' | 'carryRounds' | 'carryDistance'> {
+export interface SessionDraft extends Omit<Session, 'cardioCals'> {
   cardioCals: (number | string | null)[]
-  carryRounds: number | string | null
-  carryDistance: number | string | null
 }
 
 export interface WeekSignals {
@@ -175,8 +171,11 @@ export interface WeekSignals {
 // Which sub-program occupies the Capability block — a property of the CYCLE
 // (GIANT2_CAPABILITY_BY_CYCLE), never the week or session. The slot inventory
 // itself stays code (engine/program.ts); this only says which of the three
-// slot groups a given cycle's sessions should read.
-export type CapabilityProgram = 'hypertrophy' | 'oly' | 'carries'
+// slot groups a given cycle's sessions should read. 'wod' (C3, "Engine WOD")
+// replaced the old 'carries' — isolated carry logging folded into a
+// structured conditioning WOD; the name changed, never persisted anywhere
+// (a pure code-side dispatch key), so the rename is compile-time only.
+export type CapabilityProgram = 'hypertrophy' | 'oly' | 'wod'
 
 // The athlete's per-cycle-week Giant-difficulty rotation override (Setup-
 // editable — capacity-config pattern). week_in_cycle (1-3) -> lift ->
@@ -185,9 +184,11 @@ export type CapabilityProgram = 'hypertrophy' | 'oly' | 'carries'
 // GIANT2_GIANT_DEFAULT_ROTATION on read.
 export type Giant2DifficultyConfig = Record<number, Partial<Record<Lift, Difficulty>>>
 
-// ---- Capability block logs (C1 Hypertrophy, C2 Oly) ------------------------
-// One row PER MOVEMENT per session. Carries (C3) need no equivalent: they
-// reuse Session's own carry_* fields.
+// ---- Capability block logs (C1 Hypertrophy, C2 Oly, C3 Engine WOD) ---------
+// Hypertrophy/Oly: one row PER MOVEMENT per session. Engine WOD (below): one
+// row PER ROUND per session — no movement_id, the carry implement is
+// resolved from dayType alone (DAY_META), never a per-day choice like
+// Hypertrophy's exercise list.
 export interface HypertrophyLog {
   id?: string
   sessionId: string
@@ -217,6 +218,28 @@ export interface OlyLog {
 }
 export interface OlyLogDraft extends Omit<OlyLog, 'weight'> {
   weight: number | string | null
+}
+
+// Engine WOD (C3) machine choice — a per-round column, but in practice set
+// once per session via one selector (Row/Ski on lower days, always 'bike' on
+// upper — no real choice there) and applied to all 5 rounds when saved.
+export type MachineType = 'row' | 'ski' | 'bike'
+
+// One row PER ROUND (1..GIANT2_WOD_ROUNDS) per session. machineCalories is
+// the required field (the round's whole point); carryRpe is optional, same
+// as every other RPE field in the app — logged per round since the carry
+// segment repeats each round, not once for the whole WOD.
+export interface WodLog {
+  id?: string
+  sessionId: string
+  roundNumber: number // 1..GIANT2_WOD_ROUNDS
+  machineType: MachineType
+  machineCalories: number | null
+  carryRpe: string // "R6".."R10" | '' (unset)
+  updatedAt?: string
+}
+export interface WodLogDraft extends Omit<WodLog, 'machineCalories'> {
+  machineCalories: number | string | null
 }
 
 // ---- data-layer domain types ----------------------------------------------
@@ -266,9 +289,10 @@ export interface MacroBundle {
   // (GIANT2_GIANT_DEFAULT_ROTATION) already merged in.
   giant2Difficulty: Giant2DifficultyConfig
   // Capability block logs for this macro's sessions (C1 Hypertrophy / C2 Oly
-  // — one row per movement per session).
+  // — one row per movement per session; C3 Engine WOD — one row per round).
   hypertrophyLogs: HypertrophyLog[]
   olyLogs: OlyLog[]
+  wodLogs: WodLog[]
 }
 
 // Giant Block bodyweight-accessory rep targets, keyed by movement key
@@ -285,6 +309,8 @@ export interface TrendsData {
   accessory: Record<string, AccessoryByCycle>
   deloads: DeloadMap // weekKey ("M2C3W4") is globally unique, so one map spans macros
   breakDays: BreakDayMap
+  // Engine WOD (C3) logs across every macro — the calories chart.
+  wodLogs: WodLog[]
 }
 
 // A training session flattened to the shape the Trends charts consume (mirrors the
@@ -356,14 +382,17 @@ export interface AttMacro {
   epTotal: number
 }
 
-// One carry per training session, typed by the day's lift, for the Carries view.
-export type CarryType = 'Farmer' | 'Suitcase' | 'Sandbag' | 'Overhead'
-export interface TrendCarry {
+// One Engine WOD (C3) per training session, for the Trends calories chart.
+// dayGroup mirrors GIANT2_DAY_TYPE (Squat/Deadlift = lower, Bench/OHP =
+// upper) — the two WOD templates. totalCalories is the sum of that
+// session's logged rounds (null = no rounds logged yet, distinct from a
+// real 0).
+export type WodDayGroup = 'lower' | 'upper'
+export interface TrendWod {
   macro: string
   cycle: string
   week: string
   date: string
-  type: CarryType
-  weight: number | null // per-cycle carry load (from accessory_weights)
-  distance: number | null // metres per round (from carry_distance)
+  dayGroup: WodDayGroup
+  totalCalories: number | null
 }

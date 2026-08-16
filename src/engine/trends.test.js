@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { parseRpe, toTrendSessions, toCarrySessions } from './trends'
+import { parseRpe, toTrendSessions, toWodSessions } from './trends'
 
 const MACROS = [{ id: 'm2', number: 2, startISO: '2026-08-10', weeks: 13, status: 'active' }]
 
@@ -25,11 +25,8 @@ function S(over = {}) {
     volRpe: '',
     volSpeed: '',
     pullupCluster: '',
-    carrySkipped: false,
-    carrySkipReason: '',
-    carryRounds: null,
-    carryDistance: null,
-    carryRpe: '',
+    wodSkipped: false,
+    wodSkipReason: '',
     notes: '',
     startedAt: null,
     endedAt: null,
@@ -45,7 +42,7 @@ test('parseRpe handles R-notation, half-points, blanks', () => {
 
 test('toTrendSessions maps day/weight/spd and derives signals like deload-rule', () => {
   const rows = toTrendSessions(
-    [S({ rpe: 'R9.5', barSpeed: 'down', volDone: false, carrySkipped: true, carrySkipReason: 'fatigue', topWeight: 160, dayType: 'ohp', cardioCals: [15, 14, null, 15] })],
+    [S({ rpe: 'R9.5', barSpeed: 'down', volDone: false, wodSkipped: true, wodSkipReason: 'fatigue', topWeight: 160, dayType: 'ohp', cardioCals: [15, 14, null, 15] })],
     MACROS,
     {}
   )
@@ -57,7 +54,7 @@ test('toTrendSessions maps day/weight/spd and derives signals like deload-rule',
   assert.equal(r.spd, 0) // down
   assert.equal(r.S1, 1) // rpe >= 9.5
   assert.equal(r.S2, 1) // volume incomplete
-  assert.equal(r.S3, 1) // carry skipped for fatigue
+  assert.equal(r.S3, 1) // Engine WOD skipped for fatigue
   assert.equal(r.S5, 1) // bar speed down
   assert.deepEqual(r.sets, [15, 14, 15]) // nulls dropped
 })
@@ -82,16 +79,24 @@ test('toTrendSessions ignores non-training weeks', () => {
   assert.equal(toTrendSessions([S({ weekType: 'deload', cycle: null, week: null })], MACROS, {}).length, 0)
 })
 
-test('toCarrySessions joins per-cycle accessory weight with logged distance', () => {
-  const accessory = { m2: { 1: { carry_squat: 68 } } }
-  const rows = toCarrySessions([S({ dayType: 'squat', carryDistance: 40 })], MACROS, accessory)
+test('toWodSessions sums a session\'s logged rounds and groups by day type (lower/upper)', () => {
+  const wodLogs = [
+    { sessionId: 'x', roundNumber: 1, machineType: 'row', machineCalories: 12, carryRpe: 'R6' },
+    { sessionId: 'x', roundNumber: 2, machineType: 'row', machineCalories: 14, carryRpe: '' },
+  ]
+  const rows = toWodSessions([S({ dayType: 'squat', cycle: 3 })], MACROS, wodLogs)
   assert.equal(rows.length, 1)
-  assert.equal(rows[0].type, 'Sandbag') // squat day = sandbag bear hug
-  assert.equal(rows[0].weight, 68)
-  assert.equal(rows[0].distance, 40)
+  assert.equal(rows[0].dayGroup, 'lower') // squat = lower day
+  assert.equal(rows[0].totalCalories, 26)
 })
 
-test('toCarrySessions skips carries with no logged distance or skipped', () => {
-  assert.equal(toCarrySessions([S({ carryDistance: null })], MACROS, {}).length, 0)
-  assert.equal(toCarrySessions([S({ carryDistance: 40, carrySkipped: true })], MACROS, {}).length, 0)
+test('toWodSessions: bench/OHP group as upper', () => {
+  const wodLogs = [{ sessionId: 'x', roundNumber: 1, machineType: 'bike', machineCalories: 10, carryRpe: '' }]
+  assert.equal(toWodSessions([S({ dayType: 'bench', cycle: 3 })], MACROS, wodLogs)[0].dayGroup, 'upper')
+})
+
+test('toWodSessions omits skipped sessions and sessions with nothing logged yet', () => {
+  const wodLogs = [{ sessionId: 'x', roundNumber: 1, machineType: 'row', machineCalories: 12, carryRpe: '' }]
+  assert.equal(toWodSessions([S({ cycle: 3, wodSkipped: true })], MACROS, wodLogs).length, 0)
+  assert.equal(toWodSessions([S({ cycle: 3 })], MACROS, []).length, 0)
 })

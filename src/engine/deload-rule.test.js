@@ -4,7 +4,7 @@ import { rpeNum, computeWeekSignals, shouldRecommendDeload, usedDeloadThisMeso, 
 
 // Minimal session factory.
 function S(id, over = {}) {
-  return { id, rpe: '', barSpeed: '', volDone: true, volumeDifficulty: 'light', carrySkipped: false, carrySkipReason: '', ...over }
+  return { id, rpe: '', barSpeed: '', volDone: true, volumeDifficulty: 'light', wodSkipped: false, wodSkipReason: '', ...over }
 }
 
 test('rpeNum parses R-notation; blanks are 0', () => {
@@ -32,7 +32,7 @@ test('S7 (giant block not completed as prescribed) fires; completed/blank do not
 })
 
 test('one catastrophic day (3 occ, 1 session) never fires', () => {
-  const r = computeWeekSignals([S('a', { rpe: 'R10', volDone: false, carrySkipped: true, carrySkipReason: 'fatigue' })])
+  const r = computeWeekSignals([S('a', { rpe: 'R10', volDone: false, wodSkipped: true, wodSkipReason: 'fatigue' })])
   assert.equal(r.occurrences, 3)
   assert.equal(r.sessionCount, 1)
   assert.equal(r.fired, false) // needs >= 2 sessions
@@ -41,7 +41,7 @@ test('one catastrophic day (3 occ, 1 session) never fires', () => {
 test('3 occurrences across 2 sessions -> fired', () => {
   const r = computeWeekSignals([
     S('a', { rpe: 'R9.5', volDone: false }), // S1 + S2 (2 occ, session a)
-    S('b', { carrySkipped: true, carrySkipReason: 'fatigue' }), // S3 (session b)
+    S('b', { wodSkipped: true, wodSkipReason: 'fatigue' }), // S3 (session b)
   ])
   assert.equal(r.occurrences, 3)
   assert.equal(r.sessionCount, 2)
@@ -49,7 +49,7 @@ test('3 occurrences across 2 sessions -> fired', () => {
 })
 
 test('carry skipped for schedule (not fatigue) is not a signal', () => {
-  const r = computeWeekSignals([S('a', { carrySkipped: true, carrySkipReason: 'schedule' })])
+  const r = computeWeekSignals([S('a', { wodSkipped: true, wodSkipReason: 'schedule' })])
   assert.equal(r.occurrences, 0)
 })
 
@@ -79,7 +79,7 @@ test('exactly 2 occurrences does not fire', () => {
 })
 
 test('shouldRecommendDeload respects cap / already-deloaded / break exemptions', () => {
-  const firedWeek = [S('a', { rpe: 'R9.5', volDone: false }), S('b', { carrySkipped: true, carrySkipReason: 'fatigue' })]
+  const firedWeek = [S('a', { rpe: 'R9.5', volDone: false }), S('b', { wodSkipped: true, wodSkipReason: 'fatigue' })]
   assert.equal(shouldRecommendDeload({ prevWeekSessions: firedWeek }), true)
   assert.equal(shouldRecommendDeload({ prevWeekSessions: firedWeek, alreadyDeloaded: true }), false)
   assert.equal(shouldRecommendDeload({ prevWeekSessions: firedWeek, usedThisMeso: true }), false)
@@ -112,7 +112,7 @@ test('S2: still fires on a session that DOES have a Volume block', () => {
 test('C3 week 4 (no Volume block) pools correctly alongside a firing S3/S7', () => {
   const week = [
     S('a', { volDone: false, volumeDifficulty: null }), // S2 suppressed (C3 W4)
-    S('b', { carrySkipped: true, carrySkipReason: 'fatigue' }), // S3 — a real C3 carry day
+    S('b', { wodSkipped: true, wodSkipReason: 'fatigue' }), // S3 — a real C3 carry day
     S('c', { blockCompletion: 'stopped_fatigue' }), // S7
   ]
   const r = computeWeekSignals(week)

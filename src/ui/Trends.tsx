@@ -3,8 +3,8 @@ import type { CSSProperties, ReactNode } from 'react'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { C as TH, HEADING, BODY } from './theme'
 import { useFocusTrap } from './useFocusTrap'
-import { toTrendSessions, toCarrySessions, toAttendance, macroLabels } from '../engine/trends'
-import type { TrendsData, TrendSession, TrendCarry, TrendDay, CarryType, AttMacro, AttStatus } from '../engine/types'
+import { toTrendSessions, toWodSessions, toAttendance, macroLabels } from '../engine/trends'
+import type { TrendsData, TrendSession, TrendWod, TrendDay, WodDayGroup, AttMacro, AttStatus } from '../engine/types'
 
 // Mockup palette remapped onto the navy/gold system (the mockup's amber ≈ our gold).
 const C = {
@@ -30,14 +30,15 @@ const num: CSSProperties = { fontVariantNumeric: 'tabular-nums' }
 const tick = { fill: C.dim, fontSize: 9, fontFamily: BODY }
 
 const LIFT_COLORS: Record<string, string> = { DL: C.amber, OHP: C.slate, Squat: C.purple, Bench: C.green }
-const CARRY_TYPES: CarryType[] = ['Farmer', 'Suitcase', 'Sandbag', 'Overhead']
-const CARRY_COLORS: Record<CarryType, string> = { Farmer: C.amber, Suitcase: C.slate, Sandbag: C.purple, Overhead: C.green }
+const WOD_DAY_GROUPS: WodDayGroup[] = ['lower', 'upper']
+const WOD_GROUP_LABEL: Record<WodDayGroup, string> = { lower: 'Squat/Deadlift', upper: 'Bench/OHP' }
+const WOD_GROUP_COLORS: Record<WodDayGroup, string> = { lower: C.amber, upper: C.slate }
 const STATUS_COLOR: Record<string, string> = { done: C.green, missed: C.red, deload: C.amber, holiday: C.slate, upcoming: C.muted }
 // Session-day labels: fixed Mon/Tue/Thu/Fri (AttMacro's cells carry no
 // weekday of their own — just AttStatus — so the count picks the label set).
 const SLOTS_BY_COUNT: Record<number, string[]> = { 4: ['Mon', 'Tue', 'Thu', 'Fri'] }
 const ALL_LIFTS: TrendDay[] = ['DL', 'OHP', 'Squat', 'Bench']
-const AUX_VIEWS = ['Lifts', 'Carries', 'Session'] as const
+const AUX_VIEWS = ['Lifts', 'WOD', 'Session'] as const
 type View = (typeof AUX_VIEWS)[number]
 
 // ─── shared UI ───────────────────────────────────────────────────────────────
@@ -225,7 +226,7 @@ function FilterBar({ rangeStart, rangeEnd, cycle, lift, view, onOpenPicker, onCy
       <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
         <span style={rowLabel}>VIEW</span>
         {AUX_VIEWS.map((v) => (
-          <Btn key={v} active={view === v} onClick={() => onView(v)} color={v === 'Carries' ? C.green : v === 'Session' ? C.slate : C.amber}>
+          <Btn key={v} active={view === v} onClick={() => onView(v)} color={v === 'WOD' ? C.green : v === 'Session' ? C.slate : C.amber}>
             {v}
           </Btn>
         ))}
@@ -380,96 +381,74 @@ function BarSpeedChart({ sessions, lift }: { sessions: TrendSession[]; lift: str
   )
 }
 
-// ─── Carries view ────────────────────────────────────────────────────────────
-function CarryTooltip({ active, payload, col }: TipProps & { col?: string }) {
+// ─── Engine WOD view ─────────────────────────────────────────────────────────
+function WodTooltip({ active, payload, col }: TipProps & { col?: string }) {
   if (!active || !payload?.length) return null
-  const d = payload[0]?.payload as { label?: string; weight?: number; distance?: number } | undefined
+  const d = payload[0]?.payload as { label?: string; calories?: number } | undefined
   return (
     <div style={{ background: C.inset, border: `1px solid ${C.border}`, borderRadius: 6, padding: '7px 10px', fontSize: 11 }}>
       <div style={{ color: C.label, marginBottom: 2 }}>{d?.label}</div>
-      <div style={{ color: col, ...num }}>
-        {d?.weight}kg · {d?.distance}m
-      </div>
+      <div style={{ color: col, ...num }}>{d?.calories} cal</div>
     </div>
   )
 }
 
-function CarriesChart({ carries, activeMacros, cycle }: { carries: TrendCarry[]; activeMacros: string[]; cycle: string }) {
-  const byType = useMemo(() => {
-    const map: Record<CarryType, { label: string; weight: number | null; distance: number | null }[]> = { Farmer: [], Suitcase: [], Sandbag: [], Overhead: [] }
-    carries
-      .filter((c) => activeMacros.includes(c.macro) && (cycle === 'All' || c.cycle === cycle))
-      .forEach((c) => map[c.type].push({ label: `${c.macro}${c.cycle}${c.week}`, weight: c.weight, distance: c.distance }))
+function WodChart({ wods, activeMacros, cycle }: { wods: TrendWod[]; activeMacros: string[]; cycle: string }) {
+  const byGroup = useMemo(() => {
+    const map: Record<WodDayGroup, { label: string; calories: number }[]> = { lower: [], upper: [] }
+    wods
+      .filter((w) => activeMacros.includes(w.macro) && (cycle === 'All' || w.cycle === cycle) && w.totalCalories != null)
+      .forEach((w) => map[w.dayGroup].push({ label: `${w.macro}${w.cycle}${w.week}`, calories: w.totalCalories as number }))
     return map
-  }, [carries, activeMacros, cycle])
+  }, [wods, activeMacros, cycle])
 
   const latest = useMemo(() => {
-    const out: Record<CarryType, { weight: number | null; distance: number | null } | null> = { Farmer: null, Suitcase: null, Sandbag: null, Overhead: null }
-    CARRY_TYPES.forEach((t) => {
-      const arr = byType[t]
-      out[t] = arr.length ? arr[arr.length - 1] : null
+    const out: Record<WodDayGroup, number | null> = { lower: null, upper: null }
+    WOD_DAY_GROUPS.forEach((g) => {
+      const arr = byGroup[g]
+      out[g] = arr.length ? arr[arr.length - 1].calories : null
     })
     return out
-  }, [byType])
+  }, [byGroup])
 
-  if (!CARRY_TYPES.some((t) => byType[t].length > 0)) return <Card style={{ textAlign: 'center', color: C.dim, padding: '40px 0', fontSize: 13 }}>No carries logged yet.</Card>
+  if (!WOD_DAY_GROUPS.some((g) => byGroup[g].length > 0))
+    return <Card style={{ textAlign: 'center', color: C.dim, padding: '40px 0', fontSize: 13 }}>No Engine WOD sessions logged yet.</Card>
 
   return (
     <Card>
-      <SectionHeader sub="Carry Finishers" title="Load & Distance" />
+      <SectionHeader sub="Engine WOD" title="Total Calories" />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
-        {CARRY_TYPES.map((t) => {
-          const l = latest[t]
-          const col = CARRY_COLORS[t]
+        {WOD_DAY_GROUPS.map((g) => {
+          const l = latest[g]
+          const col = WOD_GROUP_COLORS[g]
           return (
-            <div key={t} style={{ background: C.inset, border: `1px solid ${C.border}`, borderLeft: `3px solid ${col}`, borderRadius: 8, padding: '10px 12px' }}>
-              <div style={{ fontSize: 9, color: col, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>{t}</div>
-              {l ? (
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                  <span style={{ fontSize: 16, fontWeight: 700, color: C.bright, ...num }}>{l.weight != null ? `${l.weight}kg` : '—'}</span>
-                  <span style={{ fontSize: 11, color: C.dim, ...num }}>{l.distance}m</span>
-                </div>
-              ) : (
-                <span style={{ fontSize: 11, color: C.dim }}>—</span>
-              )}
+            <div key={g} style={{ background: C.inset, border: `1px solid ${C.border}`, borderLeft: `3px solid ${col}`, borderRadius: 8, padding: '10px 12px' }}>
+              <div style={{ fontSize: 9, color: col, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>{WOD_GROUP_LABEL[g]}</div>
+              <span style={{ fontSize: 16, fontWeight: 700, color: C.bright, ...num }}>{l != null ? `${l} cal` : '—'}</span>
             </div>
           )
         })}
       </div>
 
-      {CARRY_TYPES.map((t) => {
-        const tData = byType[t]
-        if (!tData.length) return null
-        const col = CARRY_COLORS[t]
-        const ws = tData.map((d) => d.weight ?? 0)
-        const ds = tData.map((d) => d.distance ?? 0)
-        const maxW = Math.max(...ws)
-        const minW = Math.min(...ws)
-        const maxD = Math.max(...ds)
+      {WOD_DAY_GROUPS.map((g) => {
+        const gData = byGroup[g]
+        if (!gData.length) return null
+        const col = WOD_GROUP_COLORS[g]
+        const cals = gData.map((d) => d.calories)
+        const maxC = Math.max(...cals)
+        const minC = Math.min(...cals)
         return (
-          <div key={t} style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 10, color: col, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>{t} carry</div>
+          <div key={g} style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 10, color: col, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>{WOD_GROUP_LABEL[g]}</div>
             <ResponsiveContainer width="100%" height={110}>
-              <LineChart data={tData} margin={{ top: 4, right: 8, left: -24, bottom: 0 }}>
+              <LineChart data={gData} margin={{ top: 4, right: 8, left: -24, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={C.line} vertical={false} />
                 <XAxis dataKey="label" tick={false} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="w" orientation="left" domain={[Math.max(0, minW - 5), maxW + 5]} tick={{ ...tick, fontSize: 8 }} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="d" orientation="right" domain={[0, maxD + 10]} tick={{ ...tick, fontSize: 8 }} axisLine={false} tickLine={false} />
-                <Tooltip content={<CarryTooltip col={col} />} />
-                <Line yAxisId="w" type="stepAfter" dataKey="weight" stroke={col} strokeWidth={2.5} dot={{ r: 3, fill: col, stroke: C.card, strokeWidth: 1.5 }} name="Weight (kg)" connectNulls />
-                <Line yAxisId="d" type="monotone" dataKey="distance" stroke={col} strokeWidth={1.5} strokeDasharray="3 2" dot={false} opacity={0.5} name="Distance (m)" connectNulls />
+                <YAxis domain={[Math.max(0, minC - 5), maxC + 5]} tick={{ ...tick, fontSize: 8 }} axisLine={false} tickLine={false} />
+                <Tooltip content={<WodTooltip col={col} />} />
+                <Line type="monotone" dataKey="calories" stroke={col} strokeWidth={2.5} dot={{ r: 3, fill: col, stroke: C.card, strokeWidth: 1.5 }} name="Calories" connectNulls />
               </LineChart>
             </ResponsiveContainer>
-            <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <div style={{ width: 14, height: 2.5, background: col, borderRadius: 1 }} />
-                <span style={{ fontSize: 9, color: C.dim }}>Weight kg (L)</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <div style={{ width: 14, height: 1.5, background: col, borderRadius: 1, opacity: 0.5 }} />
-                <span style={{ fontSize: 9, color: C.dim }}>Distance m (R)</span>
-              </div>
-            </div>
           </div>
         )
       })}
@@ -743,7 +722,7 @@ function CalTooltip({ active, payload }: TipProps) {
 // ─── main ────────────────────────────────────────────────────────────────────
 export function Trends({ data }: { data: TrendsData }) {
   const allSessions = useMemo(() => toTrendSessions(data.sessions, data.macros, data.deloads), [data])
-  const allCarries = useMemo(() => toCarrySessions(data.sessions, data.macros, data.accessory), [data])
+  const allWods = useMemo(() => toWodSessions(data.sessions, data.macros, data.wodLogs), [data])
   const allAttendance = useMemo(() => toAttendance(data.macros, data.sessions, data.deloads, data.breakDays), [data])
   const ALL_MACROS = useMemo(() => macroLabels(data.macros), [data.macros])
   const latest = ALL_MACROS[ALL_MACROS.length - 1] || ''
@@ -802,7 +781,7 @@ export function Trends({ data }: { data: TrendsData }) {
               <BarSpeedChart sessions={filtered} lift={lift} />
             </>
           ))}
-        {view === 'Carries' && <CarriesChart carries={allCarries} activeMacros={activeMacros} cycle={cycle} />}
+        {view === 'WOD' && <WodChart wods={allWods} activeMacros={activeMacros} cycle={cycle} />}
         {view === 'Session' && (
           <>
             <AttendanceChart macros={allAttendance.filter((m) => activeMacros.includes(m.macro))} />

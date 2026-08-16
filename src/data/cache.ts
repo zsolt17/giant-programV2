@@ -1,7 +1,7 @@
 // Last-known app data snapshot, so reopening the app offline shows real data
 // instead of a "couldn't load" screen. Browser-only; best-effort (ignores quota
 // or serialization errors). Not the source of truth — Supabase is.
-import type { Macro, WeightsByCycle, AccessoryByCycle, Session, DeloadMap, BreakDayMap, GiantAccessoryReps, Giant2DifficultyConfig, HypertrophyLog, OlyLog } from '../engine/types'
+import type { Macro, WeightsByCycle, AccessoryByCycle, Session, DeloadMap, BreakDayMap, GiantAccessoryReps, Giant2DifficultyConfig, HypertrophyLog, OlyLog, WodLog } from '../engine/types'
 import type { Movement } from '../engine/movements'
 
 export interface Snapshot {
@@ -18,6 +18,7 @@ export interface Snapshot {
   giant2Difficulty?: Giant2DifficultyConfig
   hypertrophyLogs?: HypertrophyLog[]
   olyLogs?: OlyLog[]
+  wodLogs?: WodLog[]
   // The movement library (user-scoped) — cached so the offline shell can still
   // render movement labels.
   movements?: Movement[]

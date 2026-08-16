@@ -10,10 +10,10 @@
 // happened. This module is that one derivation; session-summary.ts renders
 // it to text, CapabilityBlock.tsx (the live editable form) reads the same
 // resolveItems/groupBySuperset it's built on.
-import type { Session, HypertrophyLog, OlyLog, AccessoryByCycle } from './types'
+import type { Session, HypertrophyLog, OlyLog, WodLog, AccessoryByCycle, MachineType, WodDayGroup } from './types'
 import type { Movement } from './movements'
 import { SEED_HYPERTROPHY_KEYS, SEED_OLY_KEYS, resolveItems, groupBySuperset } from './movements'
-import { GIANT2_HYPERTROPHY_SETS, GIANT2_OLY_POSITION_WAVE, DAY_META } from './constants'
+import { GIANT2_HYPERTROPHY_SETS, GIANT2_OLY_POSITION_WAVE, GIANT2_WOD_ROUNDS, GIANT2_WOD_REST_SEC_BY_WEEK, GIANT2_WOD_MACHINES_BY_DAY_GROUP, GIANT2_DAY_TYPE, DAY_META } from './constants'
 import { capabilityProgramFor } from './date-engine'
 import { fmt } from './loading'
 
@@ -53,26 +53,37 @@ export interface CapabilityOlyRecord {
   exercises: OlyExerciseRecord[]
 }
 
-export interface CapabilityCarriesRecord {
-  program: 'carries'
-  name: string
-  load: string
+export interface WodRoundRecord {
+  roundNumber: number
+  machineType: MachineType | null // null = round not logged yet (no prescribed default — it's the athlete's choice)
+  machineCalories: number | null
+  carryRpe: string
+}
+export interface CapabilityWodRecord {
+  program: 'wod'
+  dayGroup: WodDayGroup
+  machineOptions: MachineType[] // ['row','ski'] lower day (real choice) — ['bike'] upper day (none)
+  carryName: string
+  carryLoad: string
+  restSeconds: number // by week within the cycle (GIANT2_WOD_REST_SEC_BY_WEEK)
   skipped: boolean
   skipReason: string
-  rounds: number | null
-  distance: number | null
-  rpe: string // single RPE-6 entry per carry — no per-set breakdown
+  rounds: WodRoundRecord[]
+  // Sum of logged rounds' calories — the primary improvement marker. null =
+  // no rounds logged yet, distinct from a real 0.
+  totalCalories: number | null
 }
 
-export type CapabilityRecord = CapabilityHypertrophyRecord | CapabilityOlyRecord | CapabilityCarriesRecord
+export type CapabilityRecord = CapabilityHypertrophyRecord | CapabilityOlyRecord | CapabilityWodRecord
 
 export interface CapabilityLogs {
   movements: Movement[]
   hypertrophyLogs: HypertrophyLog[]
   olyLogs: OlyLog[]
+  wodLogs: WodLog[]
 }
 
-const EMPTY_LOGS: CapabilityLogs = { movements: [], hypertrophyLogs: [], olyLogs: [] }
+const EMPTY_LOGS: CapabilityLogs = { movements: [], hypertrophyLogs: [], olyLogs: [], wodLogs: [] }
 
 // null = no Capability block this session (scheduled deload / non-training
 // week, or no active cycle) — matches the live app, which never renders a
@@ -88,19 +99,28 @@ export function capabilityRecordFor(s: Session, logs: CapabilityLogs = EMPTY_LOG
   if (s.weekType !== 'training' || s.cycle == null || !s.dayType) return null
   const program = capabilityProgramFor(s.cycle)
 
-  if (program === 'carries') {
+  if (program === 'wod') {
     const meta = DAY_META[s.dayType]
     const w = accessory?.[s.cycle]?.[`carry_${s.dayType}`]
     const load = w != null ? `${fmt(w)}${meta.carry.perHand ? ' / hand' : ''}` : meta.carry.load
+    const dayGroup = GIANT2_DAY_TYPE[s.dayType] ?? 'lower'
+    const rounds: WodRoundRecord[] = Array.from({ length: GIANT2_WOD_ROUNDS }, (_, i) => {
+      const roundNumber = i + 1
+      const log = logs.wodLogs.find((l) => l.roundNumber === roundNumber)
+      return { roundNumber, machineType: log?.machineType ?? null, machineCalories: log?.machineCalories ?? null, carryRpe: log?.carryRpe ?? '' }
+    })
+    const loggedCalories = rounds.map((r) => r.machineCalories).filter((c): c is number => c != null)
     return {
-      program: 'carries',
-      name: meta.carry.name,
-      load,
-      skipped: s.carrySkipped,
-      skipReason: s.carrySkipReason,
-      rounds: s.carryRounds,
-      distance: s.carryDistance,
-      rpe: s.carryRpe,
+      program: 'wod',
+      dayGroup,
+      machineOptions: GIANT2_WOD_MACHINES_BY_DAY_GROUP[dayGroup],
+      carryName: meta.carry.name,
+      carryLoad: load,
+      restSeconds: s.week != null ? (GIANT2_WOD_REST_SEC_BY_WEEK[s.week] ?? GIANT2_WOD_REST_SEC_BY_WEEK[1]) : GIANT2_WOD_REST_SEC_BY_WEEK[1],
+      skipped: s.wodSkipped,
+      skipReason: s.wodSkipReason,
+      rounds,
+      totalCalories: loggedCalories.length ? loggedCalories.reduce((sum, c) => sum + c, 0) : null,
     }
   }
 

@@ -1,21 +1,34 @@
 // The Capability block — content changes by CYCLE (GIANT2_CAPABILITY_BY_CYCLE):
 // Hypertrophy (C1, per-SET weight x reps), Oly (C2, per-exercise weight x
-// quality mark), Carries (C3, reuses the session's own carry_* fields — no
-// separate component, rendered inline in Giant2SessionForm). Both blocks here
-// are self-contained: they own their fields and save through their own
-// handler (one row per movement PER SET for Hypertrophy, one row per movement
-// for Oly, batched under one Done button), so the parent's onSave only needs
-// to ensure the session row exists first (FK). The card chrome (header, tag,
-// collapse) is owned by the caller's SessionCard wrapper, not rendered here —
-// these components render only their content + the Done button.
+// quality mark), Engine WOD (C3, per-ROUND machine calories + optional carry
+// RPE — see WodBlock below). All three blocks here are self-contained: they
+// own their fields and save through their own handler (one row per movement
+// PER SET for Hypertrophy, one row per movement for Oly, one row per round
+// for the WOD, batched under one Done button), so the parent's onSave only
+// needs to ensure the session row exists first (FK). The card chrome
+// (header, tag, collapse) is owned by the caller's SessionCard wrapper, not
+// rendered here — these components render only their content + Done button.
 import { Fragment, useState } from 'react'
 import { C, inp, withAlpha, supersetAccent } from './theme'
 import { errMsg, DoneButton } from './controls'
 import { SEED_HYPERTROPHY_KEYS, SEED_OLY_KEYS, resolveItems, groupBySuperset } from '../engine/movements'
-import { OLY_QUALITY, GIANT2_OLY_POSITION_WAVE, GIANT2_HYPERTROPHY_SETS, RPE_OPTIONS } from '../engine/constants'
-import { isHypertrophyDone, isOlyDone } from '../engine/session-progress'
+import {
+  OLY_QUALITY,
+  GIANT2_OLY_POSITION_WAVE,
+  GIANT2_HYPERTROPHY_SETS,
+  GIANT2_WOD_ROUNDS,
+  GIANT2_WOD_MACHINES_BY_DAY_GROUP,
+  GIANT2_WOD_REST_SEC_BY_WEEK,
+  GIANT2_WOD_CARRY_DURATION_SEC,
+  GIANT2_WOD_MACHINE_DURATION_SEC,
+  GIANT2_CARRY_RPE_GUIDANCE,
+  GIANT2_DAY_TYPE,
+  MACHINE_LABEL,
+  RPE_OPTIONS,
+} from '../engine/constants'
+import { isHypertrophyDone, isOlyDone, isWodDone } from '../engine/session-progress'
 import type { Movement } from '../engine/movements'
-import type { Lift, HypertrophyLog, HypertrophyLogDraft, OlyLog, OlyLogDraft } from '../engine/types'
+import type { Lift, HypertrophyLog, HypertrophyLogDraft, OlyLog, OlyLogDraft, WodLog, WodLogDraft, MachineType } from '../engine/types'
 
 const SET_NUMBERS = Array.from({ length: GIANT2_HYPERTROPHY_SETS }, (_, i) => i + 1)
 
@@ -284,6 +297,147 @@ export function OlyBlock({ dayType, weekInCycle, sessionId, movements, logs, onS
           </div>
         </div>
       ))}
+      <DoneButton ready={readyForDone} saving={saving} onClick={save} />
+      {err && <div style={{ marginTop: 8, fontSize: 12, color: C.red }}>Couldn't save — {err}</div>}
+    </div>
+  )
+}
+
+const WOD_ROUND_NUMBERS = Array.from({ length: GIANT2_WOD_ROUNDS }, (_, i) => i + 1)
+
+interface WodBlockProps {
+  dayType: Lift
+  weekInCycle: number // 1-4 — drives the rest-between-rounds duration
+  sessionId: string
+  carryName: string
+  carryLoad: string
+  logs: WodLog[] // this session's existing logs only (parent filters)
+  onSave: (log: WodLogDraft) => Promise<WodLog>
+  onDone?: () => void
+}
+
+// Local per-round state: round number -> {machineCalories, carryRpe}. The
+// machine choice is ONE selector for the whole session (Row/Ski on lower
+// days, fixed Bike on upper — no real choice there), not a per-round input,
+// even though the schema stores it per round for generality — every round of
+// a save shares the one selected value.
+type WodRows = Record<number, { machineCalories: number | string; carryRpe: string }>
+
+export function WodBlock({ dayType, weekInCycle, sessionId, carryName, carryLoad, logs, onSave, onDone }: WodBlockProps) {
+  const dayGroup = GIANT2_DAY_TYPE[dayType] ?? 'lower'
+  const machineOptions = GIANT2_WOD_MACHINES_BY_DAY_GROUP[dayGroup]
+  const restSeconds = GIANT2_WOD_REST_SEC_BY_WEEK[weekInCycle] ?? GIANT2_WOD_REST_SEC_BY_WEEK[1]
+  const [machine, setMachine] = useState<MachineType>(() => logs.find((l) => l.machineType)?.machineType ?? machineOptions[0])
+  const [rows, setRows] = useState<WodRows>(() =>
+    Object.fromEntries(
+      WOD_ROUND_NUMBERS.map((roundNumber) => {
+        const existing = logs.find((l) => l.roundNumber === roundNumber)
+        return [roundNumber, { machineCalories: existing?.machineCalories ?? '', carryRpe: existing?.carryRpe ?? '' }]
+      })
+    )
+  )
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+
+  const setCell = (roundNumber: number, field: 'machineCalories' | 'carryRpe', v: string) =>
+    setRows((p) => ({ ...p, [roundNumber]: { ...p[roundNumber], [field]: v } }))
+
+  // Re-derive the same shared completeness check the SessionCard uses, off
+  // the CURRENT (unsaved) local state — the button enables the instant the
+  // last round's calories are filled, not only after a save round-trip.
+  const draftLogs: WodLog[] = WOD_ROUND_NUMBERS.map((roundNumber) => ({
+    sessionId,
+    roundNumber,
+    machineType: machine,
+    machineCalories: rows[roundNumber]?.machineCalories === '' || rows[roundNumber]?.machineCalories == null ? null : Number(rows[roundNumber].machineCalories),
+    carryRpe: rows[roundNumber]?.carryRpe ?? '',
+  }))
+  const readyForDone = isWodDone({ wodSkipped: false, wodSkipReason: '' }, draftLogs)
+
+  async function save() {
+    setSaving(true)
+    setErr('')
+    try {
+      await Promise.all(
+        WOD_ROUND_NUMBERS.map((roundNumber) =>
+          onSave({ sessionId, roundNumber, machineType: machine, machineCalories: rows[roundNumber].machineCalories, carryRpe: rows[roundNumber].carryRpe })
+        )
+      )
+      onDone?.()
+    } catch (e) {
+      setErr(errMsg(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>
+        {carryName} {carryLoad} · {GIANT2_WOD_CARRY_DURATION_SEC}s continuous, {GIANT2_CARRY_RPE_GUIDANCE} self-guided · rest {restSeconds}s between rounds
+      </div>
+      {machineOptions.length > 1 ? (
+        <div role="group" aria-label="Machine" style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+          {machineOptions.map((m) => (
+            <button
+              key={m}
+              onClick={() => setMachine(m)}
+              aria-pressed={machine === m}
+              style={{
+                flex: 1,
+                background: machine === m ? C.gold : 'transparent',
+                color: machine === m ? C.dark : C.muted,
+                border: `1px solid ${C.border}`,
+                borderRadius: 2,
+                fontSize: 12,
+                fontWeight: 600,
+                padding: '8px 4px',
+                cursor: 'pointer',
+              }}
+            >
+              {MACHINE_LABEL[m]}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div style={{ fontSize: 13, color: C.off, marginBottom: 10 }}>{MACHINE_LABEL[machineOptions[0]]}</div>
+      )}
+      <div style={{ fontSize: 11, color: C.muted, fontStyle: 'italic', marginBottom: 8 }}>
+        {GIANT2_WOD_MACHINE_DURATION_SEC}s, pushed sustainably hard — not a max sprint.
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr', gap: 6, alignItems: 'center' }}>
+        <span style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Rd</span>
+        <span style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'center' }}>Calories</span>
+        <span style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'center' }}>Carry RPE</span>
+        {WOD_ROUND_NUMBERS.map((roundNumber) => (
+          <Fragment key={roundNumber}>
+            <span style={{ fontSize: 12, color: C.muted }}>{roundNumber}</span>
+            <input
+              aria-label={`Round ${roundNumber} machine calories`}
+              style={{ ...inp, padding: '6px', textAlign: 'center' }}
+              type="number"
+              step="1"
+              inputMode="numeric"
+              placeholder="cal"
+              value={rows[roundNumber]?.machineCalories ?? ''}
+              onChange={(e) => setCell(roundNumber, 'machineCalories', e.target.value)}
+            />
+            <select
+              aria-label={`Round ${roundNumber} carry RPE (optional)`}
+              style={{ ...inp, padding: '6px 2px', textAlign: 'center', fontSize: 11 }}
+              value={rows[roundNumber]?.carryRpe ?? ''}
+              onChange={(e) => setCell(roundNumber, 'carryRpe', e.target.value)}
+            >
+              <option value="">–</option>
+              {RPE_OPTIONS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </Fragment>
+        ))}
+      </div>
       <DoneButton ready={readyForDone} saving={saving} onClick={save} />
       {err && <div style={{ marginTop: 8, fontSize: 12, color: C.red }}>Couldn't save — {err}</div>}
     </div>

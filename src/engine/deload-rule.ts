@@ -1,6 +1,6 @@
 // Reactive deload rule. Signals across a training week:
-//   S1 any-day top set R9.5+         S2 volume block incomplete
-//   S3 carry skipped due to fatigue  S5 bar speed ↓ on top set in 2+ sessions
+//   S1 any-day top set R9.5+           S2 volume block incomplete
+//   S3 Engine WOD skipped (fatigue)    S5 bar speed ↓ on top set in 2+ sessions
 //   S7 giant block not completed as prescribed
 // TRIGGER: 3+ total occurrences spanning at least 2 different sessions.
 // (3 occurrences = severity; 2 sessions = a pattern, not one bad day.)
@@ -36,7 +36,7 @@ export function computeWeekSignals(weekSessions: Session[]): WeekSignals {
       occurrences++
       hit = true
     }
-    if (s.carrySkipped && s.carrySkipReason === 'fatigue') {
+    if (s.wodSkipped && s.wodSkipReason === 'fatigue') {
       types.add('S3')
       occurrences++
       hit = true

@@ -25,11 +25,8 @@ function base(over = {}) {
     volRpe: 'R8',
     volSpeed: 'normal',
     pullupCluster: '',
-    carrySkipped: false,
-    carrySkipReason: '',
-    carryRounds: 3,
-    carryDistance: 30,
-    carryRpe: 'R6',
+    wodSkipped: false,
+    wodSkipReason: '',
     notes: 'felt strong',
     startedAt: '2026-10-05T09:00:00.000Z',
     endedAt: '2026-10-05T10:12:00.000Z',
@@ -41,9 +38,21 @@ const ACC = { 3: { carry_squat: 68 } }
 // at ITS OWN difficulty off this grid, never off the Giant block's topWeight.
 const W_SQUAT = { 3: { squat: { hard: 130, medium: 123.5, light: 117.5 } } }
 
-test('full squat day: header, ladder, completion, accessory, volume, carry, duration, notes', () => {
+// A full 5-round Engine WOD (squat = lower day, Row/Ski choice; the test
+// fixture logs Row for all 5 rounds — machine_type is one selector for the
+// whole session, not a per-round input, even though the schema stores it
+// per round).
+const WOD_LOGS = [
+  { sessionId: '2026-10-05-squat', roundNumber: 1, machineType: 'row', machineCalories: 12, carryRpe: 'R6' },
+  { sessionId: '2026-10-05-squat', roundNumber: 2, machineType: 'row', machineCalories: 13, carryRpe: 'R6' },
+  { sessionId: '2026-10-05-squat', roundNumber: 3, machineType: 'row', machineCalories: 11, carryRpe: '' },
+  { sessionId: '2026-10-05-squat', roundNumber: 4, machineType: 'row', machineCalories: 12, carryRpe: 'R7' },
+  { sessionId: '2026-10-05-squat', roundNumber: 5, machineType: 'row', machineCalories: 10, carryRpe: '' },
+]
+
+test('full squat day: header, ladder, completion, accessory, volume, Engine WOD (rounds + total), duration, notes', () => {
   assert.equal(
-    sessionSummary(base(), 4, ACC, W_SQUAT),
+    sessionSummary(base(), 4, ACC, W_SQUAT, false, undefined, { movements: [], hypertrophyLogs: [], olyLogs: [], wodLogs: WOD_LOGS }),
     [
       'Session — M4C3W1 — Squat Hard — 05.10.2026',
       'Giant Block:',
@@ -52,7 +61,13 @@ test('full squat day: header, ladder, completion, accessory, volume, carry, dura
       '  Completion: Completed as prescribed ✓',
       '  Ab-Roll: 10 reps (BW)',
       'Volume Block: 2×6 @ 105 | R8 | →', // volumeWeight(squat's OWN hard day-top 130) = 105
-      'Carry: Sandbag Bear Hug 68 kg | 3×30m | R6', // cycle 3 = Carries — no Capability note
+      'Engine WOD: Sandbag Bear Hug 68 kg · Row Erg/Ski Erg · rest 75s', // cycle 3 = Engine WOD, week 1 rest
+      '  R1: 12 cal | carry R6',
+      '  R2: 13 cal | carry R6',
+      '  R3: 11 cal',
+      '  R4: 12 cal | carry R7',
+      '  R5: 10 cal',
+      '  Total: 58 cal',
       'Duration: 72 min',
       'Notes: felt strong',
     ].join('\n')
@@ -64,32 +79,30 @@ test('completion reason shows its categorical label; legacy blank = completed', 
   assert.match(sessionSummary(base({ blockCompletion: '' }), 4, ACC), /Completion: Completed as prescribed ✓/)
 })
 
-test('without accessory data: carry falls back to the descriptive default', () => {
+test('without accessory data: Engine WOD carry segment falls back to the descriptive default', () => {
   const out = sessionSummary(base(), 4) // no accessory arg
-  assert.match(out, /\nCarry: Sandbag Bear Hug 68 kg \| 3×30m \| R6/) // DAY_META default load
+  assert.match(out, /\nEngine WOD: Sandbag Bear Hug 68 kg · Row Erg\/Ski Erg · rest 75s/) // DAY_META default load
 })
 
 test('carry mapping: DL = Farmer (per hand), OHP = Overhead, Bench = Suitcase (per hand)', () => {
-  // cycle 3 = Carries — a real training-week session always has a cycle; null
-  // was never a valid (weekType: 'training', cycle: null) combination.
-  assert.match(sessionSummary(base({ dayType: 'deadlift', cycle: 3, week: 1 }), 4), /\nCarry: Farmer's Carry 60 kg \/ hand \| 3×30m \| R6/)
-  assert.match(sessionSummary(base({ dayType: 'ohp', cycle: 3, week: 1 }), 4), /\nCarry: Overhead Carry 2 × 20 kg \| 3×30m \| R6/)
-  assert.match(sessionSummary(base({ dayType: 'bench', cycle: 3, week: 1 }), 4), /\nCarry: Suitcase Carry 50 kg \/ hand \| 3×30m \| R6/)
+  // cycle 3 = Engine WOD — a real training-week session always has a cycle;
+  // null was never a valid (weekType: 'training', cycle: null) combination.
+  assert.match(sessionSummary(base({ dayType: 'deadlift', cycle: 3, week: 1 }), 4), /\nEngine WOD: Farmer's Carry 60 kg \/ hand · Row Erg\/Ski Erg · rest 75s/)
+  assert.match(sessionSummary(base({ dayType: 'ohp', cycle: 3, week: 1 }), 4), /\nEngine WOD: Overhead Carry 2 × 20 kg · Bike Erg · rest 75s/)
+  assert.match(sessionSummary(base({ dayType: 'bench', cycle: 3, week: 1 }), 4), /\nEngine WOD: Suitcase Carry 50 kg \/ hand · Bike Erg · rest 75s/)
 })
 
-test('Carry only ever renders in C3 — no Carry line in C1/C2 even with leftover default carry fields', () => {
-  // buildBlankSession defaults carryRounds to 3 (never null) regardless of
-  // cycle — the gate must be the active cycle's program, not field presence.
+test('Engine WOD only ever renders in C1/C2 — no Engine WOD line there, even with a leftover wodSkipped default', () => {
   const c1 = base({ cycle: 1, week: 1 })
-  assert.doesNotMatch(sessionSummary(c1, 4, ACC), /Carry:/)
+  assert.doesNotMatch(sessionSummary(c1, 4, ACC), /Engine WOD:/)
   const c2 = base({ cycle: 2, week: 1 })
-  assert.doesNotMatch(sessionSummary(c2, 4, ACC), /Carry:/)
+  assert.doesNotMatch(sessionSummary(c2, 4, ACC), /Engine WOD:/)
 })
 
-test('skipped carry shows the name + reason, drops detail', () => {
-  const out = sessionSummary(base({ carrySkipped: true, carrySkipReason: 'fatigue' }), 4, ACC)
-  assert.match(out, /\nCarry: Sandbag Bear Hug — skipped \(fatigue\)/)
-  assert.doesNotMatch(out, /3×30m/)
+test('skipped Engine WOD shows just the skip + reason, no round detail', () => {
+  const out = sessionSummary(base({ wodSkipped: true, wodSkipReason: 'fatigue' }), 4, ACC)
+  assert.match(out, /\nEngine WOD: skipped \(fatigue\)/)
+  assert.doesNotMatch(out, /R1:|cal/)
 })
 
 test('incomplete volume + unlogged RPE/speed leave no residue', () => {
@@ -267,7 +280,7 @@ test('reactive-deload week: Deload header + ~70% context line, full body kept', 
   const out = sessionSummary(base(), 4, ACC, undefined, true)
   assert.match(out, /^Deload — M4C3W1 — Squat Hard — 05.10.2026\nGiant Block:\n {2}\(reactive deload week — loads ~70%\)\n/)
   assert.match(out, /Sets: 8@110/) // full logged body still present
-  assert.match(out, /Carry: Sandbag Bear Hug/)
+  assert.match(out, /Engine WOD: Sandbag Bear Hug/)
 })
 
 test('the scheduled end-of-macro deload is a REAL session summary, with no Volume Block line and no C3W4 note', () => {

@@ -5,7 +5,7 @@ import { SessionModal } from './SessionModal'
 import { enumerateMacro, parseLocalDate, isoLocal, mondayOf, todayISO } from '../engine/date-engine'
 import { LIFT_SHORT } from '../engine/constants'
 import { fmt } from '../engine/loading'
-import type { MacroCell, Session, SessionDraft, WeightsByCycle, AccessoryByCycle, DeloadMap, BreakDayMap, GiantAccessoryReps, Giant2DifficultyConfig, HypertrophyLog, HypertrophyLogDraft, OlyLog, OlyLogDraft } from '../engine/types'
+import type { MacroCell, Session, SessionDraft, WeightsByCycle, AccessoryByCycle, DeloadMap, BreakDayMap, GiantAccessoryReps, Giant2DifficultyConfig, HypertrophyLog, HypertrophyLogDraft, OlyLog, OlyLogDraft, WodLog, WodLogDraft } from '../engine/types'
 import type { Movement } from '../engine/movements'
 
 function shortDate(iso: string): string {
@@ -35,12 +35,14 @@ interface CalendarProps {
   // Weekly Giant-difficulty rotation (Setup config, defaults merged).
   giant2Difficulty?: Giant2DifficultyConfig
   // The Capability block: the athlete's movement library + this macro's
-  // Hypertrophy/Oly logs + save handlers.
+  // Hypertrophy/Oly/Engine-WOD logs + save handlers.
   movements?: Movement[]
   hypertrophyLogs?: HypertrophyLog[]
   olyLogs?: OlyLog[]
+  wodLogs?: WodLog[]
   onSaveHypertrophyLog?: (log: HypertrophyLogDraft) => Promise<HypertrophyLog>
   onSaveOlyLog?: (log: OlyLogDraft) => Promise<OlyLog>
+  onSaveWodLog?: (log: WodLogDraft) => Promise<WodLog>
 }
 
 export function Calendar({
@@ -62,8 +64,10 @@ export function Calendar({
   movements = [],
   hypertrophyLogs = [],
   olyLogs = [],
+  wodLogs = [],
   onSaveHypertrophyLog,
   onSaveOlyLog,
+  onSaveWodLog,
 }: CalendarProps) {
   const shape = { weeks: macroWeeks, deloadExtended }
   const rows = enumerateMacro(startISO, macroNumber, shape, giant2Difficulty)
@@ -200,8 +204,10 @@ export function Calendar({
           movements={movements}
           hypertrophyLogs={hypertrophyLogs}
           olyLogs={olyLogs}
+          wodLogs={wodLogs}
           onSaveHypertrophyLog={onSaveHypertrophyLog}
           onSaveOlyLog={onSaveOlyLog}
+          onSaveWodLog={onSaveWodLog}
           onClose={() => setModal(null)}
         />
       )}

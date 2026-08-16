@@ -1,6 +1,6 @@
 // The Giant 2.0 session view — Primer -> Giant -> Volume -> Capability, each
 // rendered as an independent expand/collapse SessionCard. Capability content
-// is dispatched by CYCLE (Hypertrophy C1 / Oly C2 / Carries C3,
+// is dispatched by CYCLE (Hypertrophy C1 / Oly C2 / Engine WOD C3,
 // capabilityProgramFor) — null on deload (cycle unset).
 //
 // Two ways this form is used (see `sequential` below):
@@ -17,7 +17,7 @@ import { useEffect, useState } from 'react'
 import { C, inp, lbl } from './theme'
 import { Card } from './components'
 import { Row, LogRpe, DoneButton } from './controls'
-import { HypertrophyBlock, OlyBlock } from './CapabilityBlock'
+import { HypertrophyBlock, OlyBlock, WodBlock } from './CapabilityBlock'
 import { BlockCompletion as BlockCompletionPick } from './SessionForm'
 import { SessionCard } from './SessionCard'
 import type { CardStatus } from './SessionCard'
@@ -37,13 +37,12 @@ import {
   GIANT2_SECONDARY,
   GB_ACCESSORY,
   GIANT2_DAY_TYPE,
-  GIANT2_CARRY_RPE_GUIDANCE,
   DAY_META,
 } from '../engine/constants'
 import { fmt, giantSets, warmupSets, volumeWeight, deloadTop, liftMode } from '../engine/loading'
 import { clusterTotal, isUnbroken, meetsTarget } from '../engine/pullups'
 import { capabilityProgramFor } from '../engine/date-engine'
-import { isPrimerDone, isCooldownDone, isGiantDone, isVolumeDone, isCarriesDone, isHypertrophyDone, isOlyDone } from '../engine/session-progress'
+import { isPrimerDone, isCooldownDone, isGiantDone, isVolumeDone, isWodDone, isHypertrophyDone, isOlyDone } from '../engine/session-progress'
 import type { Movement } from '../engine/movements'
 import type {
   Difficulty,
@@ -55,6 +54,8 @@ import type {
   HypertrophyLogDraft,
   OlyLog,
   OlyLogDraft,
+  WodLog,
+  WodLogDraft,
 } from '../engine/types'
 
 interface Giant2SessionFormProps {
@@ -91,8 +92,10 @@ interface Giant2SessionFormProps {
     movements: Movement[]
     hypertrophyLogs: HypertrophyLog[] // this session's only (parent filters)
     olyLogs: OlyLog[] // this session's only (parent filters)
+    wodLogs: WodLog[] // this session's only (parent filters)
     onSaveHypertrophyLog: (log: HypertrophyLogDraft) => Promise<HypertrophyLog>
     onSaveOlyLog: (log: OlyLogDraft) => Promise<OlyLog>
+    onSaveWodLog: (log: WodLogDraft) => Promise<WodLog>
   } | null
 }
 
@@ -169,8 +172,8 @@ export function Giant2SessionForm({
     ? isHypertrophyDone(dayType, capability.movements, capability.hypertrophyLogs)
     : capabilityProgram === 'oly' && capability
     ? isOlyDone(dayType, capability.movements, capability.olyLogs)
-    : capabilityProgram === 'carries'
-    ? isCarriesDone(draft)
+    : capabilityProgram === 'wod'
+    ? isWodDone(draft, capability?.wodLogs ?? [])
     : true
 
   const doneMap: Record<CardId, boolean> = {
@@ -330,8 +333,8 @@ export function Giant2SessionForm({
       {showCapability && (
         <SessionCard
           letter="D"
-          title={capabilityProgram === 'hypertrophy' ? 'Hypertrophy' : capabilityProgram === 'oly' ? 'Oly' : 'Carry'}
-          tag={capabilityProgram === 'hypertrophy' ? '3 sets' : capabilityProgram === 'oly' ? 'technical work' : '10 min'}
+          title={capabilityProgram === 'hypertrophy' ? 'Hypertrophy' : capabilityProgram === 'oly' ? 'Oly' : 'Engine WOD'}
+          tag={capabilityProgram === 'hypertrophy' ? '3 sets' : capabilityProgram === 'oly' ? 'technical work' : '5 rounds'}
           status={statusFor('capability')}
           expanded={expandedFor('capability')}
           onHeaderClick={onHeaderClick('capability')}
@@ -357,55 +360,37 @@ export function Giant2SessionForm({
               onDone={() => closeAfterDone('capability')}
             />
           )}
-          {capabilityProgram === 'carries' && (
+          {capabilityProgram === 'wod' && (
             <>
-              <Row a={meta.carry.name} b={`${meta.carry.sets} sets · ${meta.carry.dist}`} c={carryDisplay} cls={C.off} />
-              <div style={{ fontSize: 11, color: C.muted, fontStyle: 'italic', margin: '6px 0' }}>Flat {GIANT2_CARRY_RPE_GUIDANCE} — position before load, distance before weight.</div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.off, marginTop: 8 }}>
-                <input type="checkbox" checked={draft.carrySkipped} onChange={(e) => setField('carrySkipped', e.target.checked)} /> Skipped
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.off, marginBottom: 8 }}>
+                <input type="checkbox" checked={draft.wodSkipped} onChange={(e) => setField('wodSkipped', e.target.checked)} /> Skipped
                 today
               </label>
-              {draft.carrySkipped && (
-                <div style={{ marginTop: 8 }}>
-                  <label style={lbl}>Reason</label>
-                  <select style={inp} value={draft.carrySkipReason} onChange={(e) => setField('carrySkipReason', e.target.value)}>
-                    <option value="">—</option>
-                    <option value="fatigue">Fatigue</option>
-                    <option value="schedule">Schedule / time</option>
-                  </select>
-                </div>
-              )}
-              {!draft.carrySkipped && (
+              {draft.wodSkipped && (
                 <>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
-                    <div style={{ flex: 1, minWidth: 70 }}>
-                      <label style={lbl}>Rounds</label>
-                      <input
-                        style={inp}
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={draft.carryRounds ?? ''}
-                        onChange={(e) => setField('carryRounds', e.target.value)}
-                      />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 120 }}>
-                      <label style={lbl}>Distance / round (m)</label>
-                      <input
-                        style={inp}
-                        type="number"
-                        min="0"
-                        step="1"
-                        inputMode="decimal"
-                        value={draft.carryDistance ?? ''}
-                        onChange={(e) => setField('carryDistance', e.target.value)}
-                      />
-                    </div>
+                  <div style={{ marginBottom: 8 }}>
+                    <label style={lbl}>Reason</label>
+                    <select style={inp} value={draft.wodSkipReason} onChange={(e) => setField('wodSkipReason', e.target.value)}>
+                      <option value="">—</option>
+                      <option value="fatigue">Fatigue</option>
+                      <option value="schedule">Schedule / time</option>
+                    </select>
                   </div>
-                  <LogRpe label="Carry" rpe={draft.carryRpe} speed={null} onRpe={(v) => setField('carryRpe', v)} />
+                  <DoneButton ready={doneMap.capability} saving={saving} onClick={() => handleCardDone('capability')} />
                 </>
               )}
-              <DoneButton ready={doneMap.capability} saving={saving} onClick={() => handleCardDone('capability')} />
+              {!draft.wodSkipped && capability && (
+                <WodBlock
+                  dayType={dayType}
+                  weekInCycle={weekInCycle ?? 1}
+                  sessionId={draft.id}
+                  carryName={meta.carry.name}
+                  carryLoad={carryDisplay}
+                  logs={capability.wodLogs}
+                  onSave={capability.onSaveWodLog}
+                  onDone={() => closeAfterDone('capability')}
+                />
+              )}
             </>
           )}
         </SessionCard>
