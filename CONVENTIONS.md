@@ -68,7 +68,13 @@ src/
                         era dispatch, there's only the one program
     SessionCard.tsx     the collapse/expand shell one card uses (locked/pending/active/done
                         visual states, collapsed `[Letter]. [Name] — [context] ✓ Done` row,
-                        clickable header in both expanded and collapsed form)
+                        clickable header in both expanded and collapsed form). Both states are
+                        animated in/out via an internal `AnimatedSwap` (grid-rows + opacity,
+                        200ms ease, matches gp-drawer-in/up; skips under prefers-reduced-motion)
+                        — a card only ever collapses on an explicit Done press, never from its
+                        fields alone becoming complete
+    usePrefersReducedMotion.ts  live `matchMedia` hook for `(prefers-reduced-motion: reduce)`,
+                        used by SessionCard's AnimatedSwap to skip/shorten its transition
     CapabilityBlock.tsx    HypertrophyBlock (per-SET Reps/Load table, GIANT2_HYPERTROPHY_SETS
                         rows per exercise, RPE shown as a static "–") / OlyBlock — the per-cycle
                         Capability sub-blocks; own Done button + save, call `onDone` on success
@@ -270,7 +276,8 @@ missed → red, today → gold, upcoming → muted, break → blue.
   (the generic per-card completion control — every card says "Done", gated on a `ready` prop),
   `blockTitle`, `speedArrow`, `antagDesc`, `fmtClock`, `errMsg` (unknown→message).
 - `theme.ts`: `cardStyle`, `btnPrimary`, `inp`, `lbl`, `pillColor` (all `CSSProperties`).
-- `useFocusTrap.ts` / `useWakeLock.ts`: dialog focus-trap + screen wake-lock hooks.
+- `useFocusTrap.ts` / `useWakeLock.ts` / `usePrefersReducedMotion.ts`: dialog focus-trap,
+  screen wake-lock, and live reduced-motion-preference hooks.
 
 **Navigation (`nav.tsx`):** a **fixed bottom icon bar** (`BottomNav`) is the primary nav —
 Today / Calendar / History / **Menu** (burger), thumb-reachable, `position: fixed; bottom: 0`,

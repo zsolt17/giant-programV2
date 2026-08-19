@@ -482,9 +482,18 @@ The full rebuild is shipped and deployed to GitHub Pages
   `engine/session-progress.ts` — Cooldown is optional, so nothing downstream gates on it)
   collapses it to a `✓ Done` summary and auto-expands the next card in sequence; a done card
   can be reopened to fix a mislogged entry without disturbing whichever card is currently
-  active. The deload week is a real logger too (§2.9). Bodyweight accessory, Volume off its
-  own independent difficulty, Capability dispatched by cycle — same content as before, just
-  card-wrapped. Optional session timer unchanged.
+  active. **No card ever auto-collapses just because its fields happen to be filled — only an
+  explicit Done press does** (2026-08-19 fix: Giant/Volume/the Engine WOD "skipped" path had
+  drifted from this — their readiness check reads live draft fields directly, which used to
+  flip the card straight to "done" the instant the last field was filled, before Done was ever
+  pressed; Primer/Cooldown/Hypertrophy/Oly/WOD's own per-round save were never affected, since
+  their completeness reads a persisted flag or saved backend data, not live fields — see
+  `Giant2SessionForm.tsx`'s `committed` state). Collapse and expand both animate — height (CSS
+  grid-rows, not JS-measured) and opacity easing together, ~200ms, matching the app's existing
+  drawer-reveal convention (`gp-drawer-in`/`gp-drawer-up`); skipped/shortened under
+  `prefers-reduced-motion`. The deload week is a real logger too (§2.9). Bodyweight accessory,
+  Volume off its own independent difficulty, Capability dispatched by cycle — same content as
+  before, just card-wrapped. Optional session timer unchanged.
 - **Calendar** — the program-week × 4-column grid (§7); log/edit/delete any session; mark
   breaks. The session modal uses the same five cards in a simpler free-toggle mode (no lock,
   no sequence — every card starts expanded, headers freely open/close regardless of done state).

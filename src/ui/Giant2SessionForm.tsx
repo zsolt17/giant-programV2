@@ -169,21 +169,42 @@ export function Giant2SessionForm({
   if (showCapability) cards.push('capability')
   cards.push('cooldown')
 
+  // "Ready" = the block's content is complete enough to press Done (live,
+  // reactive off the current draft/logs — this is what enables each Done
+  // BUTTON, and only that).
+  const giantReady = isGiantDone(draft, needsCluster)
+  const volumeReady = isVolumeDone(draft)
+  const wodSkipReady = !!draft.wodSkipped && !!draft.wodSkipReason
+
   const capabilityDone = !showCapability
     ? true
     : capabilityProgram === 'hypertrophy' && capability
     ? isHypertrophyDone(dayType, capability.movements, capability.hypertrophyLogs)
     : capabilityProgram === 'oly' && capability
     ? isOlyDone(dayType, capability.movements, capability.olyLogs)
-    : capabilityProgram === 'wod'
+    : capabilityProgram === 'wod' && !draft.wodSkipped
     ? isWodDone(draft, capability?.wodLogs ?? [])
     : true
 
+  // Giant/Volume/the WOD-skip path have no persisted or backend-driven
+  // "done" signal of their own (unlike Primer/Cooldown's stored flag, or
+  // Hypertrophy/Oly/WOD's own per-round backend data, which only updates
+  // once THAT block's internal Done button has actually saved) — their
+  // readiness check above reads live draft fields directly, which would
+  // otherwise flip the CARD to "done" (and silently collapse it) the
+  // instant the last field is filled, before Done is ever pressed. Track
+  // an explicit commit flag for these three: seeded from whatever was
+  // ALREADY true when this session loaded (a prior save — so reopening an
+  // already-done session still shows collapsed), then flipped true ONLY by
+  // an explicit Done press in handleCardDone below — never by fields alone.
+  const initialCommitted = () => ({ giant: isGiantDone(draft, needsCluster), volume: showVolume ? isVolumeDone(draft) : true, wodSkip: wodSkipReady })
+  const [committed, setCommitted] = useState(initialCommitted)
+
   const doneMap: Record<CardId, boolean> = {
     primer: isPrimerDone(draft),
-    giant: isGiantDone(draft, needsCluster),
-    volume: showVolume ? isVolumeDone(draft) : true,
-    capability: capabilityDone,
+    giant: committed.giant,
+    volume: showVolume ? committed.volume : true,
+    capability: draft.wodSkipped ? committed.wodSkip : capabilityDone,
     cooldown: isCooldownDone(draft),
   }
   const firstNotDone = cards.find((id) => !doneMap[id]) ?? null
@@ -196,6 +217,7 @@ export function Giant2SessionForm({
   useEffect(() => {
     setPeekCard(null)
     setOpenMap({ primer: true, giant: true, volume: true, capability: true, cooldown: true })
+    setCommitted(initialCommitted())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.id])
 
@@ -235,6 +257,12 @@ export function Giant2SessionForm({
   async function handleCardDone(id: CardId, patch?: Partial<SessionDraft>) {
     try {
       await onSaveCard(patch)
+      // Giant/Volume/the WOD-skip path have no persisted "done" signal of
+      // their own (see `committed` above) — an explicit Done press is what
+      // commits them, never the fields alone.
+      if (id === 'giant') setCommitted((p) => ({ ...p, giant: true }))
+      if (id === 'volume') setCommitted((p) => ({ ...p, volume: true }))
+      if (id === 'capability' && draft.wodSkipped) setCommitted((p) => ({ ...p, wodSkip: true }))
       closeAfterDone(id)
     } catch {
       // already surfaced via the page's own inline error banner
@@ -302,7 +330,7 @@ export function Giant2SessionForm({
             onChange={(v) => setField('pullupCluster', v)}
           />
         )}
-        <DoneButton ready={doneMap.giant} saving={saving} onClick={() => handleCardDone('giant')} />
+        <DoneButton ready={giantReady} saving={saving} onClick={() => handleCardDone('giant')} />
       </SessionCard>
 
       {/* C. Volume Block — independent difficulty from the Giant block's;
@@ -326,7 +354,7 @@ export function Giant2SessionForm({
             completed
           </label>
           <LogRpe label="Volume" rpe={draft.volRpe} speed={draft.volSpeed} onRpe={(v) => setField('volRpe', v)} onSpeed={(v) => setField('volSpeed', v)} />
-          <DoneButton ready={doneMap.volume} saving={saving} onClick={() => handleCardDone('volume')} />
+          <DoneButton ready={volumeReady} saving={saving} onClick={() => handleCardDone('volume')} />
         </SessionCard>
       )}
 
@@ -380,7 +408,7 @@ export function Giant2SessionForm({
                       <option value="schedule">Schedule / time</option>
                     </select>
                   </div>
-                  <DoneButton ready={doneMap.capability} saving={saving} onClick={() => handleCardDone('capability')} />
+                  <DoneButton ready={wodSkipReady} saving={saving} onClick={() => handleCardDone('capability')} />
                 </>
               )}
               {!draft.wodSkipped && capability && (

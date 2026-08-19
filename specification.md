@@ -70,10 +70,12 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 - **Today** — date-computed position; the session renders as **five independent expandable
   cards** (A. Primer / B. Giant / C. Volume / D. Capability / E. Cooldown, always this order —
   E always renders). Pre-start, all five are expanded with fields locked; Start Session
-  collapses them and auto-expands Primer, unlocked. Each card's Done button (disabled until
-  that block's own required fields are filled — Cooldown's is optional, so nothing gates on
-  it) collapses it to a one-line `✓ Done` summary and auto-expands the next card in sequence;
-  tapping a done card reopens it to fix a mislogged entry without disturbing whatever card is
+  collapses them and auto-expands Primer, unlocked. Each card's Done button enables once that
+  block's own required fields are filled (Cooldown's is optional, so nothing gates on it), but
+  **only pressing Done** collapses the card to a one-line `✓ Done` summary and auto-expands the
+  next card in sequence — filling fields alone never auto-collapses a card. Collapse and expand
+  both animate (height + opacity ease together, ~200ms, skipped under `prefers-reduced-motion`).
+  Tapping a done card reopens it to fix a mislogged entry without disturbing whatever card is
   currently active. Calendar's session modal gets the same five cards in a simpler free-toggle
   mode (no lock, no sequence). **Optional session timer:** Start → live timer → End, duration
   derived from `started_at`/`ended_at`, 90-min auto-end safeguard, manual duration edit.
@@ -113,6 +115,43 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 ---
 
 ## Change log
+
+## 2026-08-19 (later) (Fix: inconsistent Today-card collapse behavior + collapse/expand animation)
+- `fix`: **every Today-tab card now collapses only on an explicit Done press, never from its
+  fields alone becoming complete.** Audited all five blocks against the rule from the original
+  Today-tab redesign; contrary to the initial guess (that the checklist-style blocks Primer/
+  Cooldown were the offenders), those two — plus Hypertrophy/Oly/the Engine WOD's own per-round
+  save — were already correct, since their completeness reads a persisted flag or saved backend
+  data. The actual bug was in Giant/Volume/the WOD's "skipped" path (`Giant2SessionForm.tsx`):
+  their readiness check reads live `draft` fields directly, which fed straight into the card's
+  `doneMap` and silently auto-collapsed the card the instant the last field was filled, before
+  Done was ever pressed. Fixed by splitting "ready" (live, reactive, drives only the Done
+  BUTTON's enabled state) from a new explicit `committed` state (drives the CARD's collapse,
+  seeded from whatever was already true on session load, flipped true only inside
+  `handleCardDone`'s Done-press handler) for those three.
+- `feat`: **collapse and expand now animate**, symmetrically — since Done collapses the current
+  card and opens the next one as one combined action, animating only one side would look broken.
+  `SessionCard.tsx` gained an internal `AnimatedSwap` wrapper: height (CSS `grid-template-rows`
+  0fr↔1fr — the CSS-only way to animate to/from an unknown "auto" height) and opacity ease
+  together over 200ms, matching the app's existing drawer-reveal convention
+  (`gp-drawer-in`/`gp-drawer-up` in `global.css`) rather than inventing a new one. A hidden card
+  genuinely unmounts once its hide-transition finishes (`onTransitionEnd`, with a `setTimeout`
+  safety net for the rare case the event doesn't fire) — same mount/unmount timing as before,
+  just animated around it — so no block's internal form-reset-on-reopen behavior changed.
+  Respects `prefers-reduced-motion` via a new live-tracking `usePrefersReducedMotion.ts` hook
+  (skips the animation and unmounts/mounts immediately).
+- Verified: typecheck clean, 151 unit tests passing (unchanged — this is a pure UI/state-timing
+  change, no engine/data logic touched), build clean. Manual verification via an interactive
+  harness mirroring the real `committed`/`doneMap` state machine (served through the dev server,
+  per this session's established file:// sandboxing workaround): confirmed filling Giant's
+  fields alone enables its Done button but leaves the card expanded, and only pressing Done
+  collapses it and opens the next card — the exact bug scenario — plus the equivalent
+  checklist-style check for Primer. The animation's CSS (200ms duration on both
+  `grid-template-rows` and `opacity`) and the pane-count settling from 4 panes to 2 after a
+  Done press were confirmed via DOM/style inspection; a pixel-level rendered capture could not
+  be taken in this environment — its Browser-pane tooling does not composite frames /
+  fire `requestAnimationFrame` callbacks in this sandbox — so the state-machine and CSS-property
+  correctness were verified directly instead.
 
 ## 2026-08-19 (Feature: Hypertrophy "last logged" ghost placeholders)
 - `feat`: **Hypertrophy's Load and RPE fields show the last logged value for that EXACT
