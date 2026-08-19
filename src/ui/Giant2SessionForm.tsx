@@ -91,6 +91,9 @@ interface Giant2SessionFormProps {
   capability?: {
     movements: Movement[]
     hypertrophyLogs: HypertrophyLog[] // this session's only (parent filters)
+    // The macro's FULL Hypertrophy history (unfiltered by session) — only
+    // for "last logged" ghost placeholders, never written to.
+    hypertrophyHistory: HypertrophyLog[]
     olyLogs: OlyLog[] // this session's only (parent filters)
     wodLogs: WodLog[] // this session's only (parent filters)
     onSaveHypertrophyLog: (log: HypertrophyLogDraft) => Promise<HypertrophyLog>
@@ -345,6 +348,7 @@ export function Giant2SessionForm({
               sessionId={draft.id}
               movements={capability.movements}
               logs={capability.hypertrophyLogs}
+              hypertrophyHistory={capability.hypertrophyHistory}
               onSave={capability.onSaveHypertrophyLog}
               onDone={() => closeAfterDone('capability')}
             />

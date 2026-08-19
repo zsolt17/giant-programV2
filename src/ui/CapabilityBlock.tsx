@@ -27,6 +27,7 @@ import {
   RPE_OPTIONS,
 } from '../engine/constants'
 import { isHypertrophyDone, isOlyDone, isWodDone } from '../engine/session-progress'
+import { lastHypertrophySetLog } from '../engine/capability-record'
 import type { Movement } from '../engine/movements'
 import type { Lift, HypertrophyLog, HypertrophyLogDraft, OlyLog, OlyLogDraft, WodLog, WodLogDraft, MachineType } from '../engine/types'
 
@@ -37,6 +38,11 @@ interface HypertrophyBlockProps {
   sessionId: string
   movements: Movement[]
   logs: HypertrophyLog[] // this session's existing logs only (parent filters)
+  // The macro's FULL Hypertrophy log history (unfiltered by session) — same
+  // already-loaded array as `logs` derives from, just not narrowed down to
+  // today. Used only to look up "last logged" ghost placeholders; never
+  // written to.
+  hypertrophyHistory: HypertrophyLog[]
   onSave: (log: HypertrophyLogDraft) => Promise<HypertrophyLog>
   onDone?: () => void
 }
@@ -47,7 +53,7 @@ interface HypertrophyBlockProps {
 // reps/load's weight-optional exemption logic.
 type HypertrophyRows = Record<string, Record<number, { weight: number | string; reps: number | string; rpe: string }>>
 
-export function HypertrophyBlock({ dayType, sessionId, movements, logs, onSave, onDone }: HypertrophyBlockProps) {
+export function HypertrophyBlock({ dayType, sessionId, movements, logs, hypertrophyHistory, onSave, onDone }: HypertrophyBlockProps) {
   const items = resolveItems(SEED_HYPERTROPHY_KEYS[dayType] || [], movements)
   const [rows, setRows] = useState<HypertrophyRows>(() =>
     Object.fromEntries(
@@ -139,44 +145,76 @@ export function HypertrophyBlock({ dayType, sessionId, movements, logs, onSave, 
               <span style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'center' }}>Reps</span>
               <span style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'center' }}>Load</span>
               <span style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'center' }}>RPE</span>
-              {SET_NUMBERS.map((setNumber) => (
-                <Fragment key={setNumber}>
-                  <span style={{ fontSize: 12, color: C.muted }}>{setNumber}</span>
-                  <input
-                    aria-label={`${it.seed?.name} set ${setNumber} reps`}
-                    style={{ ...inp, padding: '6px', textAlign: 'center' }}
-                    type="number"
-                    step="1"
-                    inputMode="numeric"
-                    placeholder="reps"
-                    value={rows[it.key]?.[setNumber]?.reps ?? ''}
-                    onChange={(e) => setCell(it.key, setNumber, 'reps', e.target.value)}
-                  />
-                  <input
-                    aria-label={`${it.seed?.name} set ${setNumber} load (kg)${it.seed?.weightOptional ? ' — optional' : ''}`}
-                    style={{ ...inp, padding: '6px', textAlign: 'center' }}
-                    type="number"
-                    step="2.5"
-                    inputMode="decimal"
-                    placeholder={it.seed?.weightOptional ? 'optional' : 'kg'}
-                    value={rows[it.key]?.[setNumber]?.weight ?? ''}
-                    onChange={(e) => setCell(it.key, setNumber, 'weight', e.target.value)}
-                  />
-                  <select
-                    aria-label={`${it.seed?.name} set ${setNumber} RPE (optional)`}
-                    style={{ ...inp, padding: '6px 2px', textAlign: 'center', fontSize: 11 }}
-                    value={rows[it.key]?.[setNumber]?.rpe ?? ''}
-                    onChange={(e) => setCell(it.key, setNumber, 'rpe', e.target.value)}
-                  >
-                    <option value="">–</option>
-                    {RPE_OPTIONS.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                </Fragment>
-              ))}
+              {SET_NUMBERS.map((setNumber) => {
+                // "Last logged" ghost — the prior entry for this EXACT
+                // exercise+set (never this session's own), used purely for
+                // display. Load is a real text input, so the browser's own
+                // placeholder mechanism does the whole job: never part of
+                // the field's value, can't be saved, can't read as "filled."
+                // RPE is a controlled <select> (no native placeholder
+                // concept) — see the overlay below.
+                const lastLog = lastHypertrophySetLog(hypertrophyHistory, it.movementId, setNumber, sessionId)
+                const rpeValue = rows[it.key]?.[setNumber]?.rpe ?? ''
+                const rpeGhost = rpeValue === '' ? lastLog?.rpe || '' : ''
+                return (
+                  <Fragment key={setNumber}>
+                    <span style={{ fontSize: 12, color: C.muted }}>{setNumber}</span>
+                    <input
+                      aria-label={`${it.seed?.name} set ${setNumber} reps`}
+                      style={{ ...inp, padding: '6px', textAlign: 'center' }}
+                      type="number"
+                      step="1"
+                      inputMode="numeric"
+                      placeholder="reps"
+                      value={rows[it.key]?.[setNumber]?.reps ?? ''}
+                      onChange={(e) => setCell(it.key, setNumber, 'reps', e.target.value)}
+                    />
+                    <input
+                      aria-label={`${it.seed?.name} set ${setNumber} load (kg)${it.seed?.weightOptional ? ' — optional' : ''}`}
+                      style={{ ...inp, padding: '6px', textAlign: 'center' }}
+                      type="number"
+                      step="2.5"
+                      inputMode="decimal"
+                      placeholder={lastLog?.weight != null ? String(lastLog.weight) : it.seed?.weightOptional ? 'optional' : 'kg'}
+                      value={rows[it.key]?.[setNumber]?.weight ?? ''}
+                      onChange={(e) => setCell(it.key, setNumber, 'weight', e.target.value)}
+                    />
+                    <div style={{ position: 'relative' }}>
+                      <select
+                        aria-label={`${it.seed?.name} set ${setNumber} RPE (optional)${rpeGhost ? ` — last time ${rpeGhost}` : ''}`}
+                        style={{ ...inp, padding: '6px 2px', textAlign: 'center', fontSize: 11, position: 'relative', color: rpeGhost ? 'transparent' : C.white }}
+                        value={rpeValue}
+                        onChange={(e) => setCell(it.key, setNumber, 'rpe', e.target.value)}
+                      >
+                        <option value="">–</option>
+                        {RPE_OPTIONS.map((r) => (
+                          <option key={r} value={r}>
+                            {r}
+                          </option>
+                        ))}
+                      </select>
+                      {rpeGhost && (
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            position: 'absolute',
+                            inset: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 11,
+                            fontStyle: 'italic',
+                            color: C.muted,
+                            pointerEvents: 'none',
+                          }}
+                        >
+                          {rpeGhost}
+                        </span>
+                      )}
+                    </div>
+                  </Fragment>
+                )
+              })}
             </div>
           </div>
         ))

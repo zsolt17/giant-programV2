@@ -145,6 +145,7 @@ export function SessionModal({
       ? {
           movements,
           hypertrophyLogs: hypertrophyLogs.filter((l) => l.sessionId === sessionId),
+          hypertrophyHistory: hypertrophyLogs,
           olyLogs: olyLogs.filter((l) => l.sessionId === sessionId),
           wodLogs: wodLogs.filter((l) => l.sessionId === sessionId),
           onSaveHypertrophyLog: async (l: HypertrophyLogDraft) => {

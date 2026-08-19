@@ -39,6 +39,10 @@ import type { Movement } from '../engine/movements'
 interface CapabilityCtx {
   movements: Movement[]
   hypertrophyLogs: HypertrophyLog[]
+  // The macro's FULL Hypertrophy history (unfiltered by session) — same
+  // already-loaded array `hypertrophyLogs` above derives from, just not
+  // narrowed to today. "Last logged" ghost placeholders only, never saved.
+  hypertrophyHistory: HypertrophyLog[]
   olyLogs: OlyLog[]
   wodLogs: WodLog[]
   onSaveHypertrophyLog: (log: HypertrophyLogDraft) => Promise<HypertrophyLog>
@@ -254,6 +258,7 @@ export function Today({
       ? {
           movements,
           hypertrophyLogs: hypertrophyLogs.filter((l) => l.sessionId === sessionId),
+          hypertrophyHistory: hypertrophyLogs,
           olyLogs: olyLogs.filter((l) => l.sessionId === sessionId),
           wodLogs: wodLogs.filter((l) => l.sessionId === sessionId),
           onSaveHypertrophyLog,
@@ -597,6 +602,7 @@ function SessionEditor({
     ? {
         movements: capabilityCtx.movements,
         hypertrophyLogs: capabilityCtx.hypertrophyLogs,
+        hypertrophyHistory: capabilityCtx.hypertrophyHistory,
         olyLogs: capabilityCtx.olyLogs,
         wodLogs: capabilityCtx.wodLogs,
         onSaveHypertrophyLog: async (l: HypertrophyLogDraft) => {

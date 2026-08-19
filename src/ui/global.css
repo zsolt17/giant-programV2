@@ -17,6 +17,15 @@ textarea,
 button {
   font-family: inherit;
 }
+/* Ghost/placeholder text app-wide (incl. Hypertrophy's "last logged" Load
+   placeholder) — grey, italic, so it reads as a hint, never as entered data.
+   Firefox default placeholder opacity is <1 on top of its own color; pin to
+   1 so the color above is the whole story, not a second dimming layer. */
+::placeholder {
+  color: #8a9bb0;
+  font-style: italic;
+  opacity: 1;
+}
 /* Visible keyboard focus indicator (gold ring). :focus-visible keeps it to
    keyboard/AT users — mouse clicks don't get a ring. The `inp` style no longer
    sets inline outline:none, so this rule can apply to inputs too. */

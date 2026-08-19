@@ -114,6 +114,38 @@ at login), GitHub Actions (Pages build + deploy — `.github/workflows/deploy.ym
 
 ## Change log
 
+## 2026-08-19 (Feature: Hypertrophy "last logged" ghost placeholders)
+- `feat`: **Hypertrophy's Load and RPE fields show the last logged value for that EXACT
+  exercise + set number as a grey/italic ghost while empty** (Set 1 never shows Set 2's
+  history). Scoped to Hypertrophy only — Oly's quality mark and Carries' flat RPE-6 don't have
+  the same "what did I do last time" progression-reference use case.
+  - **Load** (a real `<input>`): the native `placeholder` attribute does the whole job — set to
+    the last logged weight when one exists (falling back to the existing `'kg'`/`'optional'`
+    hint otherwise), styled via a new global `::placeholder` rule (grey, italic, opacity
+    pinned to 1 for Firefox parity). No pre-fill, no dirty flag: placeholder text is never part
+    of the field's real value, so it can't be saved and can't read as "filled" by the existing
+    Done-button check.
+  - **RPE** (a controlled `<select>` — no native placeholder concept): a non-interactive
+    absolute-positioned overlay shows the ghost value while the select's real bound value is
+    still `''`; the select's OWN value is the single source of truth for "committed" — no
+    separate flag, and no inference from "does the shown number match the ghost" (deliberately
+    repeating last time's RPE must still read as committed). Picking the ghost's own number
+    from the dropdown is a real change from `''`, so it commits correctly even when it lands on
+    the same value.
+  - `lastHypertrophySetLog` (`capability-record.ts`) does the lookup — ranked by `updated_at`,
+    excluding the session being edited, over the SAME macro-scoped `hypertrophyLogs` array
+    already loaded for the block (a new `hypertrophyHistory` prop threads the unfiltered view
+    of it through `Today.tsx`/`SessionModal.tsx`/`Giant2SessionForm.tsx`) — no second query,
+    per the explicit ask not to reopen the stale-read risk the daily-record fix had already
+    closed.
+- Verified: 5 new unit tests for `lastHypertrophySetLog` (151 total, was 146), build clean,
+  smoke test 75/75 (unaffected — this is a pure read-side/UI change, no schema touched). Manual
+  verification via an interactive harness mirroring the real component's exact state model
+  (file:// scripts are sandboxed in this environment, so served through the dev server instead):
+  confirmed all 5 required scenarios — fresh-day ghost display, focus+blur-with-no-typing stays
+  genuinely empty, typed value persists and replaces the ghost, picking RPE's own ghost value
+  commits it, and the Done gate stays locked with only ghosts showing.
+
 ## 2026-08-13 (Feature: C3 Capability → "Engine WOD", replacing isolated carry logging)
 - `feat`: **C3's Capability block is now a structured conditioning WOD, not isolated carry
   logging.** 5 rounds of {carry segment (day's implement, `:45` continuous, flat RPE 6 guidance,

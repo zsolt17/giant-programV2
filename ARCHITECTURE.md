@@ -187,6 +187,20 @@ free-text `note`) when only reps matter — Hip/Back Extension is the current ex
 | Deadlift | Front-Foot-Elevated Split Squat · Hip Thrust (3×15) · Leg Extension (3×15) | Hip Thrust+Leg Extension |
 | OHP | Flat DB Bench · Lat Pulldown (supinated) · Lateral Raise (3×15) · Rope Face Pull (seated, to top of head, 3×15) | Flat DB Bench+Lat Pulldown · Lateral Raise+Rope Face Pull |
 
+**"Last logged" ghost placeholders** (2026-08-19, Hypertrophy only — Oly's quality mark and
+Carries' flat RPE-6 don't have the same progression-reference use case): an empty Load field
+shows the last logged weight for that EXACT exercise + set number (Set 1 never shows Set 2's
+history) as native `placeholder` text, grey/italic via a global `::placeholder` rule — never
+part of the field's real value, so it can't be saved or misread as filled. RPE (a controlled
+`<select>`, no native placeholder concept) gets a non-interactive absolute-positioned overlay
+showing the same ghost styling while its real bound value is still `''`; the select's actual
+value is the single source of truth for "committed" — there's no separate flag, and no
+inference from "does the shown number match the ghost" (a session that deliberately repeats
+last time's RPE must still read as committed, not empty). `lastHypertrophySetLog`
+(`capability-record.ts`) does the lookup, ranked by `updated_at` — reusing the SAME
+macro-scoped `hypertrophyLogs` array already threaded through the block (a new
+`hypertrophyHistory` prop carries the unfiltered-by-session view of it), never a second query.
+
 **Superset display (a day can have 2+ pairs):** each pair renders in its own full bordered box
 (rounded corners, not just a left-edge accent line — a boundary reads unambiguously at a glance,
 a single line doesn't once two pairs sit back to back) with real vertical spacing between boxes.

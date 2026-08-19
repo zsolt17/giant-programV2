@@ -154,3 +154,20 @@ export function capabilityRecordFor(s: Session, logs: CapabilityLogs = EMPTY_LOG
   )
   return { program: 'oly', positionGuidance: s.week != null ? (GIANT2_OLY_POSITION_WAVE[s.week] ?? null) : null, exercises }
 }
+
+// The most recently entered log for one exercise+set, from a DIFFERENT
+// session than the one currently being edited — the "ghost" placeholder
+// shown while a field is still empty today (2026-08-19, Hypertrophy
+// placeholder feature). Ranked by `updated_at` (when the row was saved),
+// not the session's date, so no separate sessions/date cross-reference is
+// needed — this reads the SAME `hypertrophyLogs` array already loaded for
+// the block (macro-scoped, unfiltered by session), never a fresh query.
+export function lastHypertrophySetLog(logs: HypertrophyLog[], movementId: string | undefined, setNumber: number, excludeSessionId: string): HypertrophyLog | null {
+  if (!movementId) return null
+  let latest: HypertrophyLog | null = null
+  for (const l of logs) {
+    if (l.movementId !== movementId || l.setNumber !== setNumber || l.sessionId === excludeSessionId) continue
+    if (!latest || (l.updatedAt ?? '') > (latest.updatedAt ?? '')) latest = l
+  }
+  return latest
+}

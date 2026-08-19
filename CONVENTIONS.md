@@ -49,7 +49,9 @@ src/
     capability-record.ts  single source of truth for "what the Capability block contains
                    today" — cycle-dispatched (capabilityProgramFor), joined against
                    hypertrophy_logs/oly_logs/wod_logs; session-summary.ts and the live
-                   Capability card both build on it (see ARCHITECTURE.md §2.7)
+                   Capability card both build on it (see ARCHITECTURE.md §2.7). Also
+                   lastHypertrophySetLog — the "last logged" ghost-placeholder lookup
+                   (Hypertrophy Load/RPE, §2.7), ranked by updated_at
     session-summary.ts  pure Session -> plain-text share summary (Data page "Copy")
     recovery-content.ts  static Recovery content (joints/tendons/exercises + 64x64 SVGs, PHASE_DOSE)
     recovery.ts    local-date phase/day helpers for Recovery (suggestedPhase/effectivePhase/protocolDay)
